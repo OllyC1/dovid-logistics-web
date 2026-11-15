@@ -33,8 +33,20 @@ function eventResourceId(event: WebhookEvent, raw: string) {
 
 export async function POST(request: NextRequest) {
   const raw = await request.text();
-  const signatureValid = verifyPaystackWebhookSignature(raw, { paystackSignature: request.headers.get("paystack-signature"), legacySignature: request.headers.get("x-paystack-signature") });
-  if (!signatureValid) return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+  const paystackSignature = request.headers.get("paystack-signature");
+  const legacySignature = request.headers.get("x-paystack-signature");
+  const signatureValid = verifyPaystackWebhookSignature(raw, { paystackSignature, legacySignature });
+  const signatureMetadata = {
+    paystackUserAgent: request.headers.get("user-agent") === "Paystack/2.0",
+    hasTimestampedSignature: Boolean(paystackSignature),
+    timestampedSecretConfigured: Boolean(process.env.PAYSTACK_WEBHOOK_SECRET?.startsWith("whsec_")),
+    hasLegacySignature: Boolean(legacySignature)
+  };
+  if (!signatureValid) {
+    console.warn("Paystack webhook signature rejected", signatureMetadata);
+    return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+  }
+  console.info("Paystack webhook signature accepted", signatureMetadata);
   try {
     const event = JSON.parse(raw) as WebhookEvent;
     if (!event.event || !event.data) return NextResponse.json({ error: "Invalid webhook event" }, { status: 400 });

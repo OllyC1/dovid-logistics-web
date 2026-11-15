@@ -31,6 +31,30 @@ describe("Paystack client", () => {
     expect(verifyPaystackWebhookSignature(body, { paystackSignature: null, legacySignature: "not-hex" })).toBe(false);
   });
 
+  it("falls back to a valid legacy signature when both headers are present", () => {
+    process.env.PAYSTACK_SECRET_KEY = "sk_test_example";
+    delete process.env.PAYSTACK_WEBHOOK_SECRET;
+    const body = "{\"event\":\"charge.success\"}";
+    const timestamp = 1_800_000_000;
+    const legacySignature = createHmac("sha512", process.env.PAYSTACK_SECRET_KEY).update(body).digest("hex");
+
+    expect(verifyPaystackWebhookSignature(body, {
+      paystackSignature: `t=${timestamp},v1=whk_test:${"0".repeat(128)}`,
+      legacySignature
+    }, timestamp)).toBe(true);
+  });
+
+  it("rejects both headers when neither signature is valid", () => {
+    process.env.PAYSTACK_SECRET_KEY = "sk_test_example";
+    delete process.env.PAYSTACK_WEBHOOK_SECRET;
+    const timestamp = 1_800_000_000;
+
+    expect(verifyPaystackWebhookSignature("{}", {
+      paystackSignature: `t=${timestamp},v1=whk_test:${"0".repeat(128)}`,
+      legacySignature: "1".repeat(128)
+    }, timestamp)).toBe(false);
+  });
+
   it("initializes only a matching Paystack checkout URL and reference", async () => {
     process.env.PAYSTACK_SECRET_KEY = "sk_test_example";
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ status: true, data: { authorization_url: "https://checkout.paystack.com/test-code", access_code: "test-code", reference: "DOV-TEST-1" } }), { status: 200 })));

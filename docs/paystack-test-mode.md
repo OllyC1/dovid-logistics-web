@@ -5,7 +5,7 @@ The application uses Paystack hosted checkout. Payment initialization and verifi
 ## Required staging environment variables
 
 - `PAYSTACK_SECRET_KEY`: the Test Mode secret key beginning with `sk_test_`.
-- `PAYSTACK_WEBHOOK_SECRET`: the Test Mode webhook signing secret beginning with `whsec_`.
+- `PAYSTACK_WEBHOOK_SECRET`: the Test Mode webhook signing secret beginning with `whsec_`, when Paystack exposes signing-secret management for the account.
 - `PAYSTACK_WEBHOOK_SECRET_PREVIOUS`: optional previous `whsec_` value during a controlled signing-secret rotation overlap.
 - `NEXT_PUBLIC_APP_URL`: the exact HTTPS staging origin, without a trailing path.
 - `ENABLE_LIVE_PAYMENTS=false`.
@@ -18,7 +18,7 @@ The application rejects `sk_live_` credentials while live payments are disabled.
 
 1. Switch the Paystack Dashboard to **Test Mode** before copying credentials or reviewing events.
 2. Under **Developers → API configuration**, copy the Test Mode secret key into the server-only `PAYSTACK_SECRET_KEY` variable.
-3. Generate a Test Mode webhook signing secret and store the complete `whsec_` value in `PAYSTACK_WEBHOOK_SECRET`.
+3. If the dashboard exposes webhook signing-secret management, generate a Test Mode signing secret and store the complete `whsec_` value in `PAYSTACK_WEBHOOK_SECRET`. Do not invent this value or substitute the API secret key.
 4. Configure the webhook URL as `https://YOUR-STAGING-HOST/api/payments/webhook`. It must be public HTTPS, must not redirect, and must return a `2xx` response.
 5. Subscribe the endpoint to `charge.success`, `charge.failed`, `refund.pending`, `refund.processing`, `refund.needs-attention`, `refund.failed`, `refund.processed`, `charge.dispute.create`, `charge.dispute.remind`, and `charge.dispute.resolve`. If using the legacy single dashboard webhook, confirm these events appear in Test Mode event history.
 6. Ping the endpoint from the dashboard and confirm a successful signed `ping` delivery. Review delivery history and retry only after confirming application idempotency.
@@ -26,7 +26,7 @@ The application rejects `sk_live_` credentials while live payments are disabled.
 8. Keep the account settlement currency and every Dovid payment intent on `NGN`. Amounts are sent and checked in integer kobo.
 9. Configure Test Mode webhook failure alerts and an operational owner for refund and dispute events.
 
-During Paystack's transition to timestamped signatures, the endpoint accepts the current `Paystack-Signature` header and the legacy `x-paystack-signature` header. Timestamped signatures have a five-minute replay window. Remove legacy reliance only after Test Mode deliveries consistently include `Paystack-Signature`.
+During Paystack's transition to timestamped signatures, the endpoint accepts either a valid current `Paystack-Signature` header or a valid legacy `x-paystack-signature` header. Paystack documents that both headers are sent while the integration still has an API secret key. The verifier therefore checks the timestamped signature first and safely falls back to the independently verified legacy HMAC when no usable `whsec_` is configured. Timestamped signatures have a five-minute replay window. Remove legacy reliance only after the Test Mode signing secret is available and timestamped deliveries verify consistently.
 
 Paystack currently documents webhook source addresses `52.31.139.75`, `52.49.173.169`, and `52.214.14.220`. If the hosting firewall supports source allowlists, apply them in addition to signature verification, not instead of it.
 

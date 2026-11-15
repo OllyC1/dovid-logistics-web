@@ -64,12 +64,14 @@ export function verifyPaystackWebhookSignature(rawBody: string, headers: { payst
     const parts = headers.paystackSignature.split(",");
     const timestampValues = parts.filter(part => part.trim().startsWith("t=")).map(part => part.trim().slice(2));
     const signatures = parts.filter(part => part.trim().startsWith("v1=")).map(part => part.trim().slice(3)).filter(value => /^whk_[^:]+:[0-9a-f]{128}$/.test(value)).map(value => value.slice(value.indexOf(":") + 1));
-    if (timestampValues.length !== 1 || !/^\d+$/.test(timestampValues[0]) || Math.abs(nowSeconds - Number(timestampValues[0])) > 300) return false;
-    const secrets = [process.env.PAYSTACK_WEBHOOK_SECRET, process.env.PAYSTACK_WEBHOOK_SECRET_PREVIOUS].filter((value): value is string => Boolean(value?.startsWith("whsec_")));
-    return secrets.some(secret => {
-      const expected = createHmac("sha512", secret).update(`${timestampValues[0]}.${rawBody}`).digest();
-      return signatures.some(signature => safeHexEqual(expected, signature));
-    });
+    if (timestampValues.length === 1 && /^\d+$/.test(timestampValues[0]) && Math.abs(nowSeconds - Number(timestampValues[0])) <= 300) {
+      const secrets = [process.env.PAYSTACK_WEBHOOK_SECRET, process.env.PAYSTACK_WEBHOOK_SECRET_PREVIOUS].filter((value): value is string => Boolean(value?.startsWith("whsec_")));
+      const timestampedSignatureValid = secrets.some(secret => {
+        const expected = createHmac("sha512", secret).update(`${timestampValues[0]}.${rawBody}`).digest();
+        return signatures.some(signature => safeHexEqual(expected, signature));
+      });
+      if (timestampedSignatureValid) return true;
+    }
   }
   if (!headers.legacySignature) return false;
   const secretKey = process.env.PAYSTACK_SECRET_KEY;
