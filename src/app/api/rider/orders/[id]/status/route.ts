@@ -27,10 +27,9 @@ export async function POST(request:NextRequest,{params}:{params:Promise<{id:stri
     if(!canTransition(currentStatus,nextStatus))return NextResponse.json({error:"Invalid status transition"},{status:409});
     const admin=createSupabaseAdminClient();
     if(nextStatus==="delivered"){
-      const{data:cleared,error:clearanceError}=await admin.rpc("order_has_verified_payment_clearance",{target_order_id:id});
-      if(clearanceError||!cleared)return NextResponse.json({error:"All required delivery payments must be verified before handover"},{status:409});
-      const{data:proof}=await admin.from("delivery_proofs").select("id,payment_clearance_verified").eq("order_id",id).maybeSingle();
-      if(!proof?.payment_clearance_verified)return NextResponse.json({error:"Proof of delivery and verified payment clearance are required"},{status:409});
+      const {error}=await admin.rpc("complete_delivery_handover",{target_order_id:id,actor_id:auth.user.id,request_idempotency_key:parsed.data.idempotencyKey});
+      if(error)return NextResponse.json({error:error.message},{status:409});
+      return NextResponse.json({status:nextStatus});
     }
     const {error}=await admin.rpc("transition_delivery_order",{order_id:id,new_status:nextStatus,metadata:{source:"rider_workspace",actorUserId:auth.user.id,actorRole:auth.role}});
     if(error)return NextResponse.json({error:error.message},{status:409});

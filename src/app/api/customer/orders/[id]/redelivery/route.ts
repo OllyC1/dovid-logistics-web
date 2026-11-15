@@ -11,13 +11,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const parsed = schema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Complete the redelivery request." }, { status: 400 });
   const { id } = await params;
-  const admin = createSupabaseAdminClient();
-  const { data: order } = await admin.from("delivery_orders").select("id,customer_id").eq("id", id).maybeSingle();
-  if (!order || order.customer_id !== auth.user.id) return NextResponse.json({ error: "Order not found" }, { status: 404 });
-  const { data: attempt } = await admin.from("delivery_attempts").select("id").eq("id", parsed.data.deliveryAttemptId).eq("order_id", id).maybeSingle();
-  if (!attempt) return NextResponse.json({ error: "Delivery attempt not found" }, { status: 404 });
-  const { data, error } = await admin.from("redelivery_requests").insert({ order_id: id, delivery_attempt_id: attempt.id, requested_by: auth.user.id, requested_by_role: "customer", status: "requested", corrected_address: parsed.data.correctedAddress ?? null, corrected_latitude: parsed.data.correctedLatitude ?? null, corrected_longitude: parsed.data.correctedLongitude ?? null, scheduled_at: parsed.data.scheduledAt ?? null, charge_attribution: "under_review", idempotency_key: parsed.data.idempotencyKey }).select("id,status").single();
+  const { data, error } = await createSupabaseAdminClient().rpc("request_order_redelivery", { target_order_id: id, target_attempt_id: parsed.data.deliveryAttemptId, actor_id: auth.user.id, corrected_address: parsed.data.correctedAddress ?? null, corrected_latitude: parsed.data.correctedLatitude ?? null, corrected_longitude: parsed.data.correctedLongitude ?? null, requested_schedule: parsed.data.scheduledAt ?? null, request_idempotency_key: parsed.data.idempotencyKey });
   if (error) return NextResponse.json({ error: error.message }, { status: 409 });
-  return NextResponse.json({ ...data, customerCharged: false }, { status: 201 });
+  return NextResponse.json({ ...(data as { id: string; status: string }), customerCharged: false }, { status: 201 });
 }
 
