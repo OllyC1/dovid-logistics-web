@@ -1,0 +1,4 @@
+import { PricingConfigForm } from "@/components/admin/pricing-config-form";
+import type { FinancialConfig } from "@/features/pricing/types";
+import { requireRole } from "@/lib/auth/roles";
+export default async function CostConfigurationPage(){const{supabase}=await requireRole(["admin"]);const{data:active}=await supabase.from("pricing_configuration_versions").select("id,assumptions,pricing_configuration_id,version,change_reason").eq("status","active").single();if(!active)return <p>Active configuration unavailable.</p>;return <><h1 className="text-3xl font-extrabold text-navy">Cost configuration</h1><p className="mt-3 max-w-3xl text-slate">Editing creates a new version. It never changes historic quotes or confirmed orders. Activate the draft from Pricing History after review.</p><div className="mt-7 rounded-3xl bg-white p-6"><PricingConfigForm configurationId={active.pricing_configuration_id} config={active.assumptions as FinancialConfig}/></div></>}

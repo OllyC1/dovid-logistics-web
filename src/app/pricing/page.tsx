@@ -1,0 +1,5 @@
+import { QuoteEstimator } from "@/components/marketing/quote-estimator";
+import { PageHero } from "@/components/marketing/page-hero";
+import { createMetadata } from "@/lib/seo";
+export const metadata=createMetadata("Delivery pricing and quote estimator","Check the price of a Dovid delivery using your pickup and delivery addresses.","/pricing");
+export default function PricingPage(){return <><PageHero eyebrow="Simple pricing" title="See your price before you book." copy="Every journey is different. Enter the addresses and parcel details to get a price for your delivery." /><section className="container grid gap-12 py-20 lg:grid-cols-[.75fr_1.25fr]"><div><h2 className="text-3xl font-extrabold text-navy">What affects the price?</h2><ul className="mt-6 grid gap-4 text-sm leading-7 text-slate"><li>How far the parcel needs to travel</li><li>The size of the parcel</li><li>Your chosen delivery speed</li><li>Any extra stops or special handling</li></ul><p className="mt-8 rounded-2xl bg-orange/10 p-5 text-sm font-semibold text-navy">You will always see the full delivery price before you confirm.</p></div><QuoteEstimator/></section></>}

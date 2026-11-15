@@ -1,0 +1,32 @@
+import { notFound } from "next/navigation";
+import { PaymentButton } from "@/components/payments/payment-button";
+import { ReceiverLink } from "@/components/payments/receiver-link";
+import { SupplementalChargeActions } from "@/components/payments/supplemental-charge-actions";
+import { customerOperationMessage } from "@/features/operations/status-messages";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { formatMoney, formatPaymentStatus } from "@/lib/utils";
+
+export default async function OrderPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const supabase = await createSupabaseServerClient();
+  const { data: order } = await supabase.from("delivery_orders").select("*,delivery_status_events(*)").eq("id", id).maybeSingle();
+  if (!order) notFound();
+  const admin = createSupabaseAdminClient();
+  const [{ data: attempts }, { data: surcharges }, { data: redeliveries }, { data: custody }] = await Promise.all([
+    admin.from("delivery_attempts").select("id,attempt_number,status,arrival_time,waiting_duration_seconds,failure_reason,admin_decision,customer_notification_status").eq("order_id", id).order("attempt_number", { ascending: false }),
+    admin.from("customer_surcharges").select("id,category,description,proposed_amount_kobo,approved_amount_kobo,status,created_at").eq("order_id", id).order("created_at", { ascending: false }),
+    admin.from("redelivery_requests").select("id,status,scheduled_at,charge_attribution,corrected_address,decision_reason,created_at").eq("order_id", id).order("created_at", { ascending: false }),
+    admin.from("parcel_custody_events").select("id,event_type,occurred_at").eq("order_id", id).order("occurred_at"),
+  ]);
+  return <>
+    <p className="eyebrow">Delivery details</p>
+    <div className="mt-3 flex flex-wrap items-end justify-between gap-4"><h1 className="text-3xl font-extrabold text-navy">{order.order_reference}</h1><p className="text-2xl font-extrabold text-orange">{formatMoney(order.quoted_amount_minor, order.currency)}</p></div>
+    <div className="mt-8 grid gap-5 lg:grid-cols-2"><article className="rounded-3xl bg-white p-6"><h2 className="font-extrabold text-navy">Journey</h2><p className="mt-4 text-sm leading-7 text-slate">{order.pickup_address}<br/>↓<br/>{order.delivery_address}</p></article><article className="rounded-3xl bg-white p-6"><h2 className="font-extrabold text-navy">Latest update</h2><p className="mt-4 font-bold text-orange">{customerOperationMessage(order.delivery_status)}</p><p className="mt-2 text-sm text-slate">{formatPaymentStatus(order.payment_status)}</p>{order.payment_status !== "paid" && order.payer === "sender" ? <div className="mt-5"><PaymentButton orderId={order.id}/></div> : null}{order.payment_status !== "paid" && order.payer !== "sender" ? <ReceiverLink orderId={order.id}/> : null}</article></div>
+    <article className="mt-5 rounded-3xl bg-white p-6"><h2 className="font-extrabold text-navy">Delivery updates</h2><ol className="mt-5 grid gap-4">{order.delivery_status_events?.map((event: { id: string; new_status: string; created_at: string }) => <li key={event.id} className="border-l-2 border-orange pl-4"><p className="font-bold text-navy">{customerOperationMessage(event.new_status)}</p><time className="text-xs text-slate">{new Date(event.created_at).toLocaleString("en-NG")}</time></li>)}</ol></article>
+    {(attempts ?? []).length ? <article className="mt-5 rounded-3xl bg-white p-6"><h2 className="font-extrabold text-navy">Delivery attempts</h2><div className="mt-4 grid gap-3">{attempts?.map((attempt) => <div key={attempt.id} className="rounded-2xl bg-cloud p-4"><p className="font-bold text-navy">Attempt {attempt.attempt_number}: {customerOperationMessage(attempt.status === "attempted" ? "delivery_failed" : attempt.status)}</p><p className="mt-1 text-sm text-slate">{attempt.failure_reason || "Dispatch is reviewing the next step."}</p><p className="mt-2 text-xs text-slate">{new Date(attempt.arrival_time).toLocaleString("en-NG")} · waited {Math.round(attempt.waiting_duration_seconds / 60)} min</p>{attempt.admin_decision ? <p className="mt-2 text-sm font-bold text-orange">Resolution: {attempt.admin_decision}</p> : null}</div>)}</div></article> : null}
+    {(surcharges ?? []).length ? <article className="mt-5 rounded-3xl bg-white p-6"><h2 className="font-extrabold text-navy">Additional charges</h2><p className="mt-2 text-sm text-slate">Business expenses and customer charges are reviewed separately. Only approved and paid charges are recognized as settled.</p><div className="mt-4 grid gap-3">{surcharges?.map((charge) => <div key={charge.id} className="rounded-2xl bg-cloud p-4"><div className="flex flex-wrap justify-between gap-3"><div><p className="font-bold capitalize text-navy">{charge.category.replaceAll("_", " ")}</p><p className="mt-1 text-sm text-slate">{charge.description}</p></div><div className="text-right"><p className="font-extrabold text-orange">{formatMoney(charge.approved_amount_kobo ?? charge.proposed_amount_kobo, order.currency)}</p><p className="text-xs capitalize text-slate">{charge.status.replaceAll("_", " ")}</p></div></div><SupplementalChargeActions id={charge.id} status={charge.status}/></div>)}</div></article> : null}
+    {(redeliveries ?? []).length ? <article className="mt-5 rounded-3xl bg-white p-6"><h2 className="font-extrabold text-navy">Redelivery arrangements</h2><div className="mt-4 grid gap-3">{redeliveries?.map((item) => <div key={item.id} className="rounded-2xl bg-cloud p-4"><p className="font-bold text-navy">{customerOperationMessage(item.status === "scheduled" ? "redelivery_scheduled" : "redelivery_requested")}</p><p className="mt-1 text-sm text-slate">Charge responsibility: {item.charge_attribution.replaceAll("_", " ")}{item.corrected_address ? ` · ${item.corrected_address}` : ""}</p></div>)}</div></article> : null}
+    {(custody ?? []).length ? <article className="mt-5 rounded-3xl bg-white p-6"><h2 className="font-extrabold text-navy">Parcel custody</h2><ol className="mt-4 grid gap-3">{custody?.map((event) => <li key={event.id} className="border-l-2 border-navy/15 pl-4"><p className="font-bold text-navy">{customerOperationMessage(event.event_type)}</p><time className="text-xs text-slate">{new Date(event.occurred_at).toLocaleString("en-NG")}</time></li>)}</ol></article> : null}
+  </>;
+}

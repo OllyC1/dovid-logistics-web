@@ -1,0 +1,1 @@
+export default function Loading(){return <div className="container py-20" aria-live="polite"><div className="h-4 w-28 animate-pulse rounded bg-orange/20"/><div className="mt-5 h-12 max-w-xl animate-pulse rounded-2xl bg-navy/10"/><div className="mt-8 grid gap-4 md:grid-cols-3">{[1,2,3].map(item=><div key={item} className="h-44 animate-pulse rounded-3xl bg-navy/5"/>)}</div></div>}

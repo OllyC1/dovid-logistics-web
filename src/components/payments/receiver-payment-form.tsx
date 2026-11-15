@@ -1,0 +1,5 @@
+"use client";
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Field } from "@/components/ui/field";
+export function ReceiverPaymentForm({token}:{token:string}){const [state,setState]=useState({pending:false,error:""});async function submit(event:React.FormEvent<HTMLFormElement>){event.preventDefault();setState({pending:true,error:""});const form=new FormData(event.currentTarget);const response=await fetch("/api/payments/receiver",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token,email:form.get("email")})});const body=await response.json();if(!response.ok)return setState({pending:false,error:body.error});location.assign(body.checkoutUrl)}return <form onSubmit={submit} className="mt-7 grid gap-4"><Field name="email" type="email" label="Where should we send the receipt?" required/>{state.error?<p role="alert" className="rounded-2xl bg-amber-50 p-4 text-sm text-amber-900">{state.error}</p>:null}<Button type="submit" disabled={state.pending}>{state.pending?"Opening checkout…":"Continue to payment"}</Button></form>}

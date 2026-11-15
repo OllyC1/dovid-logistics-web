@@ -1,0 +1,19 @@
+node_modules/
+.next/
+out/
+coverage/
+playwright-report/
+test-results/
+.tmp/
+supabase/.temp/
+.env
+.env.local
+.env.*.local
+!.env.example
+*.tsbuildinfo
+.DS_Store
+Thumbs.db
+Dovid_Logistics_Brand_Kit_v1.zip
+
+# Local Netlify folder
+.netlify

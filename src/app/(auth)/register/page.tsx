@@ -1,0 +1,2 @@
+import { AuthForm } from "@/components/account/auth-form";
+export default function RegisterPage(){return <><p className="eyebrow">Get started</p><h1 className="mt-3 text-3xl font-extrabold text-navy">Create your Dovid account</h1><p className="mt-3 text-sm leading-6 text-slate">Book deliveries, save addresses and follow every order in one place.</p><div className="mt-8"><AuthForm mode="register" /></div></>}

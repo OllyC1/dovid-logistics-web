@@ -1,0 +1,3 @@
+import { createMetadata } from "@/lib/seo";
+export const metadata = createMetadata("Cookie policy", "Cookies and local storage used by the Dovid Logistics website.", "/cookies");
+export default function CookiesPage(){return <article className="container max-w-3xl py-20"><h1 className="text-4xl font-extrabold text-navy">Cookie policy</h1><p className="mt-6 leading-8 text-slate">Dovid uses essential browser storage to keep you signed in, remember an unfinished booking on your device and protect account access.</p><p className="mt-4 leading-8 text-slate">Optional website analytics will remain off unless Dovid adds a clear consent choice for visitors.</p></article>}

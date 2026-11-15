@@ -1,0 +1,2 @@
+import { Button } from "@/components/ui/button";
+export default function NotFound(){return <section className="container grid min-h-[60vh] place-items-center py-16 text-center"><div><p className="eyebrow">Route not found</p><h1 className="mt-3 text-5xl font-extrabold text-navy">This stop isn’t on the route.</h1><p className="mx-auto mt-5 max-w-lg text-slate">The page or secure reference may be incorrect, expired or unavailable.</p><div className="mt-8"><Button href="/">Return home</Button></div></div></section>}

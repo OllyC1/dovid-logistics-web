@@ -1,0 +1,140 @@
+import { NextResponse, type NextRequest } from "next/server";
+import { deliveryQuoteRequestSchema } from "@/features/pricing/quote-request";
+import { createQuoteFromContext, loadActivePricingContext, loadComparableCompetitorQuotes, loadPromotion } from "@/features/pricing/service";
+import { evaluateBookingEligibility, isWithinServiceHours } from "@/features/service-areas/eligibility";
+import { isPointInGeoJson } from "@/features/service-areas/contains";
+import type { ZoneGeoJson } from "@/features/service-areas/geometry";
+import { publicBookingsEnabled } from "@/lib/launch-controls";
+import { getRouteDistance } from "@/lib/maps/routes";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+
+const attempts = new Map<string, { count: number; resetAt: number }>();
+function rateLimited(ip: string) { const now = Date.now(); const current = attempts.get(ip); if (!current || current.resetAt < now) { attempts.set(ip, { count: 1, resetAt: now + 60_000 }); return false; } current.count += 1; return current.count > 12; }
+function durationSeconds(duration: string) { return Math.max(0, Math.round(Number.parseFloat(duration.replace("s", "")) || 0)); }
+
+type ActiveZone = {
+  id: string;
+  service_area_id: string;
+  code: string;
+  boundary_geojson: ZoneGeoJson;
+  booking_eligibility: "standard" | "manual_approval" | "unavailable";
+  dispatch_approval_required: boolean;
+};
+
+export async function POST(request: NextRequest) {
+  if (!publicBookingsEnabled()) return NextResponse.json({ error: "Online bookings are not open yet. Please contact Dovid Logistics for help." }, { status: 503 });
+  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  if (rateLimited(ip)) return NextResponse.json({ error: "Too many availability checks. Please wait and try again.", code: "RATE_LIMITED" }, { status: 429 });
+  const parsed = deliveryQuoteRequestSchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) return NextResponse.json({ error: "Please check the delivery details and try again.", code: "INVALID_REQUEST", issues: parsed.error.flatten() }, { status: 400 });
+
+  const admin = createSupabaseAdminClient();
+  const requestPayload = parsed.data;
+  try {
+    const now = new Date();
+    const nowIso = now.toISOString();
+    const { data: zoneRows, error: zoneError } = await admin.from("service_zones")
+      .select("id,service_area_id,code,boundary_geojson,booking_eligibility,dispatch_approval_required")
+      .eq("active", true).eq("operational_status", "active").neq("booking_eligibility", "unavailable")
+      .lte("effective_from", nowIso).or(`effective_until.is.null,effective_until.gt.${nowIso}`);
+    if (zoneError) throw zoneError;
+    const zones = (zoneRows ?? []).filter((zone) => zone.boundary_geojson) as ActiveZone[];
+    const pickupZone = zones.find((zone) => isPointInGeoJson(parsed.data.pickupCoordinates, zone.boundary_geojson));
+    const deliveryZone = zones.find((zone) => isPointInGeoJson(parsed.data.deliveryCoordinates, zone.boundary_geojson));
+    const stopZones = parsed.data.additionalStops.map((stop) => zones.find((zone) => isPointInGeoJson(stop.coordinates, zone.boundary_geojson)));
+    const sameArea = Boolean(pickupZone && deliveryZone && pickupZone.service_area_id === deliveryZone.service_area_id && stopZones.every((zone) => zone?.service_area_id === pickupZone.service_area_id));
+
+    if (!pickupZone || !deliveryZone || !sameArea || stopZones.some((zone) => !zone)) {
+      const { data: availability } = await admin.from("delivery_availability_requests").insert({
+        service_area_id: pickupZone?.service_area_id ?? deliveryZone?.service_area_id ?? null,
+        pickup_zone_id: pickupZone?.id ?? null,
+        delivery_zone_id: deliveryZone?.id ?? null,
+        request_payload: requestPayload,
+        decision: "unsupported",
+        reason_code: "outside_approved_coverage",
+        status: "rejected"
+      }).select("id").single();
+      return NextResponse.json({ error: "We're not delivering to this location just yet.", message: "We're not delivering to this location just yet.", code: "OUTSIDE_APPROVED_COVERAGE", eligibility: "unsupported", availabilityRequestId: availability?.id }, { status: 422 });
+    }
+
+    const [{ data: settings }, route] = await Promise.all([
+      admin.from("service_area_operational_settings").select("standard_max_distance_meters,manual_max_distance_meters,service_hours,standard_package_sizes,oversized_requires_manual_approval,max_active_assignments_per_rider").eq("service_area_id", pickupZone.service_area_id).single(),
+      getRouteDistance(parsed.data.pickupCoordinates, parsed.data.deliveryCoordinates, parsed.data.additionalStops.map((stop) => stop.coordinates))
+    ]);
+    if (!settings) throw new Error("Operational eligibility settings are unavailable");
+
+    const context = await loadActivePricingContext(pickupZone.service_area_id, parsed.data.serviceLevel);
+    const [competitorQuotes, promotions, fleetResult, assignmentResult] = await Promise.all([
+      loadComparableCompetitorQuotes({ serviceAreaId: pickupZone.service_area_id, serviceLevel: parsed.data.serviceLevel, packageCategory: parsed.data.packageCategory, roadDistanceMeters: route.distanceMeters, config: context.config }),
+      loadPromotion(parsed.data.promotionCode),
+      admin.from("fleet_vehicles").select("id,assigned_rider_id,max_active_assignments").eq("operational_status", "available").eq("safety_status", "cleared"),
+      admin.from("delivery_assignments").select("vehicle_id,rider_id").is("released_at", null)
+    ]);
+    const result = createQuoteFromContext({ roadDistanceMeters: route.distanceMeters, serviceLevel: parsed.data.serviceLevel, paymentMethod: parsed.data.paymentMethod, additionalStops: parsed.data.additionalStops.length, oversized: parsed.data.oversized, promotions, competitorQuotes }, context);
+    const activeVehicleIds = new Set((assignmentResult.data ?? []).map((assignment) => assignment.vehicle_id));
+    const availableFleetSlots = (fleetResult.data ?? []).filter((vehicle) => vehicle.assigned_rider_id && !activeVehicleIds.has(vehicle.id)).length;
+    const decision = evaluateBookingEligibility({
+      pickupCovered: true,
+      deliveryCovered: true,
+      allStopsCovered: true,
+      zonesAllowBooking: pickupZone.booking_eligibility !== "unavailable" && deliveryZone.booking_eligibility !== "unavailable",
+      zoneRequiresApproval: pickupZone.dispatch_approval_required || deliveryZone.dispatch_approval_required || pickupZone.booking_eligibility === "manual_approval" || deliveryZone.booking_eligibility === "manual_approval",
+      roadDistanceMeters: route.distanceMeters,
+      standardMaxDistanceMeters: settings.standard_max_distance_meters,
+      manualMaxDistanceMeters: settings.manual_max_distance_meters,
+      withinServiceHours: isWithinServiceHours(now, settings.service_hours),
+      availableFleetSlots,
+      packageSize: parsed.data.packageSize,
+      standardPackageSizes: settings.standard_package_sizes as string[],
+      oversized: parsed.data.oversized,
+      oversizedRequiresApproval: settings.oversized_requires_manual_approval,
+      estimatedProfitKobo: result.internal.estimatedProfitKobo
+    });
+    const enrichedPayload = {
+      ...requestPayload,
+      pickupZoneId: pickupZone.id,
+      pickupZoneCode: pickupZone.code,
+      deliveryZoneId: deliveryZone.id,
+      deliveryZoneCode: deliveryZone.code,
+      eligibilityDecision: decision.decision,
+      eligibilityReasonCode: decision.reasonCode,
+      routeDurationSeconds: durationSeconds(route.duration)
+    };
+
+    if (decision.decision !== "standard_eligible") {
+      const status = decision.decision === "manual_approval" || decision.decision === "manual_quote" ? "pending" : "rejected";
+      const { data: availability, error: availabilityError } = await admin.from("delivery_availability_requests").insert({
+        service_area_id: pickupZone.service_area_id,
+        pickup_zone_id: pickupZone.id,
+        delivery_zone_id: deliveryZone.id,
+        request_payload: enrichedPayload,
+        road_distance_meters: route.distanceMeters,
+        estimated_duration_seconds: durationSeconds(route.duration),
+        decision: decision.decision,
+        reason_code: decision.reasonCode,
+        status,
+        pricing_snapshot: { customerTotalKobo: result.customerTotalKobo, currency: result.currency, internal: result.internal, includedCharges: result.includedCharges }
+      }).select("id").single();
+      if (availabilityError) throw availabilityError;
+      const responseStatus = decision.decision === "capacity_unavailable" ? 409 : decision.decision === "unsupported" ? 422 : 202;
+      return NextResponse.json({
+        ...(responseStatus >= 400 ? { error: decision.message } : {}),
+        message: decision.message,
+        eligibility: decision.decision,
+        reasonCode: decision.reasonCode,
+        availabilityRequestId: availability.id,
+        distanceMeters: route.distanceMeters,
+        duration: route.duration
+      }, { status: responseStatus });
+    }
+
+    const quoteId = crypto.randomUUID();
+    const { error: quoteError } = await admin.from("quotes").insert({ id: quoteId, pricing_rule_id: null, pricing_configuration_version_id: context.configurationVersionId, rate_card_id: context.rateCardId, request_payload: enrichedPayload, distance_meters: route.distanceMeters, amount_minor: result.customerTotalKobo, currency: result.currency, expires_at: result.expiresAt, status: "created", service_level: parsed.data.serviceLevel, payment_method: parsed.data.paymentMethod, duration_seconds: durationSeconds(route.duration), customer_breakdown: result.includedCharges, internal_breakdown: result.internal, pricing_flags: result.internal.flags, operational_approval_status: "not_required" });
+    if (quoteError) throw quoteError;
+    const { error: costError } = await admin.from("quote_cost_estimates").insert({ quote_id: quoteId, estimated_operational_cost_kobo: result.internal.operationalCostKobo, minimum_profitable_price_kobo: result.internal.minimumProfitableCustomerTotalKobo, estimated_payment_fee_kobo: result.internal.paymentProcessingFeeKobo, estimated_tax_kobo: result.internal.taxKobo, estimated_profit_kobo: result.internal.estimatedProfitKobo, estimated_operating_margin_bps: result.internal.estimatedOperatingMarginBps, assumptions_snapshot: context.config });
+    if (costError) { await admin.from("quotes").delete().eq("id", quoteId); throw costError; }
+    return NextResponse.json({ quoteId, status: "created", eligibility: decision.decision, message: decision.message, currency: result.currency, customerTotalKobo: result.customerTotalKobo, amountMinor: result.customerTotalKobo, expiresAt: result.expiresAt, distanceMeters: route.distanceMeters, duration: route.duration, serviceLevel: parsed.data.serviceLevel, includedCharges: result.includedCharges, explanation: "Delivery fee calculated using your route, operating capacity and service type." });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "We could not check this route right now.", code: "AVAILABILITY_UNAVAILABLE", manualReview: true }, { status: 503 });
+  }
+}

@@ -1,0 +1,2 @@
+import { AuthForm } from "@/components/account/auth-form";
+export default function ForgotPage(){return <><p className="eyebrow">Account recovery</p><h1 className="mt-3 text-3xl font-extrabold text-navy">Reset your password</h1><p className="mt-3 text-sm leading-6 text-slate">We’ll send instructions when the email belongs to an account.</p><div className="mt-8"><AuthForm mode="recover" /></div></>}

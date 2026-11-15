@@ -1,0 +1,50 @@
+import type { FinancialConfig, RateCardBand } from "./types";
+
+export const DEFAULT_FINANCIAL_CONFIG: FinancialConfig = {
+  version: 1,
+  currency: "NGN",
+  timezone: "Africa/Lagos",
+  fleetSize: 2,
+  workingDaysPerMonth: 26,
+  riderBaseSalaryMonthlyKobo: 10_000_000,
+  riderMaximumBonusMonthlyKobo: 3_000_000,
+  fuelPricePerLitreKobo: 137_000,
+  motorcycleFuelEfficiencyKmPerLitre: 35,
+  maintenanceReservePerKmKobo: 2_000,
+  depreciationReservePerKmKobo: 2_000,
+  overheadPerBikeMonthlyKobo: 5_000_000,
+  targetDeliveriesPerBikePerDay: 10,
+  targetOperatingMarginBps: 2_000,
+  competitorDiscountTargetBps: 1_000,
+  minimumCustomerFareKobo: 180_000,
+  estimatedEmptyKmPerOrderMilli: 3_000,
+  freeWaitingMinutes: 10,
+  waitingBlockMinutes: 5,
+  waitingFeePerBlockKobo: 10_000,
+  roundingIncrementKobo: 5_000,
+  expressPremiumBps: 3_500,
+  scheduledPremiumKobo: 0,
+  extraStopFeeKobo: 50_000,
+  oversizedHandlingFeeKobo: 0,
+  weatherSurchargeBps: 1_000,
+  returnDeliveryBps: 10_000,
+  taxRateBps: 0,
+  taxTreatment: "none",
+  paymentPercentageFeeBps: { online: 0, bank_transfer: 0 },
+  paymentFixedFeeKobo: { online: 0, bank_transfer: 0 },
+  expectedFailedDeliveryCost: { amountKobo: 0, justification: "Planning default pending measured failed-delivery data." },
+  expectedReturnDeliveryCost: { amountKobo: 0, justification: "Return delivery is charged separately when selected." },
+  routeSpecificOperationalCost: { amountKobo: 0, justification: "No route-specific expense has been approved for the launch rate card." },
+  minimumCompetitorSamples: 3,
+  competitorFreshnessDays: 30
+};
+
+export const PROVISIONAL_RATE_CARD: RateCardBand[] = [
+  { minimumDistanceMeters: 0, maximumDistanceMeters: 3_000, priceKobo: 180_000 },
+  { minimumDistanceMeters: 3_001, maximumDistanceMeters: 5_000, priceKobo: 200_000 },
+  { minimumDistanceMeters: 5_001, maximumDistanceMeters: 8_000, priceKobo: 230_000 },
+  { minimumDistanceMeters: 8_001, maximumDistanceMeters: 12_000, priceKobo: 270_000 },
+  { minimumDistanceMeters: 12_001, maximumDistanceMeters: 17_000, priceKobo: 330_000 },
+  { minimumDistanceMeters: 17_001, maximumDistanceMeters: 22_000, priceKobo: 400_000 },
+  { minimumDistanceMeters: 22_001, maximumDistanceMeters: null, priceKobo: 400_000, additionalPerKilometerKobo: 22_000 }
+];

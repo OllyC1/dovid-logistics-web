@@ -1,0 +1,36 @@
+import { notFound } from "next/navigation";
+import { RiderStatusControls } from "@/components/rider/status-controls";
+import { DeliveryOperationsForms } from "@/components/rider/delivery-operations-forms";
+import { requireRole } from "@/lib/auth/roles";
+import type { DeliveryStatus, PaymentStatus } from "@/types/domain";
+
+export default async function RiderOrderPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const { supabase } = await requireRole(["rider", "admin"]);
+  const { data: order } = await supabase
+    .from("delivery_orders")
+    .select("id,order_reference,pickup_address,delivery_address,sender_name,sender_phone,recipient_name,recipient_phone,additional_stops,delivery_status,payment_status,service_level,scheduled_at,delivery_status_events(id,new_status,created_at)")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (!order) notFound();
+  const { data: assignment } = await supabase.from("delivery_assignments").select("delivery_run_id").eq("order_id", id).is("released_at", null).maybeSingle();
+  const additionalStops=(order.additional_stops??[]) as Array<{address:string}>;
+
+  return <>
+    <p className="eyebrow">Assigned delivery</p>
+    <div className="mt-3 flex flex-wrap items-end justify-between gap-4">
+      <h2 className="text-3xl font-extrabold text-navy">{order.order_reference}</h2>
+      <span className="rounded-full bg-orange/10 px-4 py-2 text-sm font-bold capitalize text-orange">{order.delivery_status.replaceAll("_", " ")}</span>
+    </div>
+    <div className="mt-7 rounded-2xl bg-navy p-4 text-sm font-bold text-white">Release the parcel only when payment status is <span className="text-orange">paid</span>. Current status: <span className="capitalize">{order.payment_status}</span>.</div>
+    <RiderStatusControls orderId={order.id} currentStatus={order.delivery_status as DeliveryStatus} paymentStatus={order.payment_status as PaymentStatus}/>
+    <DeliveryOperationsForms orderId={order.id} runId={assignment?.delivery_run_id}/>
+    <div className="mt-6 grid gap-5 lg:grid-cols-2">
+      <article className="rounded-3xl bg-white p-6"><h3 className="font-extrabold text-navy">Pickup</h3><p className="mt-4 text-sm leading-7 text-slate">{order.pickup_address}<br/>{order.sender_name}<br/><a className="font-bold text-orange" href={`tel:${order.sender_phone}`}>{order.sender_phone}</a></p></article>
+      <article className="rounded-3xl bg-white p-6"><h3 className="font-extrabold text-navy">Drop-off</h3><p className="mt-4 text-sm leading-7 text-slate">{order.delivery_address}<br/>{order.recipient_name}<br/><a className="font-bold text-orange" href={`tel:${order.recipient_phone}`}>{order.recipient_phone}</a></p></article>
+    </div>
+    {additionalStops.length?<article className="mt-5 rounded-3xl bg-white p-6"><h3 className="font-extrabold text-navy">Intermediate stops</h3><ol className="mt-4 grid gap-3 text-sm text-slate">{additionalStops.map((stop,index)=><li key={`${stop.address}-${index}`} className="rounded-2xl bg-cloud p-4"><span className="font-bold text-navy">Stop {index+1}:</span> {stop.address}</li>)}</ol></article>:null}
+    <article className="mt-5 rounded-3xl bg-white p-6"><h3 className="font-extrabold text-navy">Delivery timeline</h3><ol className="mt-5 grid gap-4">{order.delivery_status_events?.map(event=><li key={event.id} className="border-l-2 border-orange pl-4"><p className="font-bold capitalize text-navy">{event.new_status.replaceAll("_", " ")}</p><time className="text-xs text-slate">{new Date(event.created_at).toLocaleString("en-NG")}</time></li>)}</ol></article>
+  </>;
+}

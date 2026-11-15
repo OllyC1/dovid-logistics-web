@@ -1,0 +1,2 @@
+import { PasswordForm } from "@/components/account/account-forms";
+export default function ResetPasswordPage(){return <><p className="eyebrow">Choose a password</p><h1 className="mt-3 text-3xl font-extrabold text-navy">Complete password recovery</h1><p className="mt-4 leading-7 text-slate">Open this page from the secure recovery link in your email, then choose a new password.</p><div className="mt-7"><PasswordForm/></div></>}
