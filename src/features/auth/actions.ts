@@ -33,7 +33,7 @@ export async function registerAction(_: AuthState, formData: FormData): Promise<
 export async function recoverAction(_: AuthState, formData: FormData): Promise<AuthState> {
   const parsed = z.object({ email: z.email() }).safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: "Enter a valid email address." };
-  try { const supabase = await createSupabaseServerClient(); await supabase.auth.resetPasswordForEmail(parsed.data.email, { redirectTo: `${publicEnv.NEXT_PUBLIC_APP_URL}/reset-password` }); } catch {}
+  try { const supabase = await createSupabaseServerClient(); await supabase.auth.resetPasswordForEmail(parsed.data.email, { redirectTo: `${publicEnv.NEXT_PUBLIC_APP_URL}/auth/callback?next=/reset-password` }); } catch {}
   return { success: "If an account exists for that email, recovery instructions are on the way." };
 }
 
