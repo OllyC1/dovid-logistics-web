@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { assistedBookingDraftSchema } from "@/features/assisted-bookings/schema";
-import { getAuthenticatedRole } from "@/lib/auth/roles";
+import { getBookingsManagerAuthorization as getAuthenticatedRole } from "@/lib/auth/staff";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 const schema = assistedBookingDraftSchema.extend({ idempotencyKey: z.uuid() });

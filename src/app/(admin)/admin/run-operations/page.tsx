@@ -1,9 +1,9 @@
 import { RunOperationsConsole } from "@/components/admin/run-operations-console";
-import { requireRole } from "@/lib/auth/roles";
+import { requireStaffPermission } from "@/lib/auth/staff";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export default async function RunOperationsPage() {
-  await requireRole(["admin"]);
+  await requireStaffPermission("dispatch.manage");
   const admin = createSupabaseAdminClient();
   const [{ data: vehicles }, { data: riders }, { data: runs }, { data: orders }, { data: expenses }, { data: attempts }] = await Promise.all([
     admin.from("fleet_vehicles").select("id,code,operational_status,assigned_rider_id,safety_status").order("code"),

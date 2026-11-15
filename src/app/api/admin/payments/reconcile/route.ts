@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
-import { getAuthenticatedRole } from "@/lib/auth/roles";
+import { getPaymentsReconcilerAuthorization as getAuthenticatedRole } from "@/lib/auth/staff";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 const schema=z.object({paymentIntentId:z.uuid(),status:z.enum(["matched","rejected"]),externalReference:z.string().min(3).max(200),amountKobo:z.number().int().positive(),currency:z.string().length(3),evidence:z.object({verificationSource:z.string().min(3).max(200),notes:z.string().min(5).max(1000)})});

@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
-import { getAuthenticatedRole } from "@/lib/auth/roles";
+import { getDispatchManagerAuthorization as getAuthenticatedRole } from "@/lib/auth/staff";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 const schema = z.object({ stopIds: z.array(z.uuid()).min(1), reason: z.string().trim().min(8).max(1_000), idempotencyKey: z.uuid() });

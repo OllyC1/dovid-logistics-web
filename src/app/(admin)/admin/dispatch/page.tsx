@@ -1,9 +1,9 @@
 import { DispatchConsole } from "@/components/admin/dispatch-console";
-import { requireRole } from "@/lib/auth/roles";
+import { requireStaffPermission } from "@/lib/auth/staff";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export default async function DispatchPage() {
-  await requireRole(["admin"]);
+  await requireStaffPermission("dispatch.manage");
   const admin = createSupabaseAdminClient();
   const [{ data: vehicles }, { data: riders }, { data: requests }, { data: orders }] = await Promise.all([
     admin.from("fleet_vehicles").select("id,code,operational_status,safety_status,assigned_rider_id,home_territory_codes,max_active_assignments,max_payload_weight_grams,cargo_length_mm,cargo_width_mm,cargo_height_mm,capacity_verified_at").order("code"),

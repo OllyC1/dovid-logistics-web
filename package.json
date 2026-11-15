@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "npm run build && playwright test",
-    "validate:maps": "node scripts/validate-google-maps.mjs"
+    "validate:maps": "node scripts/validate-google-maps.mjs",
+    "staff:bootstrap": "node --env-file=.env.local scripts/invite-initial-super-admin.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

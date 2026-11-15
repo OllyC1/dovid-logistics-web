@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
-import { getAuthenticatedRole } from "@/lib/auth/roles";
+import { getPricingManagerAuthorization as getAuthenticatedRole } from "@/lib/auth/staff";
 
 const schema=z.object({name:z.string().min(2).max(100),website:z.url().optional(),city:z.string().min(2).max(80),serviceCoverage:z.string().max(500).optional(),deliveryCategory:z.string().min(2).max(80),pricingModel:z.string().max(500).optional(),publishedStartingPriceKobo:z.number().int().nonnegative().nullable().optional(),sourceUrl:z.url().optional(),sourceType:z.enum(["website","manual_quote","csv_import","approved_provider"]),dateVerified:z.iso.date().optional(),verificationStatus:z.enum(["unverified","verified","stale","rejected"]),notes:z.string().max(1000).optional()});
 

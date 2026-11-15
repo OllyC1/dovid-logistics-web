@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { validateFinancialConfig } from "@/features/pricing/engine";
 import type { FinancialConfig } from "@/features/pricing/types";
-import { getAuthenticatedRole } from "@/lib/auth/roles";
+import { getPricingManagerAuthorization as getAuthenticatedRole } from "@/lib/auth/staff";
 
 async function adminContext() { const auth = await getAuthenticatedRole(); return auth?.role === "admin" ? auth : null; }
 

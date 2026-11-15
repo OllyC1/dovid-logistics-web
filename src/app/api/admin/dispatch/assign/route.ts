@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { scoreDispatchCandidate } from "@/features/dispatch/scoring";
-import { getAuthenticatedRole } from "@/lib/auth/roles";
+import { getDispatchManagerAuthorization as getAuthenticatedRole } from "@/lib/auth/staff";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 const schema = z.object({ orderId: z.uuid(), vehicleId: z.uuid(), riderId: z.uuid(), overrideReason: z.string().trim().min(8).max(1_000).optional() });

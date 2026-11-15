@@ -1,9 +1,9 @@
-import { requireRole } from "@/lib/auth/roles";
+import { requireStaffPermission } from "@/lib/auth/staff";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { formatMoney } from "@/lib/utils";
 
 export default async function OperationsReportsPage() {
-  await requireRole(["admin"]);
+  await requireStaffPermission("reports.view");
   const admin = createSupabaseAdminClient();
   const [{ data: zones }, { data: orders }, { data: requests }, { data: assignments }, { data: vehicles }, { data: costs }, { data: deliveredEvents }, { data: runs }, { data: runAssignments }, { data: expenses }, { data: surcharges }, { data: attempts }, { data: redeliveries }, { data: assistedDrafts }, { data: transactions }] = await Promise.all([
     admin.from("service_zones").select("id,code,name"),

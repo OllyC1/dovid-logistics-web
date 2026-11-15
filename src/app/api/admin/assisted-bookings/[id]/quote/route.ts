@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { assistedBookingDraftSchema } from "@/features/assisted-bookings/schema";
 import { createAssistedQuote } from "@/features/assisted-bookings/create-quote";
 import { createAssistedAccessSecrets } from "@/features/assisted-bookings/security";
-import { getAuthenticatedRole } from "@/lib/auth/roles";
+import { getBookingsManagerAuthorization as getAuthenticatedRole } from "@/lib/auth/staff";
 import { publicEnv } from "@/lib/env";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { manualWhatsAppProvider } from "@/lib/whatsapp/provider";

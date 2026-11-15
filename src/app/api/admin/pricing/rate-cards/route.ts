@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
-import { getAuthenticatedRole } from "@/lib/auth/roles";
+import { getPricingManagerAuthorization as getAuthenticatedRole } from "@/lib/auth/staff";
 export async function GET(){const auth=await getAuthenticatedRole();if(auth?.role!=="admin")return NextResponse.json({error:"Admin authorization required"},{status:403});const{data,error}=await auth.supabase.from("rate_cards").select("id,name,service_level,provisional,active,effective_at,expires_at,configuration_version_id,rate_card_bands(*)").order("effective_at",{ascending:false});return error?NextResponse.json({error:"Rate cards unavailable"},{status:500}):NextResponse.json({rateCards:data})}
 
 const bandSchema=z.object({minimumDistanceMeters:z.number().int().nonnegative(),maximumDistanceMeters:z.number().int().positive().nullable(),priceKobo:z.number().int().nonnegative(),additionalPerKilometerKobo:z.number().int().nonnegative().nullable().optional()});

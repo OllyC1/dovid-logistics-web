@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
-import { getAuthenticatedRole } from "@/lib/auth/roles";
+import { getDispatchManagerAuthorization as getAuthenticatedRole } from "@/lib/auth/staff";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 const schema = z.object({ assignedRiderId: z.uuid().nullable(), operationalStatus: z.enum(["offline", "available", "maintenance", "suspended"]), safetyStatus: z.enum(["cleared", "review_required", "blocked"]), maxActiveAssignments: z.number().int().min(1).max(5), maxPayloadWeightGrams: z.number().int().positive().nullable(), cargoLengthMm: z.number().int().positive().nullable(), cargoWidthMm: z.number().int().positive().nullable(), cargoHeightMm: z.number().int().positive().nullable(), capacityVerified: z.boolean(), reason: z.string().trim().min(8).max(1_000) }).superRefine((value, context) => { if (value.capacityVerified && (!value.maxPayloadWeightGrams || !value.cargoLengthMm || !value.cargoWidthMm || !value.cargoHeightMm)) context.addIssue({ code: "custom", message: "Measured payload and all cargo dimensions are required before capacity verification." }); });

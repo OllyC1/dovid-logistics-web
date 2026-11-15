@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
-import { getAuthenticatedRole } from "@/lib/auth/roles";
+import { getPaymentsReconcilerAuthorization as getAuthenticatedRole } from "@/lib/auth/staff";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 const schema = z.object({ status: z.enum(["approved","rejected","disputed"]), reason: z.string().trim().min(8).max(1_000), customerBillable: z.boolean().default(false), proposedAmountKobo: z.number().int().positive().optional(), surchargeIdempotencyKey: z.uuid().optional() }).superRefine((value, context) => { if (value.customerBillable && (!value.proposedAmountKobo || !value.surchargeIdempotencyKey)) context.addIssue({ code: "custom", message: "Customer-billable charges require an amount and idempotency key." }); });

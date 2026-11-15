@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
-import { getAuthenticatedRole } from "@/lib/auth/roles";
+import { getDispatchManagerAuthorization as getAuthenticatedRole } from "@/lib/auth/staff";
 import { optimizeRunRoute, type RunRouteStop } from "@/lib/maps/routes";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 

@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
-import { getAuthenticatedRole } from "@/lib/auth/roles";
+import { getDispatchManagerAuthorization as getAuthenticatedRole } from "@/lib/auth/staff";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 const schema = z.object({ resolution: z.enum(["retry_immediately","schedule_redelivery","correct_address","return_to_sender","authorized_hold","open_incident","cancel"]), attributableTo: z.enum(["customer","dovid","under_review"]), reason: z.string().trim().min(8).max(1_000), scheduledAt: z.iso.datetime().optional(), correctedAddress: z.string().min(8).max(300).optional(), correctedLatitude: z.number().optional(), correctedLongitude: z.number().optional(), idempotencyKey: z.uuid() });
