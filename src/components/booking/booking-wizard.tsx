@@ -170,9 +170,9 @@ export function BookingWizard() {
     window.location.assign(new URL(`/account/orders/${body.order_id}`, window.location.origin).toString());
   }
 
-  return <div className="grid gap-8 lg:grid-cols-[260px_1fr]">
-    <aside><ol className="flex gap-2 overflow-x-auto lg:grid">{steps.map((label, index) => <li key={label} className={`flex min-w-max items-center gap-3 rounded-2xl px-4 py-3 text-sm font-bold ${index === step ? "bg-navy text-white" : index < step ? "bg-orange/10 text-orange" : "bg-white text-slate"}`}><span className="grid size-7 place-items-center rounded-full border border-current/25">{index < step ? <Check className="size-4" /> : index + 1}</span>{label}</li>)}</ol></aside>
-    <section className="rounded-[2rem] border border-navy/10 bg-white p-6 shadow-sm md:p-9">
+  return <div className="grid min-w-0 gap-8 lg:grid-cols-[260px_1fr]" data-hydrated={hydrated}>
+    <aside className="min-w-0"><ol className="flex gap-2 overflow-x-auto lg:grid">{steps.map((label, index) => <li key={label} className={`flex min-w-max items-center gap-3 rounded-2xl px-4 py-3 text-sm font-bold ${index === step ? "bg-navy text-white" : index < step ? "bg-orange/10 text-orange" : "bg-white text-slate"}`}><span className="grid size-7 place-items-center rounded-full border border-current/25">{index < step ? <Check className="size-4" /> : index + 1}</span>{label}</li>)}</ol></aside>
+    <section className="min-w-0 rounded-[2rem] border border-navy/10 bg-white p-6 shadow-sm md:p-9">
       <h2 className="text-2xl font-extrabold text-navy">{steps[step]}</h2>
       <div className="mt-7 grid gap-5">
         {step === 0 ? <><AddressAutocomplete label="Where should we collect the parcel?" value={pickupAddress} onChange={value => updateAddress("pickup", value)} /><AddressAutocomplete label="Where should we deliver it?" value={deliveryAddress} onChange={value => updateAddress("delivery", value)} /></> : null}

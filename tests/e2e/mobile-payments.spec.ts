@@ -12,7 +12,11 @@ async function mockAddresses(page: Page) {
   });
 }
 
-test.beforeEach(({}, testInfo) => test.skip(!testInfo.project.name.startsWith("mobile"), "Mobile payment coverage"));
+test.beforeEach(async ({ page }, testInfo) => {
+  test.skip(!testInfo.project.name.startsWith("mobile"), "Mobile payment coverage");
+  const expectedWidth = testInfo.project.name === "mobile-375" ? 375 : 390;
+  expect(await page.evaluate(() => window.innerWidth)).toBe(expectedWidth);
+});
 
 test("registration is usable and validates safely", async ({ page }) => {
   await page.goto("/register");
@@ -35,10 +39,12 @@ test("sender can book with address search, enter test checkout, verify, track an
   await page.route("**/mock-mobile-checkout", route => route.fulfill({ contentType: "text/html", body: "<main><h1>Paystack test checkout</h1></main>" }));
 
   await page.goto("/book");
+  await expect(page.locator('[data-hydrated="true"]')).toBeVisible();
   await page.getByLabel("Where should we collect the parcel?").fill("Bodija");
   await page.getByRole("button", { name: /Bodija/ }).click();
   await page.getByLabel("Where should we deliver it?").fill("Ring Road");
   await page.getByRole("button", { name: /Ring Road/ }).click();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(await page.evaluate(() => window.innerWidth));
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByLabel("Your name").fill("Mobile Sender");
