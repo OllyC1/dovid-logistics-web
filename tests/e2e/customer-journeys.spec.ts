@@ -2,14 +2,16 @@ import { expect, test } from "@playwright/test";
 
 const publicRoutes=["/","/services","/how-it-works","/pricing","/business","/about","/contact","/faq","/locations/ibadan","/privacy","/terms","/cookies","/track","/login","/register","/forgot-password","/book","/pay/callback"];
 
-test("public routes render metadata and a clear page heading",async({page},testInfo)=>{
-  test.skip(testInfo.project.name.startsWith("mobile"),"Covered once in desktop Chrome");
+test("public routes render metadata and a clear page heading",async({page})=>{
   test.setTimeout(240000);
   for(const path of publicRoutes){
     const response=await page.goto(path);
     expect(response?.status(),`${path} should load`).toBeLessThan(400);
     await expect(page).toHaveTitle(/Dovid Logistics/);
     await expect(page.getByRole("heading",{level:1})).toHaveCount(1);
+    const dimensions=await page.evaluate(()=>({viewport:window.innerWidth,document:document.documentElement.scrollWidth,body:document.body.scrollWidth}));
+    expect(dimensions.document,`${path} document overflow`).toBeLessThanOrEqual(dimensions.viewport);
+    expect(dimensions.body,`${path} body overflow`).toBeLessThanOrEqual(dimensions.viewport);
   }
   expect(await page.locator('script[type="application/ld+json"]').textContent()).toContain("Organization");
 });
