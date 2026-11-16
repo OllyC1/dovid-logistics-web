@@ -13,6 +13,7 @@ export default async function RiderAssignments() {
   const [{ data: runs }, { data: orders }] = await Promise.all([runQuery.order("created_at", { ascending: false }), orderQuery.order("created_at", { ascending: true })]);
 
   return <>
+    <div className="mb-6"><p className="eyebrow">Today&apos;s work</p><h1 className="mt-2 text-3xl font-extrabold text-navy">Rider Dashboard</h1><p className="mt-2 text-sm leading-6 text-slate">See your run, next stop and delivery actions in one place.</p></div>
     <div className="rounded-2xl bg-orange/10 p-4 text-sm font-bold leading-6 text-navy">Only complete a handover when this app confirms payment and delivery proof. Never collect money through a personal account.</div>
     <section className="mt-7">
       <p className="eyebrow">Active delivery run</p>

@@ -26,6 +26,11 @@ h1, h2, h3, h4 { font-family: var(--font-display); }
 @keyframes route { to { stroke-dashoffset: -380; } }
 @media (max-width: 639px) {
   [data-workspace-content] h1 { font-size: 1.75rem; line-height: 1.15; }
+  [data-workspace-content] h2 { line-height: 1.25; }
+  [data-workspace-content] .p-6 { padding: 1.125rem; }
+  [data-workspace-content] .p-7,
+  [data-workspace-content] .p-8 { padding: 1.25rem; }
+  [data-workspace-content] :is(button, a, input, select, textarea) { touch-action: manipulation; }
   main[data-workspace-content] .grid-cols-2,
   main[data-workspace-content] .grid-cols-3 { grid-template-columns: minmax(0, 1fr); }
   main[data-workspace-content] button { overflow-wrap: anywhere; }

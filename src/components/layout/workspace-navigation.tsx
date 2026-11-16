@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { Menu, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
@@ -25,14 +26,21 @@ export function WorkspaceNavigation({ label, links, footer }: { label: string; l
   const mobileMenu = useRef<HTMLDetailsElement>(null);
   useEffect(() => { mobileMenu.current?.removeAttribute("open"); }, [pathname]);
   function closeMobileMenu() { mobileMenu.current?.removeAttribute("open"); }
-  return <aside className="relative self-start rounded-2xl bg-navy p-4 text-white shadow-sm lg:sticky lg:top-28 lg:rounded-3xl lg:p-5">
+  return <aside className="relative z-40 self-start rounded-2xl bg-navy p-4 text-white shadow-sm lg:sticky lg:top-28 lg:z-auto lg:rounded-3xl lg:p-5">
     <div className="flex items-center justify-between gap-4 lg:block">
       <p className="px-2 text-xs font-bold uppercase tracking-widest text-orange lg:px-3">{label}</p>
       <details ref={mobileMenu} className="group lg:hidden">
-        <summary className="cursor-pointer list-none rounded-full border border-white/20 px-4 py-2 text-sm font-bold text-white marker:content-none">Menu</summary>
-        <div className="absolute inset-x-0 top-[calc(100%+0.5rem)] z-30 rounded-2xl bg-navy p-3 shadow-2xl ring-1 ring-white/10">
-          <nav className="grid gap-1" aria-label={`${label} navigation`}><NavigationLinks links={links} pathname={pathname} onNavigate={closeMobileMenu} /></nav>
-          {footer ? <div className="mt-3 border-t border-white/10 pt-3">{footer}</div> : null}
+        <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-full border border-white/20 px-4 py-2 text-sm font-bold text-white marker:content-none" aria-label={`Open ${label} menu`}><Menu className="size-4" aria-hidden="true" />Menu</summary>
+        <div className="fixed inset-0 z-[80] hidden group-open:block">
+          <button type="button" onClick={closeMobileMenu} className="absolute inset-0 bg-navy/55 backdrop-blur-sm" aria-label={`Close ${label} menu`} />
+          <div className="absolute inset-y-0 right-0 flex w-[min(92vw,420px)] flex-col bg-navy p-5 shadow-2xl">
+            <div className="flex items-center justify-between gap-4 border-b border-white/10 pb-5">
+              <div><p className="text-xs font-bold uppercase tracking-widest text-orange">Workspace</p><p className="mt-1 font-extrabold text-white">{label}</p></div>
+              <button type="button" onClick={closeMobileMenu} className="grid size-11 place-items-center rounded-full border border-white/20 text-white" aria-label={`Close ${label} menu`}><X className="size-5" aria-hidden="true" /></button>
+            </div>
+            <nav className="mt-5 grid flex-1 content-start gap-1 overflow-y-auto pb-6" aria-label={`${label} navigation`}><NavigationLinks links={links} pathname={pathname} onNavigate={closeMobileMenu} /></nav>
+            {footer ? <div className="border-t border-white/10 pt-3">{footer}</div> : null}
+          </div>
         </div>
       </details>
     </div>
