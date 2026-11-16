@@ -9,23 +9,33 @@ export const dynamic = "force-dynamic";
 export default async function TeamManagementPage() {
   const session = await getAuthenticatedRole();
   if (!session) redirect("/login");
-  if (session.currentAal !== "aal2") redirect("/staff/mfa?next=/admin/team");
+  if (session.staffRole === "super_admin" && session.currentAal !== "aal2") redirect("/staff/mfa?next=/admin/team");
   const auth = await getStaffAuthorization("staff.view");
   if (!auth) redirect("/admin");
 
-  const [{ data: memberships }, { data: invitations }, { data: grants }, { data: permissionRows }, { data: audit }, authUsers] = await Promise.all([
-    auth.admin.from("staff_memberships").select("user_id,staff_role,status,identity_verified_at,suspended_at,suspension_reason,created_at,profiles(full_name,phone)").order("created_at"),
+  const [membershipResult, invitationResult, grantResult, permissionResult, auditResult, profileResult, authUsers] = await Promise.all([
+    auth.admin.from("staff_memberships").select("user_id,staff_role,status,identity_verified_at,suspended_at,suspension_reason,created_at").order("created_at"),
     auth.admin.from("staff_invitations").select("id,email,intended_role,status,requested_permissions,auth_user_id,sent_at,accepted_at,expires_at,created_at,is_bootstrap").order("created_at", { ascending: false }).limit(100),
     auth.admin.from("staff_permission_grants").select("user_id,permission_key"),
     auth.admin.from("staff_permissions").select("permission_key,description").order("permission_key"),
     auth.admin.from("staff_audit_events").select("id,actor_id,action,target_user_id,invitation_id,metadata,created_at").order("created_at", { ascending: false }).limit(100),
+    auth.admin.from("profiles").select("id,full_name,phone"),
     listAuthUsers(auth.admin)
   ]);
+  if (membershipResult.error) throw new Error("Team memberships could not be loaded.");
+  if (invitationResult.error) throw new Error("Team invitations could not be loaded.");
+  if (grantResult.error || permissionResult.error || auditResult.error || profileResult.error) throw new Error("Team access details could not be loaded.");
+  const memberships = membershipResult.data;
+  const invitations = invitationResult.data;
+  const grants = grantResult.data;
+  const permissionRows = permissionResult.data;
+  const audit = auditResult.data;
+  const profileById = new Map((profileResult.data ?? []).map((profile) => [profile.id, profile]));
   const emailById = new Map(authUsers.map((user) => [user.id, user.email ?? "Email unavailable"]));
   const permissionByUser = new Map<string, string[]>();
   for (const grant of grants ?? []) permissionByUser.set(grant.user_id, [...(permissionByUser.get(grant.user_id) ?? []), grant.permission_key]);
   const members = (memberships ?? []).map((membership) => {
-    const profile = membership.profiles as unknown as { full_name: string | null; phone: string | null } | null;
+    const profile = profileById.get(membership.user_id);
     return {
       userId: membership.user_id,
       email: emailById.get(membership.user_id) ?? "Email unavailable",

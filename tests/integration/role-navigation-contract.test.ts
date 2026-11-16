@@ -8,6 +8,7 @@ const footer = readFileSync("src/components/layout/footer.tsx", "utf8");
 const customerLayout = readFileSync("src/app/(customer)/account/layout.tsx", "utf8");
 const adminLayout = readFileSync("src/app/(admin)/admin/layout.tsx", "utf8");
 const riderLayout = readFileSync("src/app/(rider)/rider/layout.tsx", "utf8");
+const teamPage = readFileSync("src/app/(admin)/admin/team/page.tsx", "utf8");
 const workspaceNavigation = readFileSync("src/components/layout/workspace-navigation.tsx", "utf8");
 const transitionIndicator = readFileSync("src/components/layout/route-transition-indicator.tsx", "utf8");
 
@@ -38,5 +39,12 @@ describe("role-specific authentication and navigation", () => {
   it("provides immediate feedback while internal pages are opening", () => {
     expect(transitionIndicator).toContain('document.addEventListener("click", start, true)');
     expect(transitionIndicator).toContain("Opening page…");
+  });
+
+  it("loads pending staff separately from profiles and limits MFA to Super Admin", () => {
+    expect(teamPage).toContain('session.staffRole === "super_admin" && session.currentAal !== "aal2"');
+    expect(teamPage).toContain('auth.admin.from("profiles").select("id,full_name,phone")');
+    expect(teamPage).not.toContain("profiles(full_name,phone)");
+    expect(teamPage).toContain("if (membershipResult.error)");
   });
 });
