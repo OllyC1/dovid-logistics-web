@@ -12,7 +12,7 @@ type AuditEvent = { id: string; action: string; actor: string; target: string | 
 function title(value: string) { return value.replaceAll("_", " ").replaceAll(".", " · ").replace(/\b\w/g, (letter) => letter.toUpperCase()); }
 
 export function TeamManagement({ currentRole, currentPermissions, members, invitations, permissionCatalog, audit }: { currentRole: "super_admin" | "admin" | "rider"; currentPermissions: readonly string[]; members: Member[]; invitations: Invitation[]; permissionCatalog: Permission[]; audit: AuditEvent[] }) {
-  const [message, setMessage] = useState("");
+  const [feedback, setFeedback] = useState<{ message: string; ok: boolean } | null>(null);
   const [pending, setPending] = useState(false);
   const canInviteAdmin = currentRole === "super_admin";
   const canInviteRider = currentRole === "super_admin" || currentPermissions.includes("riders.invite");
@@ -20,22 +20,25 @@ export function TeamManagement({ currentRole, currentPermissions, members, invit
   const administrators = members.filter((member) => member.role !== "rider");
   const riders = members.filter((member) => member.role === "rider");
   const availableRoles = useMemo(() => [canInviteAdmin ? "admin" : null, canInviteRider ? "rider" : null].filter(Boolean) as string[], [canInviteAdmin, canInviteRider]);
+  const [selectedRole, setSelectedRole] = useState(availableRoles[0] ?? "rider");
 
   async function request(url: string, init: RequestInit, success: string) {
     setPending(true);
-    setMessage("");
+    setFeedback(null);
     const response = await fetch(url, init);
     const body = await response.json().catch(() => ({}));
-    if (!response.ok) { setPending(false); setMessage(body.error ?? "The staff change could not be completed."); return; }
-    setMessage(success);
-    window.location.reload();
+    if (!response.ok) { setPending(false); setFeedback({ message: body.error ?? "The staff change could not be completed.", ok: false }); return false; }
+    setPending(false);
+    setFeedback({ message: success, ok: true });
+    window.setTimeout(() => window.location.reload(), 1800);
+    return true;
   }
 
   async function invite(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    const permissions = form.getAll("permissions").map(String);
-    await request("/api/admin/team/invitations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: form.get("email"), role: form.get("role"), permissions }) }, "Secure invitation sent.");
+    const permissions = selectedRole === "admin" ? form.getAll("permissions").map(String) : [];
+    await request("/api/admin/team/invitations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: form.get("email"), role: selectedRole, permissions }) }, `Secure ${title(selectedRole)} invitation sent. Ask the recipient to check their inbox and spam folder.`);
   }
 
   async function activate(event: React.FormEvent<HTMLFormElement>, userId: string) {
@@ -46,7 +49,7 @@ export function TeamManagement({ currentRole, currentPermissions, members, invit
 
   async function status(userId: string, nextStatus: "active" | "suspended" | "revoked") {
     const reason = window.prompt(`Give a clear reason to ${nextStatus} this staff account:`)?.trim();
-    if (!reason || reason.length < 8) { setMessage("Enter a reason of at least 8 characters."); return; }
+    if (!reason || reason.length < 8) { setFeedback({ message: "Enter a reason of at least 8 characters.", ok: false }); return; }
     await request(`/api/admin/team/members/${userId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "status", status: nextStatus, reason }) }, `Staff account ${nextStatus}.`);
   }
 
@@ -60,14 +63,15 @@ export function TeamManagement({ currentRole, currentPermissions, members, invit
     <p className="eyebrow">People & access</p>
     <h1 className="mt-2 text-3xl font-extrabold text-navy">Team management</h1>
     <p className="mt-3 max-w-3xl text-slate">Invite people by verified email, review their identity, and give only the access they need. New riders stay offline until readiness checks are complete.</p>
-    {message ? <p role="status" className="mt-5 rounded-2xl bg-cloud p-4 text-sm text-navy">{message}</p> : null}
+    {feedback ? <p role="status" aria-live="polite" className={`sticky top-20 z-20 mt-5 rounded-2xl p-4 text-sm font-semibold shadow-lg ${feedback.ok ? "bg-emerald-50 text-emerald-900" : "bg-red-50 text-red-900"}`}>{feedback.message}</p> : null}
 
     <section className="mt-8 rounded-3xl bg-white p-6 shadow-sm">
       <h2 className="text-xl font-extrabold text-navy">Invite a team member</h2>
       {availableRoles.length ? <form onSubmit={invite} className="mt-5 grid gap-5">
-        <div className="grid gap-4 sm:grid-cols-2"><Field label="Work email" name="email" type="email" autoComplete="off" required /><label className="grid gap-2 text-sm font-semibold text-navy"><span>Role</span><select name="role" className="min-h-12 rounded-2xl border border-slate/25 bg-white px-4 font-normal">{availableRoles.map((role) => <option key={role} value={role}>{title(role)}</option>)}</select></label></div>
-        {canInviteAdmin ? <fieldset className="grid gap-3"><legend className="text-sm font-bold text-navy">Admin permissions</legend><div className="grid gap-3 sm:grid-cols-2">{permissionCatalog.map((permission) => <label key={permission.permission_key} className="flex gap-3 rounded-2xl bg-cloud p-4 text-sm"><input type="checkbox" name="permissions" value={permission.permission_key} className="mt-1" /><span><strong className="block text-navy">{title(permission.permission_key)}</strong><span className="text-slate">{permission.description}</span></span></label>)}</div></fieldset> : null}
-        <Button type="submit" disabled={pending}>Send secure invitation</Button>
+        <div className="grid gap-4 sm:grid-cols-2"><Field label="Work email" name="email" type="email" autoComplete="off" required /><label className="grid gap-2 text-sm font-semibold text-navy"><span>Role</span><select name="role" value={selectedRole} onChange={(event) => setSelectedRole(event.target.value)} className="min-h-12 rounded-2xl border border-slate/25 bg-white px-4 font-normal">{availableRoles.map((role) => <option key={role} value={role}>{title(role)}</option>)}</select></label></div>
+        {canInviteAdmin && selectedRole === "admin" ? <fieldset className="grid gap-3"><legend className="text-sm font-bold text-navy">Admin permissions</legend><p className="text-sm text-slate">Choose only the areas this administrator should manage.</p><div className="grid gap-3 sm:grid-cols-2">{permissionCatalog.map((permission) => <label key={permission.permission_key} className="flex gap-3 rounded-2xl bg-cloud p-4 text-sm"><input type="checkbox" name="permissions" value={permission.permission_key} className="mt-1" /><span><strong className="block text-navy">{title(permission.permission_key)}</strong><span className="text-slate">{permission.description}</span></span></label>)}</div></fieldset> : null}
+        {selectedRole === "rider" ? <p className="rounded-2xl bg-cloud p-4 text-sm text-slate">Riders receive delivery access only. They stay inactive until identity and readiness checks are completed.</p> : null}
+        <Button type="submit" disabled={pending}>{pending ? "Sending invitation…" : `Send ${title(selectedRole)} invitation`}</Button>
       </form> : <p className="mt-4 text-sm text-slate">You do not currently have permission to invite staff.</p>}
     </section>
 

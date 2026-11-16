@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
   let authUser = await findAuthUserByEmail(auth.admin, parsed.data.email);
   let deliveryError: Error | null = null;
   if (!authUser) {
-    const invited = await auth.admin.auth.admin.inviteUserByEmail(parsed.data.email, { redirectTo, data: { onboarding: "staff_invitation" } });
+    const invited = await auth.admin.auth.admin.inviteUserByEmail(parsed.data.email, { redirectTo, data: { onboarding: "staff_invitation", staff_role: parsed.data.role } });
     authUser = invited.data.user;
     deliveryError = invited.error;
   } else if (authUser.banned_until && new Date(authUser.banned_until) > new Date()) {
@@ -39,7 +39,10 @@ export async function POST(request: NextRequest) {
       deliveryError = resent.error;
     }
   }
-  if (deliveryError || !authUser) return NextResponse.json({ error: "The secure invitation email could not be delivered." }, { status: 502 });
+  if (deliveryError || !authUser) {
+    const rateLimited = deliveryError?.message.toLowerCase().includes("rate limit") || "status" in (deliveryError ?? {}) && (deliveryError as { status?: number }).status === 429;
+    return NextResponse.json({ error: rateLimited ? "Supabase has temporarily limited invitation emails. No staff invitation was created. Please wait before trying again, or configure a dedicated SMTP provider for reliable team emails." : "The secure invitation email could not be delivered. No staff invitation was created." }, { status: rateLimited ? 429 : 502 });
+  }
 
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
   const { data: invitationId, error } = await auth.admin.rpc("register_staff_invitation", {

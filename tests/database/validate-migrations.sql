@@ -12,6 +12,13 @@ insert into auth.users(id, raw_user_meta_data) values
 
 update public.profiles set role='rider' where id='33333333-3333-3333-3333-333333333333';
 update public.profiles set role='admin' where id='44444444-4444-4444-4444-444444444444';
+insert into public.staff_memberships(user_id,staff_role,status) values
+  ('33333333-3333-3333-3333-333333333333','rider','active'),
+  ('44444444-4444-4444-4444-444444444444','admin','active');
+insert into public.staff_permission_grants(user_id,permission_key,granted_by)
+select '44444444-4444-4444-4444-444444444444',permission_key,'44444444-4444-4444-4444-444444444444'
+from public.staff_permissions
+where permission_key not in ('admins.invite','admins.manage_permissions');
 
 insert into public.pricing_rules(id, name, base_fee_minor, per_kilometer_minor, minimum_fee_minor, active)
 values ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Validation rule', 180000, 22000, 180000, true);
@@ -179,7 +186,7 @@ begin
     );
     raise exception 'customer activated pricing configuration';
   exception when others then
-    if sqlerrm <> 'admin authorization required' then raise; end if;
+    if sqlerrm <> 'admin authorization required' and sqlerrm <> 'permission denied for function activate_pricing_configuration_version' then raise; end if;
   end;
 
   begin
@@ -238,9 +245,17 @@ from public.pricing_configuration_versions where status='active';
 
 set role authenticated;
 select set_config('request.jwt.claim.sub','44444444-4444-4444-4444-444444444444',false);
+select set_config('request.jwt.claims','{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated","aal":"aal2"}',false);
 do $$ begin
   if (select count(*) from public.pricing_configurations) <> 1 then raise exception 'admin pricing RLS failed'; end if;
   if (select count(*) from public.promotions) <> 1 then raise exception 'admin promotion RLS failed'; end if;
+  if has_function_privilege('authenticated','public.activate_pricing_configuration_version(uuid,text)','execute') then raise exception 'authenticated client can activate pricing directly'; end if;
+end $$;
+reset role;
+
+set role service_role;
+select set_config('request.jwt.claim.sub','44444444-4444-4444-4444-444444444444',false);
+do $$ begin
   perform public.activate_pricing_configuration_version(
     (select id from public.pricing_configuration_versions where version=2),
     'Validated activation path'

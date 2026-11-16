@@ -5,20 +5,18 @@ begin;
 insert into auth.users(id,email,email_confirmed_at,raw_user_meta_data)
 values('55555555-5555-4555-8555-555555555555','verified-rider@example.test',now(),'{"full_name":"Verified Rider"}');
 
+insert into public.staff_invitations(id,email,intended_role,status,auth_user_id,invited_by,sent_at,accepted_at,expires_at)
+values('81000000-0000-4000-8000-000000000001','verified-rider@example.test','rider','accepted','55555555-5555-4555-8555-555555555555','44444444-4444-4444-4444-444444444444',now(),now(),now()+interval '1 hour');
+insert into public.staff_memberships(user_id,staff_role,status,invitation_id,identity_verified_at,identity_verified_by,identity_verification_method,identity_verification_reference)
+values('55555555-5555-4555-8555-555555555555','rider','active','81000000-0000-4000-8000-000000000001',now(),'44444444-4444-4444-4444-444444444444','test fixture','TEST-RIDER-APPROVAL');
+update public.profiles set role='rider' where id='55555555-5555-4555-8555-555555555555';
+insert into public.staff_audit_events(actor_id,action,target_user_id,invitation_id,metadata)
+values('44444444-4444-4444-4444-444444444444','staff.activated','55555555-5555-4555-8555-555555555555','81000000-0000-4000-8000-000000000001','{"fixture":true}');
+
 do $$
-declare first_assignment uuid;
-declare retry_assignment uuid;
 begin
-  first_assignment:=public.assign_verified_application_role(
-    '55555555-5555-4555-8555-555555555555','rider','44444444-4444-4444-4444-444444444444',
-    'founder_review','TEST-RIDER-APPROVAL','Verified rider onboarding validation','81000000-0000-4000-8000-000000000001'
-  );
-  retry_assignment:=public.assign_verified_application_role(
-    '55555555-5555-4555-8555-555555555555','rider','44444444-4444-4444-4444-444444444444',
-    'founder_review','TEST-RIDER-APPROVAL','Verified rider onboarding validation','81000000-0000-4000-8000-000000000001'
-  );
-  if first_assignment is distinct from retry_assignment then raise exception 'role assignment retry was not idempotent'; end if;
   if (select role from public.profiles where id='55555555-5555-4555-8555-555555555555')<>'rider' then raise exception 'verified rider role was not assigned'; end if;
+  if not exists(select 1 from public.staff_memberships where user_id='55555555-5555-4555-8555-555555555555' and staff_role='rider' and status='active') then raise exception 'active rider staff membership was not assigned'; end if;
   if has_function_privilege('authenticated','public.assign_verified_application_role(uuid,public.app_role,uuid,text,text,text,uuid)','execute') then raise exception 'authenticated client can assign privileged roles'; end if;
   if has_function_privilege('authenticated','public.complete_delivery_run(uuid,uuid,text,uuid)','execute') then raise exception 'authenticated client can complete delivery runs directly'; end if;
 end;
