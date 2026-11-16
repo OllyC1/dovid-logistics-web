@@ -25,6 +25,7 @@ h1, h2, h3, h4 { font-family: var(--font-display); }
 .route-line { stroke-dasharray: 9 10; animation: route 18s linear infinite; }
 @keyframes route { to { stroke-dashoffset: -380; } }
 @media (max-width: 639px) {
+  .route-line { animation: none; }
   [data-workspace-content] h1 { font-size: 1.75rem; line-height: 1.15; }
   [data-workspace-content] h2 { line-height: 1.25; }
   [data-workspace-content] .p-6 { padding: 1.125rem; }

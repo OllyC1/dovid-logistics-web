@@ -1,6 +1,3 @@
-"use client";
-
-import * as Accordion from "@radix-ui/react-accordion";
 import { ChevronDown } from "lucide-react";
 
 export const faqItems = [
@@ -13,5 +10,5 @@ export const faqItems = [
 ] as const;
 
 export function FaqList({ limit }: { limit?: number }) {
-  return <Accordion.Root type="single" collapsible className="grid gap-3">{faqItems.slice(0, limit).map(([question, answer], index) => <Accordion.Item key={question} value={`item-${index}`} className="rounded-2xl border border-navy/10 bg-white px-5"><Accordion.Header><Accordion.Trigger className="group flex w-full items-center justify-between gap-5 py-5 text-left font-bold text-navy"><span>{question}</span><ChevronDown className="size-5 shrink-0 transition group-data-[state=open]:rotate-180" /></Accordion.Trigger></Accordion.Header><Accordion.Content className="overflow-hidden text-sm leading-7 text-slate"><p className="pb-5">{answer}</p></Accordion.Content></Accordion.Item>)}</Accordion.Root>;
+  return <div className="grid gap-3">{faqItems.slice(0, limit).map(([question, answer]) => <details key={question} className="group rounded-2xl border border-navy/10 bg-white px-5"><summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-5 py-4 text-left font-bold text-navy marker:content-none"><span>{question}</span><ChevronDown className="size-5 shrink-0 transition group-open:rotate-180" aria-hidden="true" /></summary><p className="pb-5 text-sm leading-7 text-slate">{answer}</p></details>)}</div>;
 }
