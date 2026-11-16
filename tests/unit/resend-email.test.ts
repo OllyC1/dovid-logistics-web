@@ -38,4 +38,24 @@ describe("Resend transactional email", () => {
     expect(rendered.html).not.toContain("Delivery <update>");
     expect(rendered.text).toContain("DOV-1");
   });
+
+  it.each([
+    ["booking_confirmed", "Your Dovid delivery is confirmed", "confirmed"],
+    ["package_collected", "Your package has been collected", "collected"],
+    ["package_delivered", "Your delivery is complete", "completed"],
+    ["payment_confirmed", "Payment confirmed", "verified"]
+  ])("renders the branded %s notification", (eventType, heading, body) => {
+    const rendered = renderTransactionalEmail({
+      eventType,
+      heading,
+      body: `Your delivery has been ${body}.`,
+      metadata: { orderReference: "DOV-EMAIL-TEST", actionPath: "/account/orders/test" }
+    });
+
+    expect(rendered.html).toContain("Dovid <span");
+    expect(rendered.html).toContain(heading);
+    expect(rendered.html).toContain("DOV-EMAIL-TEST");
+    expect(rendered.text).toContain("Dovid Logistics");
+    expect(rendered.text).toContain(heading);
+  });
 });

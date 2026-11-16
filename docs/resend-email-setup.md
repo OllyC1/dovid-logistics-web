@@ -2,6 +2,14 @@
 
 The application code supports Resend API delivery, signed Resend webhooks and a durable Supabase-backed queue. Supabase Auth must continue to generate all confirmation, recovery and invitation tokens.
 
+## Verified pre-launch state
+
+- The Resend sending domain `dovidlogistics.com` is verified.
+- Supabase Auth uses the configured Resend SMTP provider.
+- The hosted Site URL and every Auth redirect must remain on `https://dovid-logistics-prelaunch.netlify.app` until the website domain is intentionally connected.
+- `RESEND_FROM_EMAIL` is configured for the Netlify production context.
+- The application queue must remain disabled until `RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET` and `EMAIL_WORKER_SECRET` are all configured together. Enabling only the worker would claim messages before the provider is available.
+
 ## Provider setup
 
 1. In Resend, add `dovidlogistics.com` as a sending domain.
@@ -33,6 +41,8 @@ Configure these as secret, server-only variables except the sender strings:
 - `RESEND_WEBHOOK_SECRET`
 - `EMAIL_WORKER_SECRET`
 - `RESEND_REPLY_TO_EMAIL` only after confirming that `hello@dovidlogistics.com` receives mail
+
+The API key cannot be recovered from Supabase SMTP after it has been saved. Create or select a server-side Resend API key in the Resend dashboard and add it directly to Netlify; never copy it into source control, support messages or terminal output. Generate `EMAIL_WORKER_SECRET` independently and store it only in Netlify. Copy the endpoint-specific signing secret from the Resend webhook details page into `RESEND_WEBHOOK_SECRET`.
 
 Register `https://dovid-logistics-prelaunch.netlify.app/api/webhooks/resend` for `email.sent`, `email.delivered`, `email.delivery_delayed`, `email.bounced`, `email.complained`, and `email.failed` events. Store its `whsec_...` signing secret only in Netlify.
 
