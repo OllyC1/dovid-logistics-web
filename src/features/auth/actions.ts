@@ -24,9 +24,11 @@ export async function loginAction(_: AuthState, formData: FormData): Promise<Aut
       supabase.auth.mfa.getAuthenticatorAssuranceLevel(),
       admin.from("staff_invitations").select("id").eq("auth_user_id", signIn.user.id).in("status", ["pending", "sent", "accepted"]).gt("expires_at", new Date().toISOString()).limit(1).maybeSingle(),
     ]);
-    destination = invitation ? "/staff/setup" : postLoginDestination(
-      (membership?.staff_role as StaffRole | undefined) ?? null,
-      (membership?.status as StaffStatus | undefined) ?? null,
+    const staffRole = (membership?.staff_role as StaffRole | undefined) ?? null;
+    const staffStatus = (membership?.status as StaffStatus | undefined) ?? null;
+    destination = staffStatus !== "active" && invitation ? "/staff/setup" : postLoginDestination(
+      staffRole,
+      staffStatus,
       assurance?.currentLevel === "aal2" ? "aal2" : "aal1",
     );
   } catch { return { error: "Authentication is not configured yet." }; }

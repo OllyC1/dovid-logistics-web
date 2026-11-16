@@ -21,6 +21,15 @@ export default async function StaffSetupPage() {
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
+  const [{ data: membership }, { data: assurance }] = await Promise.all([
+    admin.from("staff_memberships").select("staff_role,status").eq("user_id", user.id).maybeSingle(),
+    supabase.auth.mfa.getAuthenticatorAssuranceLevel(),
+  ]);
+  if (membership?.status === "active") {
+    if (membership.staff_role === "rider") redirect("/rider");
+    if (membership.staff_role === "super_admin" && assurance?.currentLevel !== "aal2") redirect("/staff/mfa?next=/admin");
+    redirect("/admin");
+  }
   if (!invitation || new Date(invitation.expires_at) <= new Date()) redirect("/account");
   const mfaRequired = invitation.is_bootstrap;
   const accepted = invitation.status === "accepted";
