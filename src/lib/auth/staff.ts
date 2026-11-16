@@ -20,7 +20,8 @@ export type StaffPermission =
 
 export async function getStaffAuthorization(requiredPermission?: StaffPermission) {
   const auth = await getAuthenticatedRole();
-  if (!auth || !auth.staffRole || auth.staffStatus !== "active" || auth.currentAal !== "aal2") return null;
+  if (!auth || !auth.staffRole || auth.staffStatus !== "active") return null;
+  if (auth.staffRole === "super_admin" && auth.currentAal !== "aal2") return null;
   const admin = createSupabaseAdminClient();
   const { data: membership } = await admin.from("staff_memberships")
     .select("staff_role,status")
@@ -47,7 +48,7 @@ export async function requireStaffPermission(permission: StaffPermission) {
   if (authorization) return authorization;
   const session = await getAuthenticatedRole();
   if (!session) redirect("/login");
-  if (session.staffRole && session.currentAal !== "aal2") redirect("/staff/mfa?next=/admin");
+  if (session.staffRole === "super_admin" && session.currentAal !== "aal2") redirect("/staff/mfa?next=/admin");
   redirect("/account");
 }
 

@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const sql = readFileSync("supabase/migrations/20261115173941_super_admin_staff_management.sql", "utf8");
+const roleMfaSql = readFileSync("supabase/migrations/20261116104004_role_specific_mfa_enforcement.sql", "utf8");
 
 describe("Super Admin and staff management migration", () => {
   it("preserves application-role compatibility while separating elevated staff roles", () => {
@@ -31,5 +32,11 @@ describe("Super Admin and staff management migration", () => {
   it("keeps staff audit history immutable", () => {
     expect(sql).toContain("staff audit history is immutable");
     expect(sql).toContain("before update or delete on public.staff_audit_events");
+  });
+
+  it("requires AAL2 only for the Super Admin membership", () => {
+    expect(roleMfaSql).toContain("membership.staff_role<>'super_admin'");
+    expect(roleMfaSql).toContain("auth.jwt()->>'aal')='aal2'");
+    expect(roleMfaSql).toContain("membership.staff_role='rider'");
   });
 });

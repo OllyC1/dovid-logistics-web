@@ -3,7 +3,7 @@
 import { useActionState, useState } from "react";
 import { AddressAutocomplete, type AddressValue } from "@/components/maps/address-autocomplete";
 import { Button } from "@/components/ui/button";
-import { Field, TextareaField } from "@/components/ui/field";
+import { Field, PasswordField, TextareaField } from "@/components/ui/field";
 import { addAddressAction, updatePasswordAction, updateProfileAction, type AccountState } from "@/features/account/actions";
 
 function Feedback({ state }: { state: AccountState }) {
@@ -32,5 +32,5 @@ export function AddressForm() {
 
 export function PasswordForm() {
   const [state, action, pending] = useActionState(updatePasswordAction, {});
-  return <form action={action} className="grid gap-4"><Field name="password" type="password" label="New password" minLength={8} autoComplete="new-password" required /><Feedback state={state} /><Button type="submit" disabled={pending}>{pending ? "Updating…" : "Update password"}</Button></form>;
+  return <form action={action} className="grid gap-4"><PasswordField name="password" label="New password" minLength={8} autoComplete="new-password" required /><Feedback state={state} /><Button type="submit" disabled={pending}>{pending ? "Updating…" : "Update password"}</Button></form>;
 }

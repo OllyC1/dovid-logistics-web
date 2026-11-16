@@ -9,7 +9,7 @@ import { Field } from "@/components/ui/field";
 
 type Factor = { id: string; status?: string };
 
-export function MfaPanel({ mode, next = "/admin" }: { mode: "enroll" | "challenge"; next?: string }) {
+export function MfaPanel({ mode, next = "/admin", completeOnboarding = mode === "enroll" }: { mode: "enroll" | "challenge"; next?: string; completeOnboarding?: boolean }) {
   const router = useRouter();
   const [factor, setFactor] = useState<Factor | null>(null);
   const [qrCode, setQrCode] = useState("");
@@ -57,7 +57,7 @@ export function MfaPanel({ mode, next = "/admin" }: { mode: "enroll" | "challeng
     if (challenge.error) { setPending(false); setMessage("The verification challenge could not be created."); return; }
     const verified = await supabase.auth.mfa.verify({ factorId: factor.id, challengeId: challenge.data.id, code: code.trim() });
     if (verified.error) { setPending(false); setMessage("That code was not accepted. Wait for a new code and try again."); return; }
-    if (mode === "challenge") {
+    if (mode === "challenge" || !completeOnboarding) {
       router.replace(next);
       router.refresh();
       return;
@@ -76,7 +76,7 @@ export function MfaPanel({ mode, next = "/admin" }: { mode: "enroll" | "challeng
     </div> : null}
     <p role="status" className="rounded-2xl bg-cloud p-4 text-sm text-slate">{message}</p>
     <Field label="Six-digit authenticator code" name="mfaCode" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, ""))} />
-    <Button type="button" disabled={pending || !factor || code.length !== 6} onClick={verify}>{pending ? "Verifying…" : mode === "enroll" ? "Verify and finish setup" : "Verify and continue"}</Button>
+    <Button type="button" disabled={pending || !factor || code.length !== 6} onClick={verify}>{pending ? "Verifying…" : mode === "enroll" && completeOnboarding ? "Verify and finish setup" : "Verify and continue"}</Button>
   </div>;
 }
 
@@ -89,7 +89,7 @@ export function StaffInvitationAcceptance() {
     const response = await fetch("/api/staff/onboarding/complete", { method: "POST" });
     const body = await response.json().catch(() => ({}));
     if (!response.ok) { setPending(false); setMessage(body.error ?? "The invitation could not be accepted."); return; }
-    setMessage("Invitation accepted. An administrator must complete identity and rider readiness checks before access is activated.");
+    setMessage("Invitation accepted. An authorized administrator must complete the required identity and role checks before access is activated.");
     router.refresh();
   }
   return <div className="grid gap-4"><Button type="button" onClick={accept} disabled={pending}>{pending ? "Accepting…" : "Accept staff invitation"}</Button>{message ? <p role="status" className="rounded-2xl bg-cloud p-4 text-sm text-slate">{message}</p> : null}</div>;

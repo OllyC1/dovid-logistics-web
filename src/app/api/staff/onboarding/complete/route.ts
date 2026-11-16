@@ -18,7 +18,7 @@ export async function POST() {
     .limit(1)
     .maybeSingle();
   if (!invitation || new Date(invitation.expires_at) <= new Date()) return NextResponse.json({ error: "This staff invitation is unavailable or has expired." }, { status: 410 });
-  if ((invitation.is_bootstrap || invitation.intended_role === "admin") && assurance?.currentLevel !== "aal2") {
+  if (invitation.is_bootstrap && assurance?.currentLevel !== "aal2") {
     return NextResponse.json({ error: "Verify your authenticator code before privileged access can be granted." }, { status: 403 });
   }
   const rpc = invitation.is_bootstrap

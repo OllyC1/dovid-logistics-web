@@ -15,7 +15,13 @@ begin
   if not has_function_privilege('service_role','public.finalize_initial_super_admin(uuid)','execute') then
     raise exception 'service role must execute founder bootstrap finalization';
   end if;
-  if exists(select 1 from public.staff_permission_grants where permission_key in ('admins.invite','admins.manage_permissions')) then
+  if exists(
+    select 1
+    from public.staff_permission_grants grant_record
+    join public.staff_memberships membership on membership.user_id=grant_record.user_id
+    where grant_record.permission_key in ('admins.invite','admins.manage_permissions')
+      and membership.staff_role<>'super_admin'
+  ) then
     raise exception 'reserved Super Admin permissions must not be delegated';
   end if;
 end;

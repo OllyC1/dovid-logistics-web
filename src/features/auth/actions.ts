@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { publicEnv } from "@/lib/env";
+import { postLoginDestination, type StaffRole, type StaffStatus } from "@/lib/auth/role-resolution";
 
 export type AuthState = { error?: string; success?: string };
 const credentialsSchema = z.object({ email: z.email(), password: z.string().min(8) });
@@ -11,12 +12,22 @@ const credentialsSchema = z.object({ email: z.email(), password: z.string().min(
 export async function loginAction(_: AuthState, formData: FormData): Promise<AuthState> {
   const parsed = credentialsSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: "Enter a valid email and password of at least 8 characters." };
+  let destination = "/account";
   try {
     const supabase = await createSupabaseServerClient();
-    const { error } = await supabase.auth.signInWithPassword(parsed.data);
-    if (error) return { error: "The email or password is incorrect." };
+    const { data: signIn, error } = await supabase.auth.signInWithPassword(parsed.data);
+    if (error || !signIn.user) return { error: "The email or password is incorrect." };
+    const [{ data: membership }, { data: assurance }] = await Promise.all([
+      supabase.from("staff_memberships").select("staff_role,status").eq("user_id", signIn.user.id).maybeSingle(),
+      supabase.auth.mfa.getAuthenticatorAssuranceLevel(),
+    ]);
+    destination = postLoginDestination(
+      (membership?.staff_role as StaffRole | undefined) ?? null,
+      (membership?.status as StaffStatus | undefined) ?? null,
+      assurance?.currentLevel === "aal2" ? "aal2" : "aal1",
+    );
   } catch { return { error: "Authentication is not configured yet." }; }
-  redirect("/account");
+  redirect(destination);
 }
 
 export async function registerAction(_: AuthState, formData: FormData): Promise<AuthState> {
