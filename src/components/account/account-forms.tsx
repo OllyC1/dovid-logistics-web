@@ -5,6 +5,7 @@ import { AddressAutocomplete, type AddressValue } from "@/components/maps/addres
 import { Button } from "@/components/ui/button";
 import { Field, PasswordField, TextareaField } from "@/components/ui/field";
 import { addAddressAction, updatePasswordAction, updateProfileAction, type AccountState } from "@/features/account/actions";
+import { NEW_PASSWORD_HINT, NEW_PASSWORD_MAX_LENGTH, NEW_PASSWORD_MIN_LENGTH } from "@/lib/auth/password-policy";
 
 function Feedback({ state }: { state: AccountState }) {
   return state.error ? <p role="alert" className="rounded-2xl bg-red-50 p-4 text-sm text-red-800">{state.error}</p> : state.success ? <p role="status" className="rounded-2xl bg-emerald-50 p-4 text-sm text-emerald-800">{state.success}</p> : null;
@@ -32,5 +33,5 @@ export function AddressForm() {
 
 export function PasswordForm() {
   const [state, action, pending] = useActionState(updatePasswordAction, {});
-  return <form action={action} className="grid gap-4"><PasswordField name="password" label="New password" minLength={8} autoComplete="new-password" required /><Feedback state={state} /><Button type="submit" disabled={pending}>{pending ? "Updating…" : "Update password"}</Button></form>;
+  return <form action={action} className="grid gap-4"><PasswordField name="password" label="New password" minLength={NEW_PASSWORD_MIN_LENGTH} maxLength={NEW_PASSWORD_MAX_LENGTH} hint={NEW_PASSWORD_HINT} autoComplete="new-password" required /><Feedback state={state} /><Button type="submit" disabled={pending}>{pending ? "Updating…" : "Update password"}</Button></form>;
 }

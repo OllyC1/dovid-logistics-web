@@ -6,9 +6,11 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { publicEnv } from "@/lib/env";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { postLoginDestination, type StaffRole, type StaffStatus } from "@/lib/auth/role-resolution";
+import { isStrongNewPassword, NEW_PASSWORD_HINT, NEW_PASSWORD_MAX_LENGTH, NEW_PASSWORD_MIN_LENGTH } from "@/lib/auth/password-policy";
 
 export type AuthState = { error?: string; success?: string };
 const credentialsSchema = z.object({ email: z.email(), password: z.string().min(8) });
+const newPasswordSchema = z.string().min(NEW_PASSWORD_MIN_LENGTH).max(NEW_PASSWORD_MAX_LENGTH).refine(isStrongNewPassword);
 
 export async function loginAction(_: AuthState, formData: FormData): Promise<AuthState> {
   const parsed = credentialsSchema.safeParse(Object.fromEntries(formData));
@@ -36,8 +38,8 @@ export async function loginAction(_: AuthState, formData: FormData): Promise<Aut
 }
 
 export async function registerAction(_: AuthState, formData: FormData): Promise<AuthState> {
-  const parsed = credentialsSchema.extend({ fullName: z.string().min(2), phone: z.string().min(7).max(20) }).safeParse(Object.fromEntries(formData));
-  if (!parsed.success) return { error: "Check your name, phone, email and password." };
+  const parsed = credentialsSchema.extend({ password: newPasswordSchema, fullName: z.string().min(2), phone: z.string().min(7).max(20) }).safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: `Check your name, phone and email. ${NEW_PASSWORD_HINT}` };
   try {
     const supabase = await createSupabaseServerClient();
     const { error } = await supabase.auth.signUp({ email: parsed.data.email, password: parsed.data.password, options: { emailRedirectTo: `${publicEnv.NEXT_PUBLIC_APP_URL}/auth/callback`, data: { full_name: parsed.data.fullName, phone: parsed.data.phone } } });
