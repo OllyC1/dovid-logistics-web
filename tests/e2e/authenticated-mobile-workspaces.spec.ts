@@ -11,7 +11,11 @@ type TestAccount = { id: string; email: string; password: string; role: TestRole
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const canRunLiveRoleChecks = Boolean(supabaseUrl && serviceRoleKey);
+const provisioningSecret = process.env.E2E_ACCOUNT_PROVISIONING_SECRET;
+const deployedBaseUrl = process.env.PLAYWRIGHT_BASE_URL;
+const canUseAdminClient = Boolean(supabaseUrl && serviceRoleKey);
+const canUseProvisioner = Boolean(deployedBaseUrl && provisioningSecret);
+const canRunLiveRoleChecks = canUseAdminClient || canUseProvisioner;
 let admin: SupabaseClient;
 const accounts: TestAccount[] = [];
 
@@ -78,13 +82,23 @@ async function expectMobilePage(page: Page, path: string) {
 }
 
 test.beforeAll(async ({}, testInfo) => {
-  test.skip(!canRunLiveRoleChecks, "Live role checks require the controlled local Supabase test credentials and a deployed base URL");
+  test.skip(!canRunLiveRoleChecks, "Live role checks require controlled test provisioning");
+  if (canUseProvisioner) {
+    const provisioned = await fetch(`${deployedBaseUrl}/api/internal/e2e/accounts`, { method: "POST", headers: { "Content-Type": "application/json", "x-e2e-secret": provisioningSecret! }, body: JSON.stringify({ action: "create", roles: ["customer", "admin", "rider"] }) });
+    if (!provisioned.ok) throw new Error(`Test account provisioner returned ${provisioned.status}`);
+    accounts.push(...((await provisioned.json()) as { accounts: TestAccount[] }).accounts);
+    return;
+  }
   admin = createClient(supabaseUrl!, serviceRoleKey!, { auth: { persistSession: false, autoRefreshToken: false } });
   const suffix = `${Date.now()}-${testInfo.project.name.replace(/[^a-z0-9]/gi, "-")}`;
   for (const role of ["customer", "admin", "rider"] as const) accounts.push(await createAccount(role, suffix));
 });
 
 test.afterAll(async () => {
+  if (canUseProvisioner && accounts.length) {
+    await fetch(`${deployedBaseUrl}/api/internal/e2e/accounts`, { method: "POST", headers: { "Content-Type": "application/json", "x-e2e-secret": provisioningSecret! }, body: JSON.stringify({ action: "cleanup", userIds: accounts.map((account) => account.id) }) });
+    return;
+  }
   if (!admin) return;
   await Promise.all(accounts.map(removeAccount));
 });
