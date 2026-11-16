@@ -20,13 +20,35 @@ test.beforeEach(async ({ page }, testInfo) => {
 
 test("registration is usable and validates safely", async ({ page }) => {
   await page.goto("/register");
+  const password = page.getByLabel("Password", { exact: true });
+  await expect(password).toHaveAttribute("type", "password");
+  await page.getByRole("button", { name: "Show password" }).click();
+  await expect(password).toHaveAttribute("type", "text");
+  await page.getByRole("button", { name: "Hide password" }).click();
+  await expect(password).toHaveAttribute("type", "password");
   await page.getByLabel("Full name").fill("Mobile Customer");
   await page.getByLabel("Phone number").fill("08000000000");
   await page.getByLabel("Email address").fill("mobile.customer@example.com");
-  await page.getByLabel("Password").fill("short");
+  await password.fill("short");
   await page.getByRole("button", { name: "Create account" }).click();
-  expect(await page.getByLabel("Password").evaluate(input => (input as HTMLInputElement).checkValidity())).toBe(false);
-  expect(await page.getByLabel("Password").evaluate(input => (input as HTMLInputElement).validationMessage)).not.toBe("");
+  expect(await password.evaluate(input => (input as HTMLInputElement).checkValidity())).toBe(false);
+  expect(await password.evaluate(input => (input as HTMLInputElement).validationMessage)).not.toBe("");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(await page.evaluate(() => window.innerWidth));
+});
+
+test("login password visibility works and private workspaces stay protected", async ({ page }) => {
+  await page.goto("/login");
+  const password = page.getByLabel("Password", { exact: true });
+  await expect(password).toHaveAttribute("type", "password");
+  await page.getByRole("button", { name: "Show password" }).click();
+  await expect(password).toHaveAttribute("type", "text");
+  await page.getByRole("button", { name: "Hide password" }).click();
+  await expect(password).toHaveAttribute("type", "password");
+
+  for (const path of ["/account", "/admin", "/rider"]) {
+    await page.goto(path);
+    await expect(page).toHaveURL(/\/login(?:\?|$)/);
+  }
 });
 
 test("sender can book with address search, enter test checkout, verify, track and see delivery completion", async ({ page }) => {
