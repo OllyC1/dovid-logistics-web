@@ -28,7 +28,7 @@ export default async function RiderAssignments() {
             {run.expected_completion_at ? <p className="text-sm text-white/70 sm:text-right">Expected completion<br/><strong className="text-white">{new Date(run.expected_completion_at).toLocaleString("en-NG")}</strong></p> : null}
           </div>
           <div className="mt-5 min-w-0 rounded-2xl bg-white/10 p-4"><p className="text-xs uppercase tracking-widest text-orange">Next recommended stop</p><p className="mt-2 break-words font-bold">{next ? `${next.stop_type.replaceAll("_", " ")} · ${next.address}` : "No pending stop"}</p></div>
-          <ol className="mt-4 grid gap-2">{stops.map((stop) => <li key={stop.id} className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-3 rounded-xl bg-white/5 p-3 text-sm"><span className="font-bold text-orange">{stop.sequence}</span><span className="min-w-0 break-words capitalize">{stop.stop_type.replaceAll("_", " ")} · {stop.status.replaceAll("_", " ")}<span className="block break-words text-white/60">{stop.address}</span></span></li>)}</ol>
+          <ol className="mt-4 grid gap-2">{stops.map((stop) => <li key={stop.id} className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-3 rounded-xl bg-white/5 p-3 text-sm"><span className="font-bold text-orange-light">{stop.sequence}</span><span className="min-w-0 break-words capitalize">{stop.stop_type.replaceAll("_", " ")} · {stop.status.replaceAll("_", " ")}<span className="block break-words text-white/60">{stop.address}</span></span></li>)}</ol>
         </article>;
       })}{!runs?.length ? <p className="rounded-3xl bg-white p-6 text-slate sm:p-8">No active delivery run. Your assigned bike remains unavailable until dispatch and safety checks are complete.</p> : null}</div>
     </section>
