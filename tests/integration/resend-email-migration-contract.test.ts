@@ -2,6 +2,8 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const sql = readFileSync("supabase/migrations/20261115220000_resend_transactional_email.sql", "utf8");
+const queue = readFileSync("src/lib/notifications/queue.ts", "utf8");
+const webhook = readFileSync("src/app/api/webhooks/resend/route.ts", "utf8");
 
 describe("Resend email migration", () => {
   it("claims queue work atomically with an expiring lease", () => {
@@ -23,5 +25,18 @@ describe("Resend email migration", () => {
 
   it("queues booking, pickup, delivery, payment, fee, failure and redelivery events", () => {
     for (const event of ["booking_confirmed", "package_collected", "package_delivered", "payment_confirmed", "additional_fee_request", "delivery_failed", "redelivery_scheduled"]) expect(sql).toContain(event);
+  });
+
+  it("schedules transient failures and records permanent failures", () => {
+    expect(queue).toContain('delivery_status: retryable ? "deferred" : "failed"');
+    expect(queue).toContain('outcome: retryable ? "retry_scheduled"');
+    expect(queue).toContain('"permanent_failure"');
+    expect(queue).toContain("next_attempt_at: retryAt");
+  });
+
+  it("deduplicates signed provider events before updating delivery state", () => {
+    expect(webhook).toContain('error?.code === "23505"');
+    expect(webhook).toContain("duplicate: true");
+    expect(webhook).toContain('.eq("provider_message_id", emailId)');
   });
 });

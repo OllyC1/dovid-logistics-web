@@ -21,6 +21,12 @@ describe("Resend transactional email", () => {
     await expect(provider.send({ to: "recipient@example.com", subject: "Update", html: "<p>Update</p>", text: "Update", deduplicationKey: "order/update/2" })).rejects.toMatchObject({ code: "daily_quota_exceeded", retryable: true, retryAfterSeconds: 3600 } satisfies Partial<NotificationProviderError>);
   });
 
+  it("classifies rejected requests as permanent failures", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ name: "validation_error", message: "Invalid recipient" }), { status: 422 })));
+    const provider = new ResendNotificationProvider("re_test", "Dovid Logistics <notifications@example.com>");
+    await expect(provider.send({ to: "recipient@example.com", subject: "Update", html: "<p>Update</p>", text: "Update", deduplicationKey: "order/update/3" })).rejects.toMatchObject({ code: "validation_error", retryable: false } satisfies Partial<NotificationProviderError>);
+  });
+
   it("verifies Svix signatures and rejects stale requests", () => {
     const secretBytes = Buffer.from("resend-test-secret");
     const secret = `whsec_${secretBytes.toString("base64")}`;
