@@ -34,6 +34,16 @@ describe("Resend email migration", () => {
     expect(queue).toContain("next_attempt_at: retryAt");
   });
 
+  it("does not reclaim terminal email failures without a scheduled retry", () => {
+    const guardSql = readFileSync(
+      "supabase/migrations/20261116094850_email_permanent_failure_queue_guard.sql",
+      "utf8",
+    ).toLowerCase();
+
+    expect(guardSql).toContain("status='failed' and next_attempt_at is not null and next_attempt_at<=now()");
+    expect(guardSql).not.toContain("coalesce(next_attempt_at,now())<=now()");
+  });
+
   it("deduplicates signed provider events before updating delivery state", () => {
     expect(webhook).toContain('error?.code === "23505"');
     expect(webhook).toContain("duplicate: true");
