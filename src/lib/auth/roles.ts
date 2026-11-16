@@ -41,6 +41,7 @@ export async function requireRole(roles: AppRole[]) {
   const auth = await getAuthenticatedRole();
   if (!auth) redirect("/login");
   const staffHome = activeStaffHome(auth.staffRole, auth.staffStatus);
+  if (auth.staffRole && auth.staffStatus === "pending") redirect("/staff/setup");
   if (staffHome && auth.staffRole === "super_admin" && auth.currentAal !== "aal2") redirect(`/staff/mfa?next=${staffHome}`);
   if (!roles.includes(auth.role)) redirect(roleHome(auth.role));
   return auth;

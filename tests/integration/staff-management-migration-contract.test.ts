@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 const sql = readFileSync("supabase/migrations/20261115173941_super_admin_staff_management.sql", "utf8");
 const roleMfaSql = readFileSync("supabase/migrations/20261116104004_role_specific_mfa_enforcement.sql", "utf8");
+const ordinaryStaffMfaFixSql = readFileSync("supabase/migrations/20261116125453_remove_admin_mfa_requirement.sql", "utf8");
 
 describe("Super Admin and staff management migration", () => {
   it("preserves application-role compatibility while separating elevated staff roles", () => {
@@ -38,5 +39,12 @@ describe("Super Admin and staff management migration", () => {
     expect(roleMfaSql).toContain("membership.staff_role<>'super_admin'");
     expect(roleMfaSql).toContain("auth.jwt()->>'aal')='aal2'");
     expect(roleMfaSql).toContain("membership.staff_role='rider'");
+  });
+
+  it("does not require MFA to accept or activate ordinary admin invitations", () => {
+    expect(ordinaryStaffMfaFixSql).toContain("create or replace function public.accept_staff_invitation");
+    expect(ordinaryStaffMfaFixSql).toContain("create or replace function public.activate_staff_member");
+    expect(ordinaryStaffMfaFixSql).not.toContain("auth.mfa_factors");
+    expect(ordinaryStaffMfaFixSql).not.toContain("multifactor authentication is required for administrators");
   });
 });

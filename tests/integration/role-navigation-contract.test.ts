@@ -8,6 +8,8 @@ const footer = readFileSync("src/components/layout/footer.tsx", "utf8");
 const customerLayout = readFileSync("src/app/(customer)/account/layout.tsx", "utf8");
 const adminLayout = readFileSync("src/app/(admin)/admin/layout.tsx", "utf8");
 const riderLayout = readFileSync("src/app/(rider)/rider/layout.tsx", "utf8");
+const workspaceNavigation = readFileSync("src/components/layout/workspace-navigation.tsx", "utf8");
+const transitionIndicator = readFileSync("src/components/layout/route-transition-indicator.tsx", "utf8");
 
 describe("role-specific authentication and navigation", () => {
   it("offers accessible show and hide password controls", () => {
@@ -26,5 +28,15 @@ describe("role-specific authentication and navigation", () => {
     expect(adminLayout).toContain('auth.staffRole==="super_admin"?"Super Admin":"Dovid admin"');
     expect(adminLayout).toContain("visibleLinks");
     expect(riderLayout).toContain('label="Rider workspace"');
+  });
+
+  it("closes mobile workspace navigation and shows the active page", () => {
+    expect(workspaceNavigation).toContain('mobileMenu.current?.removeAttribute("open")');
+    expect(workspaceNavigation).toContain('aria-current={active ? "page" : undefined}');
+  });
+
+  it("provides immediate feedback while internal pages are opening", () => {
+    expect(transitionIndicator).toContain('document.addEventListener("click", start, true)');
+    expect(transitionIndicator).toContain("Opening page…");
   });
 });

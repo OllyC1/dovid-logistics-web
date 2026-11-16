@@ -25,6 +25,11 @@ describe("trusted role resolution", () => {
     expect(postLoginDestination("rider", "active", "aal1")).toBe("/rider");
   });
 
+  it("keeps accepted staff invitations in onboarding until approval", () => {
+    expect(postLoginDestination("admin", "pending", "aal1")).toBe("/staff/setup");
+    expect(postLoginDestination("rider", "pending", "aal1")).toBe("/staff/setup");
+  });
+
   it("routes active admins, riders and customers to separate workspaces", () => {
     expect(activeStaffHome("admin", "active")).toBe("/admin");
     expect(activeStaffHome("rider", "active")).toBe("/rider");

@@ -9,6 +9,7 @@ export const dynamic="force-dynamic";
 export default async function AccountLayout({children}:{children:React.ReactNode}){
   const auth=await getAuthenticatedRole();
   if(!auth)redirect("/login");
+  if(auth.staffRole&&auth.staffStatus==="pending")redirect("/staff/setup");
   const staffHome=activeStaffHome(auth.staffRole,auth.staffStatus);
   if(staffHome&&auth.staffRole==="super_admin"&&auth.currentAal!=="aal2")redirect(`/staff/mfa?next=${staffHome}`);
   if(staffHome)redirect(staffHome);

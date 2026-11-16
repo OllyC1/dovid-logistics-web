@@ -25,5 +25,5 @@ export async function POST() {
     ? await admin.rpc("finalize_initial_super_admin", { target_user_id: user.id })
     : await admin.rpc("accept_staff_invitation", { target_user_id: user.id });
   if (rpc.error) return NextResponse.json({ error: rpc.error.message }, { status: 409 });
-  return NextResponse.json({ result: rpc.data, next: invitation.is_bootstrap ? "/admin/team" : "/account" });
+  return NextResponse.json({ result: rpc.data, next: invitation.is_bootstrap ? "/admin/team" : "/staff/setup" });
 }

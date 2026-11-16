@@ -89,8 +89,9 @@ export function StaffInvitationAcceptance() {
     const response = await fetch("/api/staff/onboarding/complete", { method: "POST" });
     const body = await response.json().catch(() => ({}));
     if (!response.ok) { setPending(false); setMessage(body.error ?? "The invitation could not be accepted."); return; }
-    setMessage("Invitation accepted. An authorized administrator must complete the required identity and role checks before access is activated.");
+    setMessage("Invitation confirmed. Your account is now waiting for Super Admin approval. You do not need multifactor authentication.");
+    router.replace(body.next ?? "/staff/setup");
     router.refresh();
   }
-  return <div className="grid gap-4"><Button type="button" onClick={accept} disabled={pending}>{pending ? "Accepting…" : "Accept staff invitation"}</Button>{message ? <p role="status" className="rounded-2xl bg-cloud p-4 text-sm text-slate">{message}</p> : null}</div>;
+  return <div className="grid gap-4"><Button type="button" onClick={accept} disabled={pending}>{pending ? "Confirming invitation…" : "Confirm staff invitation"}</Button>{message ? <p role="status" className="rounded-2xl bg-emerald-50 p-4 text-sm font-semibold text-emerald-900">{message}</p> : null}</div>;
 }

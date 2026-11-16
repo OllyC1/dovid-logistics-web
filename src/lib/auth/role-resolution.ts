@@ -29,6 +29,7 @@ export function postLoginDestination(
   staffStatus: StaffStatus | null,
   currentAal: AssuranceLevel,
 ) {
+  if (staffRole && staffStatus === "pending") return "/staff/setup";
   const staffHome = activeStaffHome(staffRole, staffStatus);
   if (!staffHome) return "/account";
   if (staffRole === "super_admin" && currentAal !== "aal2") return `/staff/mfa?next=${staffHome}`;
