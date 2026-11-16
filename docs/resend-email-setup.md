@@ -8,7 +8,8 @@ The application code supports Resend API delivery, signed Resend webhooks and a 
 - Supabase Auth uses the configured Resend SMTP provider.
 - The hosted Site URL and every Auth redirect must remain on `https://dovid-logistics-prelaunch.netlify.app` until the website domain is intentionally connected.
 - `RESEND_FROM_EMAIL` is configured for the Netlify production context.
-- The application queue must remain disabled until `RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET` and `EMAIL_WORKER_SECRET` are all configured together. Enabling only the worker would claim messages before the provider is available.
+- `RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET` and `EMAIL_WORKER_SECRET` are configured as secret Netlify production variables.
+- The scheduled application queue and signed webhook were verified with real Resend test delivery on 16 November 2026.
 
 ## Provider setup
 
