@@ -39,4 +39,9 @@ describe("Resend email migration", () => {
     expect(webhook).toContain("duplicate: true");
     expect(webhook).toContain('.eq("provider_message_id", emailId)');
   });
+
+  it("does not let late non-terminal events downgrade delivery", () => {
+    expect(webhook).toContain('"email.sent": { delivery_status: "accepted", allowedCurrent: ["queued", "accepted", "deferred"] }');
+    expect(webhook).toContain('.in("delivery_status", mapped.allowedCurrent)');
+  });
 });

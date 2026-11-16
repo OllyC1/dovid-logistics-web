@@ -5,13 +5,13 @@ import { verifyResendWebhook } from "@/lib/resend/webhook";
 export const runtime = "nodejs";
 
 type ResendEvent = { type?: string; data?: { email_id?: string }; created_at?: string };
-const statuses: Record<string, { delivery_status: string; final?: boolean }> = {
-  "email.sent": { delivery_status: "accepted" },
-  "email.delivered": { delivery_status: "delivered", final: true },
-  "email.delivery_delayed": { delivery_status: "deferred" },
-  "email.bounced": { delivery_status: "bounced", final: true },
-  "email.complained": { delivery_status: "complained", final: true },
-  "email.failed": { delivery_status: "failed", final: true }
+const statuses: Record<string, { delivery_status: string; allowedCurrent: string[]; final?: boolean }> = {
+  "email.sent": { delivery_status: "accepted", allowedCurrent: ["queued", "accepted", "deferred"] },
+  "email.delivered": { delivery_status: "delivered", allowedCurrent: ["queued", "accepted", "deferred", "delivered"], final: true },
+  "email.delivery_delayed": { delivery_status: "deferred", allowedCurrent: ["queued", "accepted", "deferred"] },
+  "email.bounced": { delivery_status: "bounced", allowedCurrent: ["queued", "accepted", "deferred", "delivered", "bounced"], final: true },
+  "email.complained": { delivery_status: "complained", allowedCurrent: ["queued", "accepted", "deferred", "delivered", "complained"], final: true },
+  "email.failed": { delivery_status: "failed", allowedCurrent: ["queued", "accepted", "deferred", "failed"], final: true }
 };
 
 export async function POST(request: NextRequest) {
@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
     const changes: Record<string, unknown> = { delivery_status: mapped.delivery_status };
     if (event.type === "email.delivered") changes.delivered_at = event.created_at ?? new Date().toISOString();
     if (mapped.final && event.type !== "email.delivered") changes.failed_at = event.created_at ?? new Date().toISOString();
-    await admin.from("notifications").update(changes).eq("provider", "resend").eq("provider_message_id", emailId);
+    await admin.from("notifications").update(changes).eq("provider", "resend").eq("provider_message_id", emailId).in("delivery_status", mapped.allowedCurrent);
   }
   return NextResponse.json({ received: true });
 }
