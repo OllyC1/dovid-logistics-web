@@ -170,8 +170,18 @@ export function BookingWizard() {
     window.location.assign(new URL(`/account/orders/${body.order_id}`, window.location.origin).toString());
   }
 
-  return <div className="grid min-w-0 gap-8 lg:grid-cols-[260px_1fr]" data-hydrated={hydrated}>
-    <aside className="min-w-0"><ol className="flex gap-2 overflow-x-auto lg:grid">{steps.map((label, index) => <li key={label} className={`flex min-w-max items-center gap-3 rounded-2xl px-4 py-3 text-sm font-bold ${index === step ? "bg-navy text-white" : index < step ? "bg-orange/10 text-orange" : "bg-white text-slate"}`}><span className="grid size-7 place-items-center rounded-full border border-current/25">{index < step ? <Check className="size-4" /> : index + 1}</span>{label}</li>)}</ol></aside>
+  return <div className="grid min-w-0 gap-6 lg:grid-cols-[260px_1fr] lg:gap-8" data-hydrated={hydrated}>
+    <aside className="min-w-0">
+      <div className="rounded-2xl bg-white p-4 shadow-sm lg:hidden">
+        <div className="flex items-center justify-between gap-4">
+          <div className="min-w-0"><p className="text-xs font-bold uppercase tracking-widest text-orange">Step {step + 1} of {steps.length}</p><p className="mt-1 truncate font-extrabold text-navy">{steps[step]}</p></div>
+          <span className="grid size-10 shrink-0 place-items-center rounded-full bg-navy text-sm font-extrabold text-white">{Math.round(((step + 1) / steps.length) * 100)}%</span>
+        </div>
+        <div className="mt-4 h-2 overflow-hidden rounded-full bg-navy/10" role="progressbar" aria-label="Booking progress" aria-valuemin={1} aria-valuemax={steps.length} aria-valuenow={step + 1}><div className="h-full rounded-full bg-orange transition-[width] duration-300" style={{ width: `${((step + 1) / steps.length) * 100}%` }} /></div>
+        {step < steps.length - 1 ? <p className="mt-3 text-xs text-slate">Next: {steps[step + 1]}</p> : <p className="mt-3 text-xs text-slate">Almost done. Review the payment choice and confirm.</p>}
+      </div>
+      <ol className="hidden gap-2 lg:grid">{steps.map((label, index) => <li key={label} className={`flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-bold ${index === step ? "bg-navy text-white" : index < step ? "bg-orange/10 text-orange" : "bg-white text-slate"}`}><span className="grid size-7 place-items-center rounded-full border border-current/25">{index < step ? <Check className="size-4" /> : index + 1}</span>{label}</li>)}</ol>
+    </aside>
     <section className="min-w-0 rounded-[2rem] border border-navy/10 bg-white p-6 shadow-sm md:p-9">
       <h2 className="text-2xl font-extrabold text-navy">{steps[step]}</h2>
       <div className="mt-7 grid gap-5">

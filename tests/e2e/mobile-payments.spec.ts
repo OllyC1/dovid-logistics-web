@@ -62,19 +62,25 @@ test("sender can book with address search, enter test checkout, verify, track an
 
   await page.goto("/book");
   await expect(page.locator('[data-hydrated="true"]')).toBeVisible();
+  const progress = page.getByRole("progressbar", { name: "Booking progress" });
+  await expect(progress).toHaveAttribute("aria-valuenow", "1");
   await page.getByLabel("Where should we collect the parcel?").fill("Bodija");
   await page.getByRole("button", { name: /Bodija/ }).click();
   await page.getByLabel("Where should we deliver it?").fill("Ring Road");
   await page.getByRole("button", { name: /Ring Road/ }).click();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(await page.evaluate(() => window.innerWidth));
   await page.getByRole("button", { name: "Continue" }).click();
+  await expect(progress).toHaveAttribute("aria-valuenow", "2");
   await page.getByRole("button", { name: "Continue" }).click();
+  await expect(progress).toHaveAttribute("aria-valuenow", "3");
   await page.getByLabel("Your name").fill("Mobile Sender");
   await page.getByLabel("Your phone number").fill("08000000000");
   await page.getByLabel("Receiver's name").fill("Mobile Receiver");
   await page.getByLabel("Receiver's phone number").fill("08000000001");
   await page.getByRole("button", { name: "See my price" }).click();
+  await expect(progress).toHaveAttribute("aria-valuenow", "4");
   await page.getByRole("button", { name: "Continue to payment" }).click();
+  await expect(progress).toHaveAttribute("aria-valuenow", "5");
   await page.getByRole("button", { name: "Create delivery and pay" }).click();
   await expect(page.getByRole("heading", { name: "Paystack test checkout" })).toBeVisible();
 

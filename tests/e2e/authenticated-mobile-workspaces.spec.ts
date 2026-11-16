@@ -81,6 +81,12 @@ async function expectMobilePage(page: Page, path: string) {
   expect(dimensions.body, `${path} body overflow`).toBeLessThanOrEqual(dimensions.viewport);
 }
 
+async function captureMobilePage(page: Page, path: string, projectName: string) {
+  if (process.env.CAPTURE_MOBILE_SCREENSHOTS !== "true") return;
+  const slug = path === "/" ? "home" : path.replace(/^\//, "").replaceAll("/", "-");
+  await page.screenshot({ path: `.tmp/${projectName}-${slug}.png`, fullPage: true });
+}
+
 test.beforeAll(async ({}, testInfo) => {
   test.skip(!canRunLiveRoleChecks, "Live role checks require controlled test provisioning");
   if (canUseProvisioner) {
@@ -113,7 +119,10 @@ test("customer keeps a customer-only mobile workspace", async ({ page }) => {
   const account = accounts.find((item) => item.role === "customer")!;
   await login(page, account, /\/account(?:\?|$)/);
   await expect(page.locator("header")).toHaveCount(0);
-  for (const path of ["/account", "/account/orders", "/account/addresses", "/account/notifications", "/account/settings"]) await expectMobilePage(page, path);
+  for (const path of ["/account", "/account/orders", "/account/addresses", "/account/notifications", "/account/settings"]) {
+    await expectMobilePage(page, path);
+    await captureMobilePage(page, path, test.info().project.name);
+  }
 });
 
 test("administrator reaches the admin workspace without MFA and every authorized page fits mobile", async ({ page }) => {
@@ -135,7 +144,10 @@ test("administrator reaches the admin workspace without MFA and every authorized
     "/admin/dispatch", "/admin/run-operations", "/admin/operations", "/admin/rate-cards",
     "/admin/cost-configuration", "/admin/competitors", "/admin/profitability", "/admin/promotions", "/admin/history",
   ];
-  for (const path of routes) await expectMobilePage(page, path);
+  for (const path of routes) {
+    await expectMobilePage(page, path);
+    await captureMobilePage(page, path, test.info().project.name);
+  }
 });
 
 test("rider reaches only the rider workspace and its mobile menu responds immediately", async ({ page }) => {
@@ -150,5 +162,8 @@ test("rider reaches only the rider workspace and its mobile menu responds immedi
   await navigation.getByRole("link", { name: "Performance" }).click();
   await expect(navigation).toBeHidden();
   await expect(page).toHaveURL(/\/rider\/performance/);
-  for (const path of ["/rider", "/rider/performance"]) await expectMobilePage(page, path);
+  for (const path of ["/rider", "/rider/performance"]) {
+    await expectMobilePage(page, path);
+    await captureMobilePage(page, path, test.info().project.name);
+  }
 });
