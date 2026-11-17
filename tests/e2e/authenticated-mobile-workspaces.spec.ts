@@ -167,6 +167,15 @@ test("administrator reaches the admin workspace without MFA and every authorized
   await expect(page.getByRole("listbox")).toBeVisible();
   await page.getByRole("option").first().getByRole("button").click();
   await expect(coverageAddress).not.toHaveValue("Dugbe, Ibadan");
+
+  await page.goto("/admin/run-operations");
+  for (const label of ["Bike", "Rider", "Safety and compliance confirmation"]) {
+    const control = page.getByLabel(label, { exact: true });
+    await expect(control).toBeVisible();
+    expect((await control.boundingBox())?.height ?? 0, `${label} touch target`).toBeGreaterThanOrEqual(44);
+  }
+  const createRun = page.getByRole("button", { name: "Create planned run" });
+  expect((await createRun.boundingBox())?.height ?? 0, "Create run touch target").toBeGreaterThanOrEqual(44);
 });
 
 test("rider reaches only the rider workspace and its mobile menu responds immediately", async ({ page }) => {
