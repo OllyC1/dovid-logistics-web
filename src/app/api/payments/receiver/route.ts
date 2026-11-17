@@ -18,8 +18,9 @@ export async function POST(request: NextRequest) {
   const tokenHash = createHash("sha256").update(parsed.data.token).digest("hex");
   const { data: paymentToken } = await admin.from("receiver_payment_tokens").select("id,order_id,expires_at,consumed_at").eq("token_hash", tokenHash).maybeSingle();
   if (!paymentToken || paymentToken.consumed_at || new Date(paymentToken.expires_at) <= new Date()) return NextResponse.json({ error: "Payment link is invalid or expired" }, { status: 410 });
-  const { data: order } = await admin.from("delivery_orders").select("id,order_reference,quoted_amount_minor,currency,payment_status,payment_method,payer").eq("id", paymentToken.order_id).single();
+  const { data: order } = await admin.from("delivery_orders").select("id,order_reference,quoted_amount_minor,currency,payment_status,payment_method,payer,delivery_status").eq("id", paymentToken.order_id).single();
   if (!order || order.payer === "sender") return NextResponse.json({ error: "This payment link is not valid for the delivery" }, { status: 409 });
+  if (["cancelled", "delivered"].includes(order.delivery_status)) return NextResponse.json({ error: "This delivery can no longer accept payment" }, { status: 409 });
   if (order.payment_status === "paid") return NextResponse.json({ error: "This order does not require payment" }, { status: 409 });
   if (order.currency !== "NGN") return NextResponse.json({ error: "Unsupported currency" }, { status: 400 });
 

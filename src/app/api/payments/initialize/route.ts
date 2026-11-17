@@ -14,8 +14,9 @@ export async function POST(request: NextRequest) {
   const supabase = await createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user?.email) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
-  const { data: order } = await supabase.from("delivery_orders").select("id,order_reference,quoted_amount_minor,currency,payment_status,payment_method,payer").eq("id", parsed.data.orderId).maybeSingle();
+  const { data: order } = await supabase.from("delivery_orders").select("id,order_reference,quoted_amount_minor,currency,payment_status,payment_method,payer,delivery_status").eq("id", parsed.data.orderId).maybeSingle();
   if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
+  if (["cancelled", "delivered"].includes(order.delivery_status)) return NextResponse.json({ error: "This delivery can no longer accept payment" }, { status: 409 });
   if (order.payer !== "sender") return NextResponse.json({ error: "This delivery is assigned to receiver payment" }, { status: 409 });
   if (order.currency !== "NGN") return NextResponse.json({ error: "Unsupported currency" }, { status: 400 });
   if (order.payment_status === "paid") return NextResponse.json({ error: "Order is already paid" }, { status: 409 });

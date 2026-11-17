@@ -1,10 +1,12 @@
 import { cookies } from "next/headers";
+import Image from "next/image";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AssistedQuoteReview } from "@/components/assisted/quote-review";
 import { hashAssistedSecret } from "@/features/assisted-bookings/security";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
-export const metadata = { title: "Secure delivery quote", robots: { index: false, follow: false } };
+export const metadata = { title: "Secure delivery quote", robots: { index: false, follow: false, nocache: true }, referrer: "no-referrer" };
 
 export default async function AssistedQuotePage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
@@ -21,6 +23,6 @@ export default async function AssistedQuotePage({ params }: { params: Promise<{ 
     const payload = draft?.request_payload as Record<string, unknown> | undefined;
     if (quote && payload) details = { pickupAddress: String(payload.pickupAddress), deliveryAddress: String(payload.deliveryAddress), packageDescription: String(payload.packageDescription), packageCategory: String(payload.packageCategory), packageSize: String(payload.packageSize), amountMinor: quote.amount_minor, currency: quote.currency, expiresAt: quote.expires_at };
   }
-  return <section className="container py-16"><AssistedQuoteReview token={token} verified={verified} details={details} /></section>;
+  return <section className="container py-8 sm:py-12"><div className="mb-7 flex justify-center"><Link href="/" aria-label="Dovid Logistics home"><Image src="/brand/dovid-primary.svg" alt="Dovid Logistics" width={180} height={46} priority /></Link></div><AssistedQuoteReview token={token} verified={verified} details={details} /></section>;
 }
 

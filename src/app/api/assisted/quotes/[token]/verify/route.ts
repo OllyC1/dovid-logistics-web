@@ -2,11 +2,14 @@ import { randomBytes } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { hashAssistedSecret } from "@/features/assisted-bookings/security";
+import { takeRateLimit } from "@/lib/server/rate-limit";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 const schema = z.object({ otp: z.string().regex(/^\d{6}$/) });
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ token: string }> }) {
+  const rateLimit = takeRateLimit(request, "assisted-quote-verify", 8, 10 * 60_000);
+  if (rateLimit.limited) return NextResponse.json({ error: "Too many attempts. Please wait a few minutes before trying again." }, { status: 429 });
   const { token } = await params;
   const parsed = schema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Enter the six-digit verification code." }, { status: 400 });

@@ -37,7 +37,7 @@ export function postLoginDestination(
 }
 
 export function isWorkspacePath(pathname: string) {
-  return ["/account", "/admin", "/rider", "/staff"].some(
+  return ["/account", "/admin", "/rider", "/staff", "/guest/orders", "/assisted/quote"].some(
     (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
   );
 }

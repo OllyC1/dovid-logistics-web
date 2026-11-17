@@ -393,6 +393,24 @@ do $$ begin
   if has_function_privilege('authenticated','public.accept_assisted_quote(text,text,uuid,public.payer_type,uuid,jsonb)','execute') then
     raise exception 'authenticated clients can execute assisted quote acceptance directly';
   end if;
+  if has_function_privilege('authenticated','public.accept_assisted_guest_quote(text,text,public.payer_type,uuid,jsonb,text,timestamptz)','execute')
+    or has_function_privilege('anon','public.accept_assisted_guest_quote(text,text,public.payer_type,uuid,jsonb,text,timestamptz)','execute') then
+    raise exception 'client roles can execute guest quote acceptance directly';
+  end if;
+  if not has_function_privilege('service_role','public.accept_assisted_guest_quote(text,text,public.payer_type,uuid,jsonb,text,timestamptz)','execute') then
+    raise exception 'service role cannot execute guest quote acceptance';
+  end if;
+  if has_function_privilege('authenticated','public.issue_guest_receiver_payment_token(text,text,timestamptz)','execute')
+    or has_function_privilege('anon','public.issue_guest_receiver_payment_token(text,text,timestamptz)','execute') then
+    raise exception 'client roles can issue guest receiver payment tokens directly';
+  end if;
+  if not has_function_privilege('service_role','public.issue_guest_receiver_payment_token(text,text,timestamptz)','execute') then
+    raise exception 'service role cannot issue guest receiver payment tokens';
+  end if;
+  if has_function_privilege('authenticated','public.respond_to_guest_surcharge(text,uuid,text,text,uuid)','execute')
+    or has_function_privilege('anon','public.respond_to_guest_surcharge(text,uuid,text,text,uuid)','execute') then
+    raise exception 'client roles can respond to guest surcharges directly';
+  end if;
   if has_function_privilege('authenticated','public.assign_order_to_delivery_run(uuid,uuid,uuid,jsonb,text,uuid)','execute') then
     raise exception 'authenticated clients can assign delivery runs directly';
   end if;
@@ -404,10 +422,141 @@ do $$ begin
   end if;
 end $$;
 
+do $$
+declare
+  guest_payload jsonb := '{"bookingOrigin":"phone_admin","customerName":"Guest Customer","customerPhone":"08000000009","phoneSource":"customer_provided","pickupAddress":"12 Adeoyo Road, Ibadan, Oyo","pickupCoordinates":{"latitude":7.391,"longitude":3.893},"deliveryAddress":"20 Bodija Road, Ibadan, Oyo","deliveryCoordinates":{"latitude":7.435,"longitude":3.91},"packageCategory":"parcel","packageSize":"small","serviceLevel":"standard","paymentMethod":"online","additionalStops":[],"oversized":false,"payer":"sender","senderName":"Guest Customer","senderPhone":"08000000009","recipientName":"Guest Receiver","recipientPhone":"08000000010","packageDescription":"Validation parcel"}'::jsonb;
+  accepted jsonb;
+  guest_order_id uuid;
+begin
+  insert into public.quotes(
+    id,pricing_rule_id,customer_id,request_payload,distance_meters,amount_minor,currency,
+    expires_at,status,service_level,payment_method,booking_origin,operational_approval_status
+  ) values (
+    '51515151-5151-4151-8151-515151515151','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',null,
+    guest_payload,6200,250000,'NGN',now()+interval '1 hour','created','standard','online',
+    'phone_admin','not_required'
+  );
+  insert into public.assisted_booking_drafts(
+    id,booking_origin,status,customer_name,customer_phone,phone_source,request_payload,
+    created_by,idempotency_key,expires_at
+  ) values (
+    '52525252-5252-4252-8252-525252525252','phone_admin','quoted','Guest Customer',
+    '08000000009','customer_provided',guest_payload,'44444444-4444-4444-4444-444444444444',
+    '53535353-5353-4353-8353-535353535353',now()+interval '1 hour'
+  );
+  update public.assisted_booking_drafts
+  set quote_id='51515151-5151-4151-8151-515151515151'
+  where id='52525252-5252-4252-8252-525252525252';
+  insert into public.assisted_quote_access_tokens(
+    draft_id,token_hash,otp_hash,otp_expires_at,verified_at,verification_session_hash,
+    verification_session_expires_at,expires_at
+  ) values (
+    '52525252-5252-4252-8252-525252525252',repeat('a',64),repeat('b',64),
+    now()+interval '10 minutes',now(),repeat('c',64),now()+interval '10 minutes',now()+interval '1 hour'
+  );
+
+  accepted := public.accept_assisted_guest_quote(
+    repeat('a',64),repeat('c',64),'sender','54545454-5454-4454-8454-545454545454',
+    '{"termsAccepted":true,"termsVersion":"validation","source":"database_validation"}'::jsonb,
+    repeat('d',64),now()+interval '30 days'
+  );
+  guest_order_id := (accepted->>'order_id')::uuid;
+  if guest_order_id is null then raise exception 'guest order was not returned'; end if;
+  if not exists(
+    select 1 from public.delivery_orders
+    where id=guest_order_id and customer_id is null
+      and assisted_booking_draft_id='52525252-5252-4252-8252-525252525252'
+      and quote_id='51515151-5151-4151-8151-515151515151'
+  ) then raise exception 'guest order was not bound to its assisted draft and quote'; end if;
+  if (select count(*) from public.delivery_orders where quote_id='51515151-5151-4151-8151-515151515151')<>1 then
+    raise exception 'guest acceptance did not create exactly one order';
+  end if;
+  if not exists(select 1 from public.guest_order_access_tokens where order_id=guest_order_id and token_hash=repeat('d',64)) then
+    raise exception 'hashed guest order access was not recorded';
+  end if;
+  if (select count(*) from public.audit_logs where resource_id=guest_order_id and action='guest_order.created')<>1 then
+    raise exception 'guest order creation was not audited exactly once';
+  end if;
+
+  accepted := public.accept_assisted_guest_quote(
+    repeat('a',64),repeat('c',64),'sender','54545454-5454-4454-8454-545454545454',
+    '{"termsAccepted":true,"termsVersion":"validation","source":"database_validation"}'::jsonb,
+    repeat('e',64),now()+interval '30 days'
+  );
+  if (accepted->>'order_id')::uuid<>guest_order_id
+    or coalesce((accepted->>'idempotent_replay')::boolean,false) is not true then
+    raise exception 'guest acceptance replay was not idempotent';
+  end if;
+  if (select count(*) from public.delivery_orders where quote_id='51515151-5151-4151-8151-515151515151')<>1
+    or not exists(select 1 from public.guest_order_access_tokens where order_id=guest_order_id and token_hash=repeat('e',64)) then
+    raise exception 'guest acceptance replay duplicated the order or failed to rotate access';
+  end if;
+  update public.delivery_orders set payer='receiver_at_delivery' where id=guest_order_id;
+  perform public.issue_guest_receiver_payment_token(repeat('e',64),repeat('f',64),now()+interval '48 hours');
+  perform public.issue_guest_receiver_payment_token(repeat('e',64),repeat('1',64),now()+interval '48 hours');
+  if (select count(*) from public.receiver_payment_tokens where order_id=guest_order_id and consumed_at is null)<>1
+    or not exists(select 1 from public.receiver_payment_tokens where order_id=guest_order_id and token_hash=repeat('1',64) and consumed_at is null) then
+    raise exception 'guest receiver payment link rotation was not atomic';
+  end if;
+  insert into public.customer_surcharges(
+    id,order_id,category,description,proposed_amount_kobo,status,proposed_by,
+    admin_approved_by,admin_approved_at,idempotency_key
+  ) values (
+    '56565656-5656-4656-8656-565656565656',guest_order_id,'waiting_time','Validation waiting charge',
+    50000,'proposed','44444444-4444-4444-4444-444444444444','44444444-4444-4444-4444-444444444444',
+    now(),'57575757-5757-4757-8757-575757575757'
+  );
+  perform public.respond_to_guest_surcharge(
+    repeat('e',64),'56565656-5656-4656-8656-565656565656','approve','',
+    '58585858-5858-4858-8858-585858585858'
+  );
+  perform public.respond_to_guest_surcharge(
+    repeat('e',64),'56565656-5656-4656-8656-565656565656','approve','',
+    '58585858-5858-4858-8858-585858585858'
+  );
+  if not exists(
+    select 1 from public.customer_surcharges
+    where id='56565656-5656-4656-8656-565656565656'
+      and status='customer_approved' and approved_amount_kobo=50000
+  ) then raise exception 'guest surcharge approval was not recorded idempotently'; end if;
+  insert into public.customer_surcharges(
+    id,order_id,category,description,proposed_amount_kobo,status,proposed_by,
+    admin_approved_by,admin_approved_at,idempotency_key
+  ) values (
+    '59595959-5959-4959-8959-595959595959',guest_order_id,'redelivery','Terminal guard validation',
+    60000,'proposed','44444444-4444-4444-4444-444444444444','44444444-4444-4444-4444-444444444444',
+    now(),'60606060-6060-4060-8060-606060606060'
+  );
+  update public.delivery_orders set delivery_status='cancelled' where id=guest_order_id;
+  begin
+    insert into public.payment_intents(order_id,provider,provider_reference,amount_minor,currency,status)
+    values(guest_order_id,'paystack','terminal-guard-validation',250000,'NGN','processing');
+    raise exception 'terminal guest order accepted a new payment intent';
+  exception when others then
+    if sqlerrm<>'terminal delivery cannot accept new payment activity' then raise; end if;
+  end;
+  begin
+    perform public.issue_guest_receiver_payment_token(repeat('e',64),repeat('2',64),now()+interval '48 hours');
+    raise exception 'terminal guest order issued a receiver payment token';
+  exception when others then
+    if sqlerrm<>'terminal delivery cannot accept new payment activity' then raise; end if;
+  end;
+  begin
+    perform public.respond_to_guest_surcharge(
+      repeat('e',64),'59595959-5959-4959-8959-595959595959','approve','',
+      '61616161-6161-4161-8161-616161616161'
+    );
+    raise exception 'terminal guest order approved a new surcharge';
+  exception when others then
+    if sqlerrm<>'terminal delivery cannot approve a new charge' then raise; end if;
+  end;
+end $$;
+
 set role authenticated;
 select set_config('request.jwt.claim.sub','22222222-2222-2222-2222-222222222222',false);
 do $$ begin
   if (select count(*) from public.assisted_booking_drafts) <> 0 then raise exception 'customer can read assisted booking drafts'; end if;
+  if (select count(*) from public.guest_order_access_tokens) <> 0 then raise exception 'customer can read guest order access tokens'; end if;
   if (select count(*) from public.delivery_runs) <> 0 then raise exception 'customer can read delivery runs'; end if;
   begin
     insert into public.delivery_attempts(order_id,rider_id,attempt_number,status,arrival_time,idempotency_key)
