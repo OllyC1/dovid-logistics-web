@@ -18,7 +18,7 @@ export function AssistedQuoteReview({ token, verified, details }: { token: strin
     const response = await fetch(`/api/assisted/quotes/${token}/verify`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ otp: form.get("otp") }) });
     const body = await response.json(); setPending(false);
     if (!response.ok) return setMessage(body.error ?? "Verification failed.");
-    setVerified(true); window.location.reload();
+    setVerified(true); router.refresh();
   }
 
   async function accept(form: FormData) {

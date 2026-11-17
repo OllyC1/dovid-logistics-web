@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { AddressAutocomplete, type AddressValue } from "@/components/maps/address-autocomplete";
 import { Button } from "@/components/ui/button";
 
@@ -9,6 +10,7 @@ type QuoteResult = { reviewUrl?: string; verificationCode?: string; whatsappUrl?
 const blankAddress: AddressValue = { address: "", latitude: "", longitude: "" };
 
 export function AssistedBookingConsole({ drafts }: { drafts: DraftRow[] }) {
+  const router = useRouter();
   const [pickup, setPickup] = useState(blankAddress);
   const [destination, setDestination] = useState(blankAddress);
   const [pending, setPending] = useState(false);
@@ -48,7 +50,7 @@ export function AssistedBookingConsole({ drafts }: { drafts: DraftRow[] }) {
     const quote = await quoteResponse.json() as QuoteResult;
     setPending(false);
     setResult(quoteResponse.ok ? quote : { error: quote.error ?? quote.message ?? "Quote needs review." });
-    if (quoteResponse.ok) window.setTimeout(() => window.location.reload(), 20_000);
+    if (quoteResponse.ok) router.refresh();
   }
 
   return <div className="grid gap-8">

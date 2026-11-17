@@ -16,6 +16,7 @@ const deployedBaseUrl = process.env.PLAYWRIGHT_BASE_URL;
 const canUseAdminClient = Boolean(supabaseUrl && serviceRoleKey);
 const canUseProvisioner = Boolean(deployedBaseUrl && provisioningSecret);
 const canRunLiveRoleChecks = canUseAdminClient || canUseProvisioner;
+const requireLiveRoleChecks = process.env.REQUIRE_AUTHENTICATED_E2E === "true";
 let admin: SupabaseClient;
 const accounts: TestAccount[] = [];
 
@@ -88,6 +89,9 @@ async function captureMobilePage(page: Page, path: string, projectName: string) 
 }
 
 test.beforeAll(async ({}, testInfo) => {
+  if (requireLiveRoleChecks && !canRunLiveRoleChecks) {
+    throw new Error("Authenticated mobile acceptance was required, but no controlled Supabase admin client or deployed test provisioner is configured.");
+  }
   test.skip(!canRunLiveRoleChecks, "Live role checks require controlled test provisioning");
   if (canUseProvisioner) {
     const provisioned = await fetch(`${deployedBaseUrl}/api/internal/e2e/accounts`, { method: "POST", headers: { "Content-Type": "application/json", "x-e2e-secret": provisioningSecret! }, body: JSON.stringify({ action: "create", roles: ["customer", "admin", "rider"] }) });

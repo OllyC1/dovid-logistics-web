@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { formatMoney } from "@/lib/utils";
@@ -19,6 +20,7 @@ const fallbackBands: Band[] = [
 ];
 
 export function RateCardForm({ versions, serviceAreas, initialBands }: { versions: Option[]; serviceAreas: Option[]; initialBands?: Band[] }) {
+  const router = useRouter();
   const [bands, setBands] = useState(initialBands?.length ? initialBands : fallbackBands);
   const [distanceKm, setDistanceKm] = useState(8);
   const [state, setState] = useState({ pending: false, message: "", ok: false });
@@ -41,7 +43,7 @@ export function RateCardForm({ versions, serviceAreas, initialBands }: { version
     const response = await fetch("/api/admin/pricing/rate-cards", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ configurationVersionId: form.get("configurationVersionId"), serviceAreaId: form.get("serviceAreaId") || null, name: form.get("name"), serviceLevel: form.get("serviceLevel"), provisional: form.get("provisional") === "on", effectiveAt: new Date(String(form.get("effectiveAt"))).toISOString(), bands }) });
     const body = await response.json();
     setState({ pending: false, message: response.ok ? "Inactive rate-card version created. Review and activate it below." : body.error, ok: response.ok });
-    if (response.ok) location.reload();
+    if (response.ok) router.refresh();
   }
 
   return <form onSubmit={submit} className="grid gap-6">

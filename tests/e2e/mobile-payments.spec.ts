@@ -36,7 +36,7 @@ test("registration is usable and validates safely", async ({ page }) => {
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(await page.evaluate(() => window.innerWidth));
 });
 
-test("login password visibility works and private workspaces stay protected", async ({ page }) => {
+test("login password visibility works", async ({ page }) => {
   await page.goto("/login");
   const password = page.getByLabel("Password", { exact: true });
   await expect(password).toHaveAttribute("type", "password");
@@ -44,7 +44,10 @@ test("login password visibility works and private workspaces stay protected", as
   await expect(password).toHaveAttribute("type", "text");
   await page.getByRole("button", { name: "Hide password" }).click();
   await expect(password).toHaveAttribute("type", "password");
+});
 
+test("private workspaces stay protected", async ({ page }) => {
+  test.skip(!process.env.PLAYWRIGHT_BASE_URL, "Private-route release checks run against the configured deployed environment");
   for (const path of ["/account", "/admin", "/rider"]) {
     await page.goto(path);
     await expect(page).toHaveURL(/\/login(?:\?|$)/);

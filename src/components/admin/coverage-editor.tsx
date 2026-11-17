@@ -5,6 +5,7 @@ import { CheckCircle2, Download, MapPin, Save, ShieldCheck, Upload, XCircle } fr
 import { isPointInZoneGeoJson, validateZoneGeoJson, zoneBoundariesOverlap, type ZoneGeoJson } from "@/features/service-areas/geometry";
 import { Button } from "@/components/ui/button";
 import { AddressAutocomplete, type AddressValue } from "@/components/maps/address-autocomplete";
+import { ReasonDialog } from "@/components/ui/reason-dialog";
 
 export type CoverageZone = {
   id: string;
@@ -86,6 +87,7 @@ export function CoverageEditor({ initialZones, settings: initialSettings, mapsKe
   const [settings, setSettings] = useState(initialSettings);
   const [message, setMessage] = useState("");
   const [pending, setPending] = useState(false);
+  const [zoneAction, setZoneAction] = useState<"review" | "approve" | "activate" | "suspend" | null>(null);
   const [drawing, setDrawing] = useState(false);
   const drawingPoints = useRef<MapLatLng[]>([]);
   const [previewMode, setPreviewMode] = useState<"pickup" | "delivery" | null>(null);
@@ -158,9 +160,7 @@ export function CoverageEditor({ initialZones, settings: initialSettings, mapsKe
     setMessage(body.overlaps?.length ? `Draft saved. Review overlaps with ${body.overlaps.map((item: { name: string }) => item.name).join(", ")}.` : "Draft saved. No zone was activated.");
   }
 
-  async function performAction(action: "review" | "approve" | "activate" | "suspend") {
-    const reason = window.prompt(`Reason for ${action} (at least 8 characters):`);
-    if (!reason) return;
+  async function performAction(action: "review" | "approve" | "activate" | "suspend", reason: string) {
     setPending(true); setMessage("");
     const response = await fetch(`/api/admin/coverage/zones/${draft.id}/action`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, reason }) });
     const body = await response.json(); setPending(false);
@@ -168,6 +168,7 @@ export function CoverageEditor({ initialZones, settings: initialSettings, mapsKe
     const nextStatus = action === "review" ? "in_review" : action === "approve" ? "approved" : action === "activate" ? "active" : "suspended";
     setZones((current) => current.map((zone) => zone.id === draft.id ? { ...zone, operational_status: nextStatus } : zone));
     setDraft((current) => current ? { ...current, operational_status: nextStatus } : current);
+    setZoneAction(null);
     setMessage(`Zone ${action} completed and recorded.`);
   }
 
@@ -218,7 +219,7 @@ export function CoverageEditor({ initialZones, settings: initialSettings, mapsKe
         <div className="grid gap-4 sm:grid-cols-3"><label className="grid gap-2 text-sm font-bold text-navy">Booking eligibility<select className="rounded-xl border p-3 font-normal" value={draft.booking_eligibility} onChange={(event) => setDraft({ ...draft, booking_eligibility: event.target.value as CoverageZone["booking_eligibility"] })}><option value="unavailable">Unavailable</option><option value="manual_approval">Manual approval</option><option value="standard">Standard eligible</option></select></label><label className="grid gap-2 text-sm font-bold text-navy">Priority<input type="number" className="rounded-xl border p-3 font-normal" value={draft.priority} onChange={(event) => setDraft({ ...draft, priority: Number(event.target.value) })}/></label><label className="flex items-center gap-3 rounded-xl border p-3 text-sm font-bold text-navy"><input type="checkbox" checked={draft.dispatch_approval_required} onChange={(event) => setDraft({ ...draft, dispatch_approval_required: event.target.checked })}/>Dispatch approval required</label></div>
         <label className="grid gap-2 text-sm font-bold text-navy">Boundary source and review evidence<input className="rounded-xl border p-3 font-normal" value={draft.boundary_source ?? ""} onChange={(event) => setDraft({ ...draft, boundary_source: event.target.value || null })} placeholder="Reviewed file, survey or authority source"/></label>
         <label className="grid gap-2 text-sm font-bold text-navy">Review notes<textarea className="min-h-24 rounded-xl border p-3 font-normal" value={draft.review_notes ?? ""} onChange={(event) => setDraft({ ...draft, review_notes: event.target.value || null })}/></label>
-        <div className="flex flex-wrap gap-2"><Button disabled={pending} onClick={saveDraft}><Save className="mr-2 size-4"/>Save draft</Button><Button variant="outline" disabled={pending || !validation.valid || Boolean(overlaps.length)} onClick={() => performAction("review")}>Request review</Button><Button variant="outline" disabled={pending || draft.operational_status !== "in_review" || Boolean(overlaps.length)} onClick={() => performAction("approve")}><ShieldCheck className="mr-2 size-4"/>Approve</Button><Button disabled={pending || draft.operational_status !== "approved" || Boolean(overlaps.length)} onClick={() => performAction("activate")}>Activate</Button><Button variant="ghost" disabled={pending || draft.operational_status !== "active"} onClick={() => performAction("suspend")}>Suspend</Button></div>
+        <div className="grid gap-2 sm:flex sm:flex-wrap"><Button disabled={pending} onClick={saveDraft}><Save className="mr-2 size-4"/>Save draft</Button><Button variant="outline" disabled={pending || !validation.valid || Boolean(overlaps.length)} onClick={() => setZoneAction("review")}>Request review</Button><Button variant="outline" disabled={pending || draft.operational_status !== "in_review" || Boolean(overlaps.length)} onClick={() => setZoneAction("approve")}><ShieldCheck className="mr-2 size-4"/>Approve</Button><Button disabled={pending || draft.operational_status !== "approved" || Boolean(overlaps.length)} onClick={() => setZoneAction("activate")}>Activate</Button><Button variant="ghost" disabled={pending || draft.operational_status !== "active"} onClick={() => setZoneAction("suspend")}>Suspend</Button></div>
         <div className="rounded-2xl bg-cloud p-4"><p className="font-bold text-navy">Eligibility preview</p><p className="mt-1 text-sm text-slate">Choose pickup or destination, then click the map. This preview checks the selected polygon only; live booking also checks roads, hours, capacity and pricing.</p><div className="mt-3 flex gap-2"><Button variant="outline" onClick={() => setPreviewMode("pickup")}>Set pickup</Button><Button variant="outline" onClick={() => setPreviewMode("delivery")}>Set destination</Button></div><p className="mt-3 text-sm font-bold text-navy">{previewMessage}</p></div>
       </section>
     </div>
@@ -232,5 +233,14 @@ export function CoverageEditor({ initialZones, settings: initialSettings, mapsKe
       <Button className="mt-5" disabled={pending} onClick={saveSettings}>Save operating rules</Button>
     </section>
     {message ? <p role="status" className="rounded-2xl bg-amber-50 p-4 text-sm text-amber-900">{message}</p> : null}
+    <ReasonDialog
+      open={Boolean(zoneAction)}
+      title={`${zoneAction ? zoneAction[0].toUpperCase() + zoneAction.slice(1) : "Update"} ${draft.name}?`}
+      description="Zone state changes affect future eligibility decisions and must remain auditable. Activation is allowed only after geometry review and approval."
+      confirmLabel={zoneAction === "review" ? "Request review" : zoneAction === "approve" ? "Approve zone" : zoneAction === "activate" ? "Activate zone" : "Suspend zone"}
+      pending={pending}
+      onCancel={() => setZoneAction(null)}
+      onConfirm={(reason) => zoneAction ? performAction(zoneAction, reason) : undefined}
+    />
   </div>;
 }

@@ -5,6 +5,7 @@ import { AlertCircle, CheckCircle2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
+import { ReasonDialog } from "@/components/ui/reason-dialog";
 
 type Permission = { permission_key: string; description: string };
 type Member = { userId: string; email: string; fullName: string; phone: string | null; role: "super_admin" | "admin" | "rider"; status: "pending" | "active" | "suspended" | "revoked"; identityVerifiedAt: string | null; suspensionReason: string | null; permissions: string[] };
@@ -24,6 +25,7 @@ export function TeamManagement({ currentRole, currentPermissions, members, invit
   const riders = members.filter((member) => member.role === "rider");
   const availableRoles = useMemo(() => [canInviteAdmin ? "admin" : null, canInviteRider ? "rider" : null].filter(Boolean) as string[], [canInviteAdmin, canInviteRider]);
   const [selectedRole, setSelectedRole] = useState(availableRoles[0] ?? "rider");
+  const [statusAction, setStatusAction] = useState<{ userId: string; nextStatus: "active" | "suspended" | "revoked" } | null>(null);
 
   async function request(url: string, init: RequestInit, success: { title: string; message: string }) {
     setPending(true);
@@ -53,10 +55,9 @@ export function TeamManagement({ currentRole, currentPermissions, members, invit
     await request(`/api/admin/team/members/${userId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "activate", verificationMethod: form.get("verificationMethod"), verificationReference: form.get("verificationReference"), reason: form.get("reason") }) }, { title: "Staff access activated", message: "Identity checks were recorded and the correct workspace is now available to this team member." });
   }
 
-  async function status(userId: string, nextStatus: "active" | "suspended" | "revoked") {
-    const reason = window.prompt(`Give a clear reason to ${nextStatus} this staff account:`)?.trim();
-    if (!reason || reason.length < 8) { setFeedback({ title: "A clear reason is required", message: "Enter a reason of at least 8 characters.", ok: false }); return; }
-    await request(`/api/admin/team/members/${userId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "status", status: nextStatus, reason }) }, { title: `Staff account ${nextStatus}`, message: "The change was saved and recorded in the access history." });
+  async function status(userId: string, nextStatus: "active" | "suspended" | "revoked", reason: string) {
+    const changed = await request(`/api/admin/team/members/${userId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "status", status: nextStatus, reason }) }, { title: `Staff account ${nextStatus}`, message: "The change was saved and recorded in the access history." });
+    if (changed) setStatusAction(null);
   }
 
   async function permissions(event: React.FormEvent<HTMLFormElement>, userId: string) {
@@ -83,8 +84,18 @@ export function TeamManagement({ currentRole, currentPermissions, members, invit
 
     <section className="mt-8"><h2 className="text-2xl font-extrabold text-navy">Pending invitations</h2><div className="mt-4 grid gap-4">{openInvitations.map((invitation) => <article key={invitation.id} className="flex flex-wrap items-center justify-between gap-4 rounded-3xl bg-white p-5"><div><p className="font-bold text-navy">{invitation.email}</p><p className="mt-1 text-sm capitalize text-slate">{title(invitation.role)} · expires {new Date(invitation.expiresAt).toLocaleString("en-GB")}</p></div>{!invitation.bootstrap ? <div className="flex gap-2"><Button type="button" variant="outline" disabled={pending} onClick={() => request(`/api/admin/team/invitations/${invitation.id}`, { method: "POST" }, { title: "Invitation sent again", message: `A fresh secure setup email was sent to ${invitation.email}.` })}>Resend</Button><Button type="button" variant="ghost" disabled={pending} onClick={() => request(`/api/admin/team/invitations/${invitation.id}`, { method: "DELETE" }, { title: "Invitation revoked", message: "The setup link can no longer be used." })}>Revoke</Button></div> : <span className="rounded-full bg-orange/10 px-3 py-2 text-xs font-bold text-orange">Founder setup</span>}</article>)}{!openInvitations.length ? <p className="rounded-3xl bg-white p-6 text-sm text-slate">No invitations are waiting.</p> : null}</div></section>
 
-    <StaffGroup title="Administrators" members={administrators} permissionCatalog={permissionCatalog} currentRole={currentRole} pending={pending} onActivate={activate} onStatus={status} onPermissions={permissions} />
-    <StaffGroup title="Riders" members={riders} permissionCatalog={permissionCatalog} currentRole={currentRole} pending={pending} onActivate={activate} onStatus={status} onPermissions={permissions} />
+    <StaffGroup title="Administrators" members={administrators} permissionCatalog={permissionCatalog} currentRole={currentRole} pending={pending} onActivate={activate} onStatus={(userId, nextStatus) => setStatusAction({ userId, nextStatus })} onPermissions={permissions} />
+    <StaffGroup title="Riders" members={riders} permissionCatalog={permissionCatalog} currentRole={currentRole} pending={pending} onActivate={activate} onStatus={(userId, nextStatus) => setStatusAction({ userId, nextStatus })} onPermissions={permissions} />
+
+    <ReasonDialog
+      open={Boolean(statusAction)}
+      title={`${title(statusAction?.nextStatus ?? "update")} this staff account?`}
+      description="This access change takes effect immediately and is written to the staff audit history. Record the verified operational reason."
+      confirmLabel={title(statusAction?.nextStatus ?? "Continue")}
+      pending={pending}
+      onCancel={() => setStatusAction(null)}
+      onConfirm={(reason) => statusAction ? status(statusAction.userId, statusAction.nextStatus, reason) : undefined}
+    />
 
     <section className="mt-10"><h2 className="text-xl font-extrabold text-navy sm:text-2xl">Access history</h2><div className="mt-4 grid gap-3 sm:hidden">{audit.map((event) => <article key={event.id} className="rounded-2xl bg-white p-4 shadow-sm"><p className="text-sm font-extrabold text-navy">{title(event.action)}</p><p className="mt-2 break-words text-sm text-slate"><strong className="text-navy">Account:</strong> {event.target ?? "—"}</p><p className="mt-1 break-words text-sm text-slate"><strong className="text-navy">By:</strong> {event.actor}</p><p className="mt-2 text-xs text-slate">{new Date(event.createdAt).toLocaleString("en-GB")}</p></article>)}{!audit.length ? <p className="rounded-2xl bg-white p-5 text-sm text-slate">No staff activity recorded yet.</p> : null}</div><div className="mt-4 hidden overflow-x-auto rounded-3xl bg-white p-5 sm:block"><table className="w-full min-w-[680px] text-left text-sm"><thead><tr className="text-slate"><th className="pb-3">When</th><th>Action</th><th>By</th><th>Account</th></tr></thead><tbody>{audit.map((event) => <tr key={event.id} className="border-t border-navy/8"><td className="py-3">{new Date(event.createdAt).toLocaleString("en-GB")}</td><td>{title(event.action)}</td><td>{event.actor}</td><td>{event.target ?? "—"}</td></tr>)}</tbody></table>{!audit.length ? <p className="py-5 text-slate">No staff activity recorded yet.</p> : null}</div></section>
   </div>;
