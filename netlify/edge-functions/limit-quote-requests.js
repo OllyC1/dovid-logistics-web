@@ -1,4 +1,6 @@
-export default () => undefined;
+const continueRequest = () => undefined;
+
+export default continueRequest;
 
 export const config = {
   path: "/api/delivery/quotes",
