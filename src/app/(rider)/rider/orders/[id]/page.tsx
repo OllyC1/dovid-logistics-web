@@ -1,7 +1,9 @@
 import { notFound } from "next/navigation";
 import { RiderStatusControls } from "@/components/rider/status-controls";
 import { DeliveryOperationsForms } from "@/components/rider/delivery-operations-forms";
+import { DeliveryProofForm } from "@/components/rider/delivery-proof-form";
 import { requireRole } from "@/lib/auth/roles";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { DeliveryStatus, PaymentStatus } from "@/types/domain";
 
 export default async function RiderOrderPage({ params }: { params: Promise<{ id: string }> }) {
@@ -15,6 +17,7 @@ export default async function RiderOrderPage({ params }: { params: Promise<{ id:
 
   if (!order) notFound();
   const { data: assignment } = await supabase.from("delivery_assignments").select("delivery_run_id").eq("order_id", id).is("released_at", null).maybeSingle();
+  const { data: proof } = await createSupabaseAdminClient().from("delivery_proofs").select("completed_at,recipient_name").eq("order_id", id).maybeSingle();
   const additionalStops=(order.additional_stops??[]) as Array<{address:string}>;
 
   return <>
@@ -25,6 +28,7 @@ export default async function RiderOrderPage({ params }: { params: Promise<{ id:
     </div>
     <div className="mt-7 rounded-2xl bg-navy p-4 text-sm font-bold text-white">Release the parcel only when payment status is <span className="text-orange">paid</span>. Current status: <span className="capitalize">{order.payment_status}</span>.</div>
     <RiderStatusControls orderId={order.id} currentStatus={order.delivery_status as DeliveryStatus} paymentStatus={order.payment_status as PaymentStatus}/>
+    <DeliveryProofForm orderId={order.id} expectedRecipientName={order.recipient_name} deliveryStatus={order.delivery_status as DeliveryStatus} paymentStatus={order.payment_status as PaymentStatus} existingProof={proof ? { completedAt: proof.completed_at, recipientName: proof.recipient_name } : null}/>
     <DeliveryOperationsForms orderId={order.id} runId={assignment?.delivery_run_id}/>
     <div className="mt-6 grid gap-5 lg:grid-cols-2">
       <article className="min-w-0 rounded-3xl bg-white p-4 sm:p-6"><h3 className="font-extrabold text-navy">Pickup</h3><p className="mt-4 break-words text-sm leading-7 text-slate">{order.pickup_address}<br/>{order.sender_name}<br/><a className="font-bold text-orange" href={`tel:${order.sender_phone}`}>{order.sender_phone}</a></p></article>

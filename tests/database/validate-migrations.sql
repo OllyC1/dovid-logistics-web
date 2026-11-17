@@ -340,6 +340,25 @@ do $$ begin
   perform public.record_payment_refund_event('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee','refund-validation','refund.failed',200000,'NGN','{}'::jsonb);
   if not public.order_has_verified_payment_clearance('cccccccc-cccc-cccc-cccc-cccccccccccc') then raise exception 'failed refund did not restore clearance'; end if;
 
+  perform public.record_delivery_proof(
+    'cccccccc-cccc-cccc-cccc-cccccccccccc',
+    '33333333-3333-3333-3333-333333333333',
+    'Validated Recipient',
+    'Recipient identity checked during database validation'
+  );
+  perform public.record_delivery_proof(
+    'cccccccc-cccc-cccc-cccc-cccccccccccc',
+    '33333333-3333-3333-3333-333333333333',
+    'Validated Recipient',
+    'Idempotent retry'
+  );
+  if (select count(*) from public.delivery_proofs where order_id='cccccccc-cccc-cccc-cccc-cccccccccccc')<>1 then
+    raise exception 'delivery proof replay was not idempotent';
+  end if;
+  if (select count(*) from public.audit_logs where resource_id='cccccccc-cccc-cccc-cccc-cccccccccccc' and action='delivery.proof_recorded')<>1 then
+    raise exception 'delivery proof was not audited exactly once';
+  end if;
+
   perform public.transition_delivery_order(
     'cccccccc-cccc-cccc-cccc-cccccccccccc', 'delivered',
     '{"source":"validation","actorUserId":"44444444-4444-4444-4444-444444444444","actorRole":"admin"}'::jsonb
