@@ -152,6 +152,15 @@ test("administrator reaches the admin workspace without MFA and every authorized
     await expectMobilePage(page, path);
     await captureMobilePage(page, path, test.info().project.name);
   }
+
+  await page.goto("/admin/competitors");
+  await expect(page.getByLabel("Pickup latitude")).toHaveCount(0);
+  await expect(page.getByLabel("Pickup longitude")).toHaveCount(0);
+  const pickupAddress = page.getByLabel("Pickup address");
+  await pickupAddress.fill("Dugbe, Ibadan");
+  await expect(page.getByRole("listbox")).toBeVisible();
+  await page.getByRole("option").first().getByRole("button").click();
+  await expect(page.getByRole("link", { name: /Open in Google Maps/i }).first()).toBeVisible();
 });
 
 test("rider reaches only the rider workspace and its mobile menu responds immediately", async ({ page }) => {
