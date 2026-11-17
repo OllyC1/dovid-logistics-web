@@ -29,6 +29,15 @@ describe("dispatch mobile layout", () => {
     expect(runSource).toContain("Move down");
   });
 
+  it("labels dispatch and run assignment controls with mobile touch targets", () => {
+    expect(source).toContain('>Bike<select required name="vehicleId"');
+    expect(source).toContain('>Rider<select required name="riderId"');
+    expect(source).toContain("Override reason (only if needed)");
+    expect(runSource).toContain('>Order to add<select required name="orderId"');
+    expect(runSource).toContain("Safety and compliance confirmation");
+    expect(runSource).toContain('className="min-h-12 min-w-0 rounded-xl border p-3 font-normal"');
+  });
+
   it("renders saved rate bands as cards instead of a scrolling table on mobile", () => {
     expect(rateCardsSource).toContain('className="mt-5 grid gap-3 sm:hidden"');
     expect(rateCardsSource).toContain('className="mt-5 hidden overflow-x-auto sm:block"');
