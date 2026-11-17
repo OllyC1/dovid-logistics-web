@@ -2,6 +2,14 @@
 
 begin;
 
+update public.fleet_vehicles
+set registration_number='IBD 901 WF', assigned_rider_id='33333333-3333-3333-3333-333333333333',
+    safety_status='cleared', max_payload_weight_grams=18000,
+    cargo_length_mm=500, cargo_width_mm=400, cargo_height_mm=400,
+    capacity_verified_at=now(), capacity_verified_by='44444444-4444-4444-4444-444444444444',
+    operational_status='available'
+where id='20000000-0000-4000-8000-000000000001';
+
 insert into public.delivery_runs(
   id, run_reference, rider_id, vehicle_id, status, idempotency_key,
   created_by, compliance_confirmed_at, compliance_confirmed_by, compliance_notes

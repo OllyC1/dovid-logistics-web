@@ -9,16 +9,19 @@ function approximateDistanceMeters(left: { latitude: number; longitude: number }
 
 export async function POST(request: NextRequest) {
   const auth = await getAuthenticatedRole();
-  if (auth?.role !== "admin") return NextResponse.json({ error: "Admin authorization required" }, { status: 403 });
+  if (!auth) return NextResponse.json({ error: "Dispatch manager authorization required." }, { status: 403 });
   const parsed = schema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Choose an order, bike and rider." }, { status: 400 });
   const admin = createSupabaseAdminClient();
-  const [{ data: order }, { data: vehicle }, { count: workload }] = await Promise.all([
+  const [{ data: order }, { data: vehicle }, { data: riderMembership }, { count: workload }] = await Promise.all([
     admin.from("delivery_orders").select("id,pickup_latitude,pickup_longitude,quotes(duration_seconds)").eq("id", parsed.data.orderId).maybeSingle(),
-    admin.from("fleet_vehicles").select("id,operational_status,safety_status,current_latitude,current_longitude,max_active_assignments,assigned_rider_id").eq("id", parsed.data.vehicleId).maybeSingle(),
+    admin.from("fleet_vehicles").select("id,registration_number,operational_status,safety_status,current_latitude,current_longitude,max_active_assignments,assigned_rider_id,capacity_verified_at").eq("id", parsed.data.vehicleId).maybeSingle(),
+    admin.from("staff_memberships").select("user_id").eq("user_id", parsed.data.riderId).eq("staff_role", "rider").eq("status", "active").maybeSingle(),
     admin.from("delivery_assignments").select("id", { count: "exact", head: true }).eq("rider_id", parsed.data.riderId).is("released_at", null)
   ]);
   if (!order || !vehicle) return NextResponse.json({ error: "Order or bike not found." }, { status: 404 });
+  if (!riderMembership) return NextResponse.json({ error: "Choose an active, identity-verified rider." }, { status: 409 });
+  if (!vehicle.registration_number || !vehicle.capacity_verified_at) return NextResponse.json({ error: "The bike plate and measured capacity must be verified before assignment." }, { status: 409 });
   const proximityMeters = vehicle.current_latitude === null || vehicle.current_longitude === null ? null : approximateDistanceMeters({ latitude: Number(vehicle.current_latitude), longitude: Number(vehicle.current_longitude) }, { latitude: Number(order.pickup_latitude), longitude: Number(order.pickup_longitude) });
   const quoteRelation = Array.isArray(order.quotes) ? order.quotes[0] : order.quotes;
   const score = scoreDispatchCandidate({ riderId: parsed.data.riderId, vehicleId: vehicle.id, proximityMeters, activeAssignments: workload ?? 0, capacity: vehicle.max_active_assignments, routeDurationSeconds: quoteRelation?.duration_seconds ?? 0, available: vehicle.operational_status === "available", safetyCleared: vehicle.safety_status === "cleared", homeTerritoryMatch: vehicle.assigned_rider_id === parsed.data.riderId });

@@ -16,7 +16,7 @@ describe("dispatch mobile layout", () => {
   });
 
   it("keeps cargo measurements labelled for touch and assistive technology", () => {
-    expect(source).toContain("Cargo space in millimetres");
+    expect(source).toContain("Measured cargo space in millimetres");
     expect(source).toContain(">Length<input");
     expect(source).toContain(">Width<input");
     expect(source).toContain(">Height<input");
@@ -36,6 +36,14 @@ describe("dispatch mobile layout", () => {
     expect(runSource).toContain('>Order to add<select required name="orderId"');
     expect(runSource).toContain("Safety and compliance confirmation");
     expect(runSource).toContain('className="min-h-12 min-w-0 rounded-xl border p-3 font-normal"');
+  });
+
+  it("registers bikes by plate and never exposes a rider UUID as a display fallback", () => {
+    expect(source).toContain("Plate / registration number");
+    expect(source).toContain("Register motorcycle offline");
+    expect(source).toContain("Assigned rider:");
+    expect(source).not.toContain("rider.full_name || rider.id");
+    expect(runSource).not.toContain("rider.full_name || rider.id");
   });
 
   it("renders saved rate bands as cards instead of a scrolling table on mobile", () => {

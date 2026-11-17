@@ -169,8 +169,12 @@ test("administrator reaches the admin workspace without MFA and every authorized
   await expect(coverageAddress).not.toHaveValue("Dugbe, Ibadan");
 
   await page.goto("/admin/run-operations");
-  for (const label of ["Bike", "Rider", "Safety and compliance confirmation"]) {
-    const control = page.getByLabel(label, { exact: true });
+  for (const [label, role] of [
+    ["Bike", "combobox"],
+    ["Rider", "combobox"],
+    ["Safety and compliance confirmation", "textbox"],
+  ] as const) {
+    const control = page.getByRole(role, { name: label, exact: true });
     await expect(control).toBeVisible();
     expect((await control.boundingBox())?.height ?? 0, `${label} touch target`).toBeGreaterThanOrEqual(44);
   }
