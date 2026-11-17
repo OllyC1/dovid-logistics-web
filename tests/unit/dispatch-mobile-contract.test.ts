@@ -69,5 +69,7 @@ describe("dispatch mobile layout", () => {
     expect(provisionerSource).toContain('request.headers.get("x-forwarded-host")');
     expect(provisionerSource).toContain("requestHosts.includes(expectedHost)");
     expect(provisionerSource).toContain("Buffer.byteLength(expected) < 32");
+    expect(provisionerSource).toContain('.eq("created_by", userId).like("code", "E2E-%")');
+    expect(provisionerSource).toContain('operational_status: "offline", assigned_rider_id: null');
   });
 });

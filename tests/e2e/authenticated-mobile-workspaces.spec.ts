@@ -133,7 +133,7 @@ test("customer keeps a customer-only mobile workspace", async ({ page }) => {
 });
 
 test("administrator reaches the admin workspace without MFA and every authorized page fits mobile", async ({ page }) => {
-  test.setTimeout(240_000);
+  test.setTimeout(360_000);
   const account = accounts.find((item) => item.role === "admin")!;
   await login(page, account, /\/admin(?:\?|$)/);
   await expect(page.getByRole("heading", { level: 1, name: "Admin Dashboard" })).toBeVisible();
@@ -168,6 +168,38 @@ test("administrator reaches the admin workspace without MFA and every authorized
   await page.getByRole("option").first().getByRole("button").click();
   await expect(coverageAddress).not.toHaveValue("Dugbe, Ibadan");
 
+  const riderAccount = accounts.find((item) => item.role === "rider")!;
+  const viewportCode = test.info().project.name === "mobile-375" ? "375" : "390";
+  const plateNumber = `TST ${viewportCode} QA`;
+  const bikeCode = `E2E-${viewportCode}`;
+  await page.goto("/admin/dispatch");
+  const addBike = page.locator("details").filter({ hasText: "Add a motorcycle" });
+  await addBike.locator("summary").click();
+  await addBike.getByLabel("Plate / registration number").fill(plateNumber);
+  await addBike.getByLabel(/Internal bike name/).fill(bikeCode);
+  await addBike.getByLabel("Manufacturer").fill("Honda");
+  await addBike.getByLabel("Model").fill("E2E test motorcycle");
+  await addBike.getByLabel("Model year").fill("2024");
+  await addBike.getByLabel(/Why is this bike being registered/).fill("Controlled mobile fleet acceptance fixture");
+  await addBike.getByRole("button", { name: "Register motorcycle offline" }).click();
+  await expect(page.getByRole("alert")).toContainText(`${plateNumber} was registered offline`);
+
+  let bikeForm = page.locator("form").filter({ hasText: bikeCode }).first();
+  await expect(bikeForm).toBeVisible();
+  await expect(bikeForm).not.toContainText(/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i);
+  await bikeForm.getByLabel("Assigned rider").selectOption(riderAccount.id);
+  await bikeForm.getByLabel("Safety review").selectOption("cleared");
+  await bikeForm.getByLabel("Maximum parcels").fill("2");
+  await bikeForm.getByLabel("Maximum payload (grams)").fill("18000");
+  await bikeForm.getByLabel("Length").fill("500");
+  await bikeForm.getByLabel("Width").fill("400");
+  await bikeForm.getByLabel("Height").fill("400");
+  await bikeForm.getByLabel("I physically measured and verified this capacity").check();
+  await bikeForm.getByLabel("Operating status").selectOption("available");
+  await bikeForm.getByLabel("Reason and verification evidence").fill("Controlled inspection and rider assignment completed");
+  await bikeForm.getByRole("button", { name: "Save bike record" }).click();
+  await expect(page.getByRole("alert")).toContainText("Bike configuration updated and recorded");
+
   await page.goto("/admin/run-operations");
   for (const [label, role] of [
     ["Bike", "combobox"],
@@ -180,6 +212,22 @@ test("administrator reaches the admin workspace without MFA and every authorized
   }
   const createRun = page.getByRole("button", { name: "Create planned run" });
   expect((await createRun.boundingBox())?.height ?? 0, "Create run touch target").toBeGreaterThanOrEqual(44);
+  const testBikeOption = page.getByRole("option", { name: new RegExp(plateNumber) });
+  const testBikeId = await testBikeOption.getAttribute("value");
+  expect(testBikeId).toBeTruthy();
+  await page.getByRole("combobox", { name: "Bike" }).selectOption(testBikeId!);
+  await expect(page.getByRole("combobox", { name: "Rider" })).toHaveValue(riderAccount.id);
+  await page.getByRole("textbox", { name: "Safety and compliance confirmation" }).fill("Controlled run readiness acceptance only");
+  await expect(createRun).toBeEnabled();
+
+  await page.goto("/admin/dispatch");
+  bikeForm = page.locator("form").filter({ hasText: bikeCode }).first();
+  await bikeForm.getByLabel("Operating status").selectOption("offline");
+  await bikeForm.getByLabel("Assigned rider").selectOption("");
+  await bikeForm.getByLabel("I physically measured and verified this capacity").uncheck();
+  await bikeForm.getByLabel("Reason and verification evidence").fill("Controlled acceptance completed; fixture returned offline");
+  await bikeForm.getByRole("button", { name: "Save bike record" }).click();
+  await expect(page.getByRole("alert")).toContainText("Bike configuration updated and recorded");
 });
 
 test("rider reaches only the rider workspace and its mobile menu responds immediately", async ({ page }) => {

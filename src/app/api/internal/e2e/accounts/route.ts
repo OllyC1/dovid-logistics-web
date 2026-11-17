@@ -52,6 +52,13 @@ export async function POST(request: Request) {
     if (userIds.length > 12) return response({ error: "Too many test identities" }, 400);
     let cleaned = 0;
     for (const userId of userIds) {
+      const { data: testVehicles, error: vehicleLookupError } = await admin.from("fleet_vehicles").select("id").eq("created_by", userId).like("code", "E2E-%");
+      if (vehicleLookupError) return response({ error: "Controlled fleet fixture lookup failed", cleaned }, 500);
+      for (const vehicle of testVehicles ?? []) {
+        const resetVehicle = await admin.from("fleet_vehicles").update({ operational_status: "offline", assigned_rider_id: null, safety_status: "review_required", capacity_verified_at: null, capacity_verified_by: null }).eq("id", vehicle.id);
+        const deletedVehicle = resetVehicle.error ? null : await admin.from("fleet_vehicles").delete().eq("id", vehicle.id).eq("created_by", userId).like("code", "E2E-%");
+        if (resetVehicle.error || deletedVehicle?.error) return response({ error: "Controlled fleet fixture cleanup failed", cleaned }, 500);
+      }
       const grants = await admin.from("staff_permission_grants").delete().eq("user_id", userId);
       const membership = await admin.from("staff_memberships").delete().eq("user_id", userId);
       const deleted = await admin.auth.admin.deleteUser(userId);
