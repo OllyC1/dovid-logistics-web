@@ -1,3 +1,9 @@
-import { requirePricingManager as requireRole } from "@/lib/auth/staff";
-import { formatMoney } from "@/lib/utils";
-export default async function PromotionsPage(){const{supabase}=await requireRole(["admin"]);const{data:promotions}=await supabase.from("promotions").select("id,code,kind,value,maximum_discount_kobo,stackable,active,starts_at,ends_at").order("created_at",{ascending:false});return <><h1 className="text-3xl font-extrabold text-navy">Promotions</h1><p className="mt-3 text-slate">Promotions are evaluated before the profitability floor, so a discount can never push a quote below the required margin.</p><div className="mt-7 grid gap-4">{promotions?.map(promotion=><article key={promotion.id} className="rounded-3xl bg-white p-6"><div className="flex flex-wrap justify-between gap-4"><div><h2 className="text-xl font-extrabold text-navy">{promotion.code}</h2><p className="mt-2 text-sm text-slate">{promotion.kind==="fixed"?formatMoney(promotion.value):`${promotion.value/100}%`} discount{promotion.maximum_discount_kobo?` · capped at ${formatMoney(promotion.maximum_discount_kobo)}`:""}</p></div><div className="text-right"><p className={`font-bold ${promotion.active?"text-emerald-700":"text-slate"}`}>{promotion.active?"Active":"Inactive"}</p><p className="mt-1 text-xs text-slate">{promotion.stackable?"Stackable when explicitly allowed":"Not stackable"}</p></div></div></article>)}{!promotions?.length?<p className="rounded-3xl bg-white p-8 text-slate">No promotions configured.</p>:null}</div></>}
+import { PromotionManager } from "@/components/admin/promotion-manager";
+import { requireSuperAdmin } from "@/lib/auth/staff";
+
+export default async function PromotionsPage() {
+  const { admin } = await requireSuperAdmin();
+  const { data: promotions, error } = await admin.from("promotions").select("id,code,kind,value,maximum_discount_kobo,active,starts_at,ends_at").order("created_at", { ascending: false });
+  if (error) throw new Error("Promotions could not be loaded.");
+  return <><h1 className="text-3xl font-extrabold text-navy">Promotions</h1><p className="mt-3 max-w-3xl text-slate">Create checkout codes for percentages, fixed discounts or a target customer price. This workspace is restricted to the Super Admin.</p><div className="mt-7"><PromotionManager promotions={(promotions ?? []) as Parameters<typeof PromotionManager>[0]["promotions"]} /></div></>;
+}

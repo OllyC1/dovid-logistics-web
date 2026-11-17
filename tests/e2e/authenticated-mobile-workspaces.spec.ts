@@ -74,7 +74,16 @@ async function login(page: Page, account: TestAccount, expectedPath: RegExp) {
 }
 
 async function expectMobilePage(page: Page, path: string) {
-  const response = await page.goto(path);
+  let response;
+  try {
+    response = await page.goto(path, { waitUntil: "domcontentloaded" });
+  } catch (error) {
+    // Chromium can cancel a hard navigation while the previous Next.js RSC
+    // request is still settling. Retry only that transport-level abort; all
+    // HTTP, authorization and rendering failures still fail below.
+    if (!(error instanceof Error) || !error.message.includes("net::ERR_ABORTED")) throw error;
+    response = await page.goto(path, { waitUntil: "domcontentloaded" });
+  }
   expect(response?.status(), `${path} should load`).toBeLessThan(400);
   await expect(page.locator("main[data-workspace-content]")).toBeVisible();
   const dimensions = await page.evaluate(() => ({ viewport: window.innerWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth }));
@@ -134,6 +143,10 @@ test("customer keeps a customer-only mobile workspace", async ({ page }) => {
 
 test("administrator reaches the admin workspace without MFA and every authorized page fits mobile", async ({ page }) => {
   test.setTimeout(360_000);
+  const pageErrors: string[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+  page.on("console", (message) => { if (message.type() === "error") pageErrors.push(message.text()); });
+  page.on("response", (response) => { if (response.status() >= 400) pageErrors.push(`${response.status()} ${response.url()}`); });
   const account = accounts.find((item) => item.role === "admin")!;
   await login(page, account, /\/admin(?:\?|$)/);
   await expect(page.getByRole("heading", { level: 1, name: "Admin Dashboard" })).toBeVisible();
@@ -159,14 +172,25 @@ test("administrator reaches the admin workspace without MFA and every authorized
   await page.goto("/admin/competitors");
   await expect(page.getByLabel("Pickup latitude")).toHaveCount(0);
   await expect(page.getByLabel("Pickup longitude")).toHaveCount(0);
-  await expect(page.getByText(/Add a competitor source|Pickup address/).first()).toBeVisible();
+  const quoteEvidence = page.locator("details").filter({ hasText: "Add a quoted delivery" }).first();
+  await quoteEvidence.locator("summary").click();
+  await expect(quoteEvidence.getByText(/Add a competitor source|Pickup address/).first()).toBeVisible();
 
   await page.goto("/admin/coverage");
-  const coverageAddress = page.getByLabel("Find an address to review against this boundary");
-  await coverageAddress.fill("Dugbe, Ibadan");
-  await expect(page.getByRole("listbox")).toBeVisible();
-  await page.getByRole("option").first().getByRole("button").click();
-  await expect(coverageAddress).not.toHaveValue("Dugbe, Ibadan");
+  if (deployedBaseUrl?.includes(".netlify.app")) {
+    await expect(page.locator(".gm-style")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText("The map could not open")).toHaveCount(0);
+    const coverageAddress = page.getByLabel("Find an address to review against this boundary");
+    await coverageAddress.fill("Dugbe, Ibadan");
+    await expect(page.getByRole("listbox")).toBeVisible();
+    await page.getByRole("option").first().getByRole("button").click();
+    await expect(coverageAddress).not.toHaveValue("Dugbe, Ibadan");
+    expect(pageErrors, "deployed coverage editor browser errors").toEqual([]);
+  } else {
+    const places = await page.request.get("/api/maps/places?input=Dugbe%2C%20Ibadan");
+    expect(places.status()).toBe(200);
+    expect(((await places.json()) as { suggestions?: unknown[] }).suggestions?.length ?? 0).toBeGreaterThan(0);
+  }
 
   const riderAccount = accounts.find((item) => item.role === "rider")!;
   const viewportCode = test.info().project.name === "mobile-375" ? "375" : "390";
@@ -203,23 +227,25 @@ test("administrator reaches the admin workspace without MFA and every authorized
   await expect(page.getByRole("status")).toContainText("Bike configuration updated and recorded");
 
   await page.goto("/admin/run-operations");
+  const runCreator = page.locator("details").filter({ hasText: "Create a compliant delivery run" }).first();
+  await runCreator.locator("summary").click();
   for (const [label, role] of [
     ["Bike", "combobox"],
     ["Rider", "combobox"],
     ["Safety and compliance confirmation", "textbox"],
   ] as const) {
-    const control = page.getByRole(role, { name: label, exact: true });
+    const control = runCreator.getByRole(role, { name: label, exact: true });
     await expect(control).toBeVisible();
     expect((await control.boundingBox())?.height ?? 0, `${label} touch target`).toBeGreaterThanOrEqual(44);
   }
-  const createRun = page.getByRole("button", { name: "Create planned run" });
+  const createRun = runCreator.getByRole("button", { name: "Create planned run" });
   expect((await createRun.boundingBox())?.height ?? 0, "Create run touch target").toBeGreaterThanOrEqual(44);
-  const testBikeOption = page.getByRole("option", { name: new RegExp(plateNumber) });
+  const testBikeOption = runCreator.getByRole("option", { name: new RegExp(plateNumber) });
   const testBikeId = await testBikeOption.getAttribute("value");
   expect(testBikeId).toBeTruthy();
-  await page.getByRole("combobox", { name: "Bike" }).selectOption(testBikeId!);
-  await expect(page.getByRole("combobox", { name: "Rider" })).toHaveValue(riderAccount.id);
-  await page.getByRole("textbox", { name: "Safety and compliance confirmation" }).fill("Controlled run readiness acceptance only");
+  await runCreator.getByRole("combobox", { name: "Bike" }).selectOption(testBikeId!);
+  await expect(runCreator.getByRole("combobox", { name: "Rider" })).toHaveValue(riderAccount.id);
+  await runCreator.getByRole("textbox", { name: "Safety and compliance confirmation" }).fill("Controlled run readiness acceptance only");
   await expect(createRun).toBeEnabled();
 
   await page.goto("/admin/dispatch");

@@ -80,18 +80,21 @@ export function MfaPanel({ mode, next = "/admin", completeOnboarding = mode === 
   </div>;
 }
 
-export function StaffInvitationAcceptance() {
+export function StaffInvitationAcceptance({ intendedRole }: { intendedRole: "admin" | "rider" }) {
   const router = useRouter();
   const [message, setMessage] = useState("");
   const [pending, setPending] = useState(false);
-  async function accept() {
+  async function accept(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
     setPending(true);
-    const response = await fetch("/api/staff/onboarding/complete", { method: "POST" });
+    setMessage("");
+    const response = await fetch("/api/staff/onboarding/complete", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ firstName: form.get("firstName"), lastName: form.get("lastName"), preferredName: form.get("preferredName") || undefined, phone: form.get("phone") || undefined }) });
     const body = await response.json().catch(() => ({}));
     if (!response.ok) { setPending(false); setMessage(body.error ?? "The invitation could not be accepted."); return; }
     setMessage("Invitation confirmed. Your account is now waiting for Super Admin approval. You do not need multifactor authentication.");
     router.replace(body.next ?? "/staff/setup");
     router.refresh();
   }
-  return <div className="grid gap-4"><Button type="button" onClick={accept} disabled={pending}>{pending ? "Confirming invitation…" : "Confirm staff invitation"}</Button>{message ? <p role="status" className="rounded-2xl bg-emerald-50 p-4 text-sm font-semibold text-emerald-900">{message}</p> : null}</div>;
+  return <form onSubmit={accept} className="grid gap-4"><div className="grid gap-4 sm:grid-cols-2"><Field label="First name" name="firstName" autoComplete="given-name" required /><Field label="Last name" name="lastName" autoComplete="family-name" required /><Field label="Preferred name (optional)" name="preferredName" autoComplete="nickname" /><Field label={`Mobile phone${intendedRole === "rider" ? "" : " (optional)"}`} name="phone" type="tel" autoComplete="tel" required={intendedRole === "rider"} /></div><p className="rounded-2xl bg-cloud p-4 text-sm leading-6 text-slate">These details identify you inside dispatch and the staff workspace. Riders must provide a reachable mobile number before approval.</p><Button type="submit" disabled={pending}>{pending ? "Confirming invitation…" : "Save details and confirm invitation"}</Button>{message ? <p role="status" className={`rounded-2xl p-4 text-sm font-semibold ${message.startsWith("Invitation confirmed") ? "bg-emerald-50 text-emerald-900" : "bg-red-50 text-red-800"}`}>{message}</p> : null}</form>;
 }

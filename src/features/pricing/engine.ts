@@ -38,7 +38,7 @@ export function eligibleCompetitorMedian(quotes: EligibleCompetitorQuote[], conf
 function promotionDiscount(priceKobo: number, promotions: PromotionInput[]) {
   const applicable = promotions.length && promotions[0].stackable ? promotions.filter((promotion) => promotion.stackable) : promotions.slice(0, 1);
   return applicable.reduce((total, promotion) => {
-    const calculated = promotion.kind === "fixed" ? promotion.value : applyBasisPoints(priceKobo, promotion.value);
+    const calculated = promotion.kind === "fixed" ? promotion.value : promotion.kind === "fixed_price" ? Math.max(0, priceKobo - promotion.value) : applyBasisPoints(priceKobo, promotion.value);
     const capped = promotion.maximumDiscountKobo == null ? calculated : Math.min(calculated, promotion.maximumDiscountKobo);
     return total + Math.max(0, capped);
   }, 0);

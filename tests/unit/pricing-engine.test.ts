@@ -34,6 +34,7 @@ describe("competitor evidence and promotions",()=>{
   it("excludes stale competitor quotes",()=>{const quotes=[1,2,3].map(id=>({id:String(id),totalKobo:300000,quotedAt:"2026-01-01T00:00:00Z",verified:true,comparable:true}));expect(eligibleCompetitorMedian(quotes,config(),now)).toBeNull()});
   it("does not stack non-stackable discounts",()=>{const result=quote({roadDistanceMeters:23000,promotions:[{code:"ONE",kind:"fixed",value:10000,stackable:false},{code:"TWO",kind:"fixed",value:100000,stackable:false}]});expect(result.internal.promotionDiscountKobo).toBe(10000)});
   it("limits promotions at the margin floor",()=>{const result=quote({promotions:[{code:"DEEP",kind:"percentage",value:9000,stackable:false}]});expect(result.customerTotalKobo).toBeGreaterThanOrEqual(result.internal.minimumProfitableCustomerTotalKobo);expect(result.internal.flags).toContain("DISCOUNT_LIMITED_BY_MARGIN_FLOOR")});
+  it("treats a fixed customer price as a discount without bypassing the margin floor",()=>{const result=quote({roadDistanceMeters:23000,promotions:[{code:"PAY2000",kind:"fixed_price",value:200000,stackable:false}]});expect(result.internal.promotionDiscountKobo).toBe(222000);expect(result.customerTotalKobo).toBeGreaterThanOrEqual(result.internal.minimumProfitableCustomerTotalKobo)});
 });
 
 describe("quote lifecycle metadata",()=>{

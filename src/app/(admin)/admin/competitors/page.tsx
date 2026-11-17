@@ -31,8 +31,10 @@ export default async function CompetitorsPage() {
     <p className="mt-3 max-w-3xl text-slate">Only verified, fresh, route-comparable evidence can influence automated pricing. Published starting prices never substitute for route quotes.</p>
     <div className="mt-7"><CompetitorEvidenceForm competitors={competitors?.map((item) => ({ id: item.id, label: `${item.name} · ${item.verification_status}` })) ?? []} serviceAreas={areas?.map((area) => ({ id: area.id, label: area.name })) ?? []} /></div>
 
-    <section className="mt-7" aria-labelledby="competitor-quotes-heading">
-      <h2 id="competitor-quotes-heading" className="sr-only">Recorded competitor route quotes</h2>
+    <details className="group mt-7 rounded-3xl bg-white p-5"><summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-4 text-xl font-extrabold text-navy"><span>Competitor directory ({competitors?.length ?? 0})</span><span aria-hidden="true" className="text-2xl text-orange transition group-open:rotate-45">+</span></summary><div className="mt-4 grid gap-3 sm:grid-cols-2">{competitors?.map((competitor) => <article key={competitor.id} className="rounded-2xl bg-cloud p-4"><h3 className="font-extrabold text-navy">{competitor.name}</h3><p className="mt-1 text-sm capitalize text-slate">{competitor.verification_status.replaceAll("_", " ")}</p></article>)}{!competitors?.length ? <p className="text-sm text-slate">No competitors recorded.</p> : null}</div></details>
+
+    <details className="group mt-7" aria-labelledby="competitor-quotes-heading">
+      <summary id="competitor-quotes-heading" className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-4 rounded-3xl bg-white p-5 text-xl font-extrabold text-navy"><span>Recorded competitor route quotes ({quoteRows.length})</span><span aria-hidden="true" className="text-2xl text-orange transition group-open:rotate-45">+</span></summary>
       <div className="grid gap-3 sm:hidden">
         {quoteRows.map((quote) => <article key={quote.id} className="rounded-3xl bg-white p-5 shadow-sm">
           <div className="flex items-start justify-between gap-4"><h3 className="font-extrabold text-navy">{competitorName(quote)}</h3><p className="shrink-0 font-extrabold text-orange">{formatMoney(quote.quoted_total_kobo)}</p></div>
@@ -49,6 +51,6 @@ export default async function CompetitorsPage() {
         <table className="w-full min-w-[760px] text-left text-sm"><thead><tr className="text-slate"><th className="pb-4">Competitor</th><th>Route</th><th>Quote</th><th>Service</th><th>Verified</th><th>Comparable</th><th>Evidence</th></tr></thead><tbody>{quoteRows.map((quote) => <tr key={quote.id} className="border-t border-navy/8"><td className="py-4 font-bold text-navy">{competitorName(quote)}</td><td>{(quote.road_distance_meters / 1000).toFixed(1)} km</td><td>{formatMoney(quote.quoted_total_kobo)}</td><td className="capitalize">{quote.service_level}</td><td className="capitalize">{quote.verification_status}</td><td>{quote.comparable ? "Yes" : "No"}</td><td>{quote.evidence_url ? <a className="font-bold text-orange" href={quote.evidence_url} rel="noreferrer" target="_blank">Open source</a> : "—"}</td></tr>)}</tbody></table>
       </div>
       {!quoteRows.length ? <p className="rounded-3xl bg-white px-5 py-8 text-center text-slate">No competitor quotes recorded. The approved Dovid rate card remains authoritative.</p> : null}
-    </section>
+    </details>
   </>;
 }

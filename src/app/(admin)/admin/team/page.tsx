@@ -49,6 +49,7 @@ export default async function TeamManagementPage() {
     };
   });
   return <TeamManagement
+    currentUserId={auth.user.id}
     currentRole={auth.staffRole}
     currentPermissions={[...auth.permissions]}
     members={members}

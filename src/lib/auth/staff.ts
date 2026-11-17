@@ -53,6 +53,15 @@ export async function requireStaffPermission(permission: StaffPermission) {
 }
 
 export async function requirePricingManager(roles?: unknown) { void roles; return requireStaffPermission("pricing.manage"); }
+export async function requireSuperAdmin() {
+  const authorization = await getStaffAuthorization();
+  if (authorization?.staffRole === "super_admin") return authorization;
+  const session = await getAuthenticatedRole();
+  if (!session) redirect("/login");
+  if (session.staffRole === "super_admin" && session.currentAal !== "aal2") redirect("/staff/mfa?next=/admin");
+  redirect("/admin");
+}
+export async function getSuperAdminAuthorization() { const authorization = await getStaffAuthorization(); return authorization?.staffRole === "super_admin" ? authorization : null; }
 export async function requirePricingViewer(roles?: unknown) { void roles; return requireStaffPermission("pricing.view"); }
 export async function requireReportsViewer(roles?: unknown) { void roles; return requireStaffPermission("reports.view"); }
 export async function getBookingsManagerAuthorization() { return getStaffAuthorization("bookings.manage"); }

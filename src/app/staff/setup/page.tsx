@@ -46,7 +46,7 @@ export default async function StaffSetupPage() {
       <section className="mt-6 rounded-3xl bg-white p-6 shadow-sm">
         <h2 className="text-xl font-extrabold text-navy">2. {mfaRequired ? "Protect privileged access" : "Confirm your staff invitation"}</h2>
         <p className="mt-2 text-sm leading-6 text-slate">{mfaRequired ? "Use an authenticator app. Super Admin pages require a freshly verified two-step session." : "Confirm the invitation after setting your password. Only the Super Admin needs multifactor authentication."}</p>
-        <div className="mt-5">{mfaRequired ? <MfaPanel mode="enroll" /> : <StaffInvitationAcceptance />}</div>
+        <div className="mt-5">{mfaRequired ? <MfaPanel mode="enroll" /> : <StaffInvitationAcceptance intendedRole={invitation.intended_role as "admin" | "rider"} />}</div>
       </section>
       {!mfaRequired ? <section className="mt-6 rounded-3xl border border-navy/10 bg-cloud p-6"><h2 className="text-xl font-extrabold text-navy">3. Super Admin approval</h2><p className="mt-2 text-sm leading-6 text-slate">After you confirm the invitation, the Super Admin will verify your identity and activate the correct admin or rider workspace.</p></section> : null}
     </>}

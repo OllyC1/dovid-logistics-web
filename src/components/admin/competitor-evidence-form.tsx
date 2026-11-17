@@ -118,9 +118,9 @@ export function CompetitorEvidenceForm({ competitors, serviceAreas }: { competit
 
   return (
     <div className="grid gap-6 xl:grid-cols-2">
-      <form onSubmit={submitSource} className="grid content-start gap-5 rounded-3xl bg-white p-5 shadow-sm sm:p-6">
+      <details className="group rounded-3xl bg-white p-5 shadow-sm sm:p-6"><summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-4 text-xl font-extrabold text-navy"><span>Add a competitor</span><span aria-hidden="true" className="text-2xl text-orange transition group-open:rotate-45">+</span></summary><form onSubmit={submitSource} className="mt-5 grid content-start gap-5">
         <div>
-          <h2 className="text-xl font-extrabold text-navy">Add a competitor</h2>
+          <h2 className="sr-only">Add a competitor</h2>
           <p className="mt-2 text-sm leading-6 text-slate">Save where the pricing evidence came from. It will remain unverified until someone checks it.</p>
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
@@ -146,11 +146,11 @@ export function CompetitorEvidenceForm({ competitors, serviceAreas }: { competit
           {pending === "source" ? "Saving competitor…" : "Save competitor"}
         </Button>
         <FormNotice notice={notice} context="source" />
-      </form>
+      </form></details>
 
-      <form onSubmit={submitQuote} className="grid content-start gap-5 rounded-3xl bg-white p-5 shadow-sm sm:p-6">
+      <details className="group rounded-3xl bg-white p-5 shadow-sm sm:p-6"><summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-4 text-xl font-extrabold text-navy"><span>Add a quoted delivery</span><span aria-hidden="true" className="text-2xl text-orange transition group-open:rotate-45">+</span></summary><form onSubmit={submitQuote} className="mt-5 grid content-start gap-5">
         <div>
-          <h2 className="text-xl font-extrabold text-navy">Add a quoted delivery</h2>
+          <h2 className="sr-only">Add a quoted delivery</h2>
           <p className="mt-2 text-sm leading-6 text-slate">Choose the same addresses used for the quote. We will confirm them and measure the road route automatically.</p>
         </div>
         {competitors.length && serviceAreas.length ? (
@@ -205,7 +205,7 @@ export function CompetitorEvidenceForm({ competitors, serviceAreas }: { competit
         ) : (
           <p className="rounded-2xl bg-cloud p-5 text-sm leading-6 text-slate">Add a competitor source and keep the Ibadan service area configured before recording route quotes.</p>
         )}
-      </form>
+      </form></details>
     </div>
   );
 }

@@ -65,7 +65,7 @@ export type EligibleCompetitorQuote = {
 
 export type PromotionInput = {
   code: string;
-  kind: "fixed" | "percentage";
+  kind: "fixed" | "percentage" | "fixed_price";
   value: number;
   maximumDiscountKobo?: MoneyKobo | null;
   stackable: boolean;

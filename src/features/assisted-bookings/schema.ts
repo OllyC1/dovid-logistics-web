@@ -5,6 +5,7 @@ export const assistedBookingDraftSchema = deliveryQuoteRequestSchema.extend({
   bookingOrigin: z.enum(["whatsapp_admin", "phone_admin", "other_admin"]),
   customerName: z.string().trim().min(2).max(120),
   customerPhone: z.string().trim().min(7).max(20),
+  customerEmail: z.email().max(254).optional(),
   phoneSource: z.enum(["customer_provided", "verified_profile", "admin_verified"]),
   senderName: z.string().trim().min(2).max(120),
   senderPhone: z.string().trim().min(7).max(20),

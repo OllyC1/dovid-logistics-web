@@ -19,6 +19,7 @@ export async function POST(request: NextRequest) {
     booking_origin: payload.bookingOrigin,
     customer_name: payload.customerName,
     customer_phone: payload.customerPhone,
+    customer_email: payload.customerEmail?.toLowerCase() ?? null,
     phone_source: payload.phoneSource,
     request_payload: payload,
     created_by: auth.user.id,

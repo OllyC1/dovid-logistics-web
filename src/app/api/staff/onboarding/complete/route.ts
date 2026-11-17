@@ -1,8 +1,16 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { z } from "zod";
 
-export async function POST() {
+const staffProfileSchema = z.object({
+  firstName: z.string().trim().min(2).max(60),
+  lastName: z.string().trim().min(2).max(60),
+  preferredName: z.string().trim().min(2).max(60).optional(),
+  phone: z.string().trim().min(7).max(30).optional(),
+});
+
+export async function POST(request: Request) {
   const supabase = await createSupabaseServerClient();
   const [{ data: { user } }, { data: assurance }] = await Promise.all([
     supabase.auth.getUser(),
@@ -20,6 +28,13 @@ export async function POST() {
   if (!invitation || new Date(invitation.expires_at) <= new Date()) return NextResponse.json({ error: "This staff invitation is unavailable or has expired." }, { status: 410 });
   if (invitation.is_bootstrap && assurance?.currentLevel !== "aal2") {
     return NextResponse.json({ error: "Verify your authenticator code before privileged access can be granted." }, { status: 403 });
+  }
+  if (!invitation.is_bootstrap) {
+    const parsed = staffProfileSchema.safeParse(await request.json().catch(() => null));
+    if (!parsed.success || (invitation.intended_role === "rider" && !parsed.data.phone)) return NextResponse.json({ error: invitation.intended_role === "rider" ? "Add the rider's name and reachable mobile number before continuing." : "Add your first and last name before continuing." }, { status: 400 });
+    const preferred = parsed.data.preferredName ? ` (${parsed.data.preferredName})` : "";
+    const profile = await admin.from("profiles").update({ first_name: parsed.data.firstName, last_name: parsed.data.lastName, preferred_name: parsed.data.preferredName ?? null, full_name: `${parsed.data.firstName} ${parsed.data.lastName}${preferred}`, phone: parsed.data.phone ?? null, updated_at: new Date().toISOString() }).eq("id", user.id);
+    if (profile.error) return NextResponse.json({ error: "Your staff contact details could not be saved. Please try again." }, { status: 409 });
   }
   const rpc = invitation.is_bootstrap
     ? await admin.rpc("finalize_initial_super_admin", { target_user_id: user.id })
