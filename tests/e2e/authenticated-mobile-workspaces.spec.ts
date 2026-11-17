@@ -184,7 +184,9 @@ test("administrator reaches the admin workspace without MFA and every authorized
   await addBike.getByRole("button", { name: "Register motorcycle offline" }).click();
   await expect(page.getByRole("status")).toContainText(`${plateNumber} was registered offline`);
 
-  let bikeForm = page.locator("form").filter({ hasText: bikeCode }).first();
+  let bikeCard = page.locator("details").filter({ hasText: bikeCode }).first();
+  await bikeCard.locator("summary").click();
+  let bikeForm = bikeCard.locator("form");
   await expect(bikeForm).toBeVisible();
   await expect(bikeForm).not.toContainText(/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i);
   await bikeForm.getByLabel("Assigned rider").selectOption(riderAccount.id);
@@ -221,7 +223,9 @@ test("administrator reaches the admin workspace without MFA and every authorized
   await expect(createRun).toBeEnabled();
 
   await page.goto("/admin/dispatch");
-  bikeForm = page.locator("form").filter({ hasText: bikeCode }).first();
+  bikeCard = page.locator("details").filter({ hasText: bikeCode }).first();
+  await bikeCard.locator("summary").click();
+  bikeForm = bikeCard.locator("form");
   await bikeForm.getByLabel("Operating status").selectOption("offline");
   await bikeForm.getByLabel("Assigned rider").selectOption("");
   await bikeForm.getByLabel("I physically measured and verified this capacity").uncheck();

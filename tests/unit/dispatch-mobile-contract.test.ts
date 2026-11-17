@@ -41,7 +41,8 @@ describe("dispatch mobile layout", () => {
   it("registers bikes by plate and never exposes a rider UUID as a display fallback", () => {
     expect(source).toContain("Plate / registration number");
     expect(source).toContain("Register motorcycle offline");
-    expect(source).toContain("Assigned rider:");
+    expect(source).toContain("Rider:");
+    expect(source).toContain("Review and edit");
     expect(source).not.toContain("rider.full_name || rider.id");
     expect(runSource).not.toContain("rider.full_name || rider.id");
   });
