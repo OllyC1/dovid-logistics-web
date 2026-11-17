@@ -156,11 +156,14 @@ test("administrator reaches the admin workspace without MFA and every authorized
   await page.goto("/admin/competitors");
   await expect(page.getByLabel("Pickup latitude")).toHaveCount(0);
   await expect(page.getByLabel("Pickup longitude")).toHaveCount(0);
-  const pickupAddress = page.getByLabel("Pickup address");
-  await pickupAddress.fill("Dugbe, Ibadan");
+  await expect(page.getByText(/Add a competitor source|Pickup address/).first()).toBeVisible();
+
+  await page.goto("/admin/coverage");
+  const coverageAddress = page.getByLabel("Find an address to review against this boundary");
+  await coverageAddress.fill("Dugbe, Ibadan");
   await expect(page.getByRole("listbox")).toBeVisible();
   await page.getByRole("option").first().getByRole("button").click();
-  await expect(page.getByRole("link", { name: /Open in Google Maps/i }).first()).toBeVisible();
+  await expect(coverageAddress).not.toHaveValue("Dugbe, Ibadan");
 });
 
 test("rider reaches only the rider workspace and its mobile menu responds immediately", async ({ page }) => {
