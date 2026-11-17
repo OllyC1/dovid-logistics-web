@@ -48,6 +48,9 @@ describe("dispatch mobile layout", () => {
     expect(provisionerSource).toContain("E2E_ACCOUNT_PROVISIONING_EXPIRES_AT");
     expect(provisionerSource).toContain("remainingMs > 60 * 60 * 1000");
     expect(provisionerSource).toContain("publicEnv.NEXT_PUBLIC_APP_URL");
+    expect(provisionerSource).toContain('request.headers.get("host")');
+    expect(provisionerSource).toContain('request.headers.get("x-forwarded-host")');
+    expect(provisionerSource).toContain("requestHosts.includes(expectedHost)");
     expect(provisionerSource).toContain("Buffer.byteLength(expected) < 32");
   });
 });

@@ -19,7 +19,10 @@ function disabled(request: Request) {
   const remainingMs = expiresAt - Date.now();
   if (!Number.isFinite(expiresAt) || remainingMs <= 0 || remainingMs > 60 * 60 * 1000) return true;
   try {
-    return new URL(request.url).origin !== new URL(publicEnv.NEXT_PUBLIC_APP_URL).origin;
+    const expectedHost = new URL(publicEnv.NEXT_PUBLIC_APP_URL).host.toLowerCase();
+    const forwardedHosts = request.headers.get("x-forwarded-host")?.split(",").map((host) => host.trim().toLowerCase()) ?? [];
+    const requestHosts = [request.headers.get("host")?.trim().toLowerCase(), ...forwardedHosts, new URL(request.url).host.toLowerCase()];
+    return !requestHosts.includes(expectedHost);
   } catch {
     return true;
   }
