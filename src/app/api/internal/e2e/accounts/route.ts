@@ -50,12 +50,17 @@ export async function POST(request: Request) {
   if (payload?.action === "cleanup") {
     const userIds = [...new Set(payload.userIds ?? [])].filter((id) => /^[0-9a-f-]{36}$/i.test(id));
     if (userIds.length > 12) return response({ error: "Too many test identities" }, 400);
+    let cleaned = 0;
     for (const userId of userIds) {
-      await admin.from("staff_permission_grants").delete().eq("user_id", userId);
-      await admin.from("staff_memberships").delete().eq("user_id", userId);
-      await admin.auth.admin.deleteUser(userId);
+      const grants = await admin.from("staff_permission_grants").delete().eq("user_id", userId);
+      const membership = await admin.from("staff_memberships").delete().eq("user_id", userId);
+      const deleted = await admin.auth.admin.deleteUser(userId);
+      if (grants.error || membership.error || deleted.error) {
+        return response({ error: "Controlled test identity cleanup failed", cleaned }, 500);
+      }
+      cleaned += 1;
     }
-    return response({ cleaned: userIds.length });
+    return response({ cleaned });
   }
 
   if (payload?.action !== "create") return response({ error: "Unsupported action" }, 400);

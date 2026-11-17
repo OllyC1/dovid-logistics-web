@@ -106,7 +106,10 @@ test.beforeAll(async ({}, testInfo) => {
 
 test.afterAll(async () => {
   if (canUseProvisioner && accounts.length) {
-    await fetch(`${deployedBaseUrl}/api/internal/e2e/accounts`, { method: "POST", headers: { "Content-Type": "application/json", "x-e2e-secret": provisioningSecret! }, body: JSON.stringify({ action: "cleanup", userIds: accounts.map((account) => account.id) }) });
+    const cleanup = await fetch(`${deployedBaseUrl}/api/internal/e2e/accounts`, { method: "POST", headers: { "Content-Type": "application/json", "x-e2e-secret": provisioningSecret! }, body: JSON.stringify({ action: "cleanup", userIds: accounts.map((account) => account.id) }) });
+    if (!cleanup.ok) throw new Error(`Test account cleanup returned ${cleanup.status}`);
+    const result = await cleanup.json() as { cleaned?: number };
+    if (result.cleaned !== accounts.length) throw new Error(`Test account cleanup removed ${result.cleaned ?? 0} of ${accounts.length} identities`);
     return;
   }
   if (!admin) return;
