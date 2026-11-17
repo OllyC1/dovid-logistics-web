@@ -6,6 +6,7 @@ describe("dispatch mobile layout", () => {
   const runSource = readFileSync("src/components/admin/run-operations-console.tsx", "utf8");
   const rateCardsSource = readFileSync("src/app/(admin)/admin/rate-cards/page.tsx", "utf8");
   const riderOperationsSource = readFileSync("src/components/rider/delivery-operations-forms.tsx", "utf8");
+  const provisionerSource = readFileSync("src/app/api/internal/e2e/accounts/route.ts", "utf8");
 
   it("stacks dense bike controls before the small-screen breakpoint", () => {
     expect(source).not.toContain('className="grid grid-cols-2 gap-3"');
@@ -41,5 +42,12 @@ describe("dispatch mobile layout", () => {
     expect(riderOperationsSource).toContain('Number(form.get("waitingMinutes") || 0) * 60');
     expect(riderOperationsSource).not.toContain('placeholder="Amount in kobo"');
     expect(riderOperationsSource).not.toContain('placeholder="Waiting time in seconds"');
+  });
+
+  it("keeps authenticated test provisioning short-lived and origin-bound", () => {
+    expect(provisionerSource).toContain("E2E_ACCOUNT_PROVISIONING_EXPIRES_AT");
+    expect(provisionerSource).toContain("remainingMs > 60 * 60 * 1000");
+    expect(provisionerSource).toContain("publicEnv.NEXT_PUBLIC_APP_URL");
+    expect(provisionerSource).toContain("Buffer.byteLength(expected) < 32");
   });
 });

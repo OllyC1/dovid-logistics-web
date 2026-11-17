@@ -1,5 +1,6 @@
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
+import { publicEnv } from "@/lib/env";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -12,14 +13,22 @@ const adminPermissions = [
   "zones.manage", "staff.suspend",
 ];
 
-function disabled() {
-  return process.env.ENABLE_E2E_ACCOUNT_PROVISIONING !== "true";
+function disabled(request: Request) {
+  if (process.env.ENABLE_E2E_ACCOUNT_PROVISIONING !== "true") return true;
+  const expiresAt = Date.parse(process.env.E2E_ACCOUNT_PROVISIONING_EXPIRES_AT ?? "");
+  const remainingMs = expiresAt - Date.now();
+  if (!Number.isFinite(expiresAt) || remainingMs <= 0 || remainingMs > 60 * 60 * 1000) return true;
+  try {
+    return new URL(request.url).origin !== new URL(publicEnv.NEXT_PUBLIC_APP_URL).origin;
+  } catch {
+    return true;
+  }
 }
 
 function authorized(request: Request) {
   const expected = process.env.E2E_ACCOUNT_PROVISIONING_SECRET;
   const supplied = request.headers.get("x-e2e-secret");
-  if (!expected || !supplied) return false;
+  if (!expected || !supplied || Buffer.byteLength(expected) < 32) return false;
   const left = Buffer.from(expected);
   const right = Buffer.from(supplied);
   return left.length === right.length && timingSafeEqual(left, right);
@@ -30,7 +39,7 @@ function response(body: unknown, status = 200) {
 }
 
 export async function POST(request: Request) {
-  if (disabled()) return response({ error: "Not found" }, 404);
+  if (disabled(request)) return response({ error: "Not found" }, 404);
   if (!authorized(request)) return response({ error: "Unauthorized" }, 401);
   const payload = await request.json().catch(() => null) as { action?: string; roles?: TestRole[]; userIds?: string[] } | null;
   const admin = createSupabaseAdminClient();
