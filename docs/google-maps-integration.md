@@ -26,10 +26,10 @@ Address predictions are biased within 50 km of central Ibadan and restricted to 
 - Places responses request only prediction text, structured formatting, place ID, formatted address and coordinates.
 - Routes responses request only distance, duration, leg timing and optimized waypoint indices needed by dispatch.
 - Places and Routes requests use `no-store`. The application does not cache prediction lists or route responses.
-- Server routes apply per-instance request limits and return explicit provider-unavailable states.
+- Server routes apply immediate per-instance request limits and return explicit provider-unavailable states. Netlify also applies shared edge limits of 40 address requests and 12 road-route quote requests per client per minute before the Next.js handler. Netlify documents that edge enforcement can take up to 10 seconds after a threshold is crossed, so both layers remain enabled.
 - Structured usage logs contain operation, status and duration only. They omit keys, addresses, coordinates and response bodies.
 
-The in-process limiter protects a single application instance. Before production, use a shared edge or managed rate limiter so limits apply across every serverless instance. Configure Google Cloud quotas, budgets and alerts for Places API (New), Routes API and Maps JavaScript API. Review [Places data and attribution requirements](https://developers.google.com/maps/documentation/places/web-service/policies).
+The shared Netlify edge rules protect the deployed provider paths across serverless instances, while the in-process limits provide immediate defence in depth. Configure Google Cloud quotas, budgets and alerts for Places API (New), Routes API and Maps JavaScript API. Review [Places data and attribution requirements](https://developers.google.com/maps/documentation/places/web-service/policies).
 
 ## Routing safety
 
