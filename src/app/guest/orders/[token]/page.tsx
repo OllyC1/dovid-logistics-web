@@ -43,7 +43,8 @@ export default async function GuestOrderPage({ params }: { params: Promise<{ tok
   const events = [...((order.delivery_status_events ?? []) as StatusEvent[])].sort(
     (left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime(),
   );
-  const paymentOutstanding = order.payment_status !== "paid";
+  const terminal = ["cancelled", "delivered"].includes(order.delivery_status);
+  const paymentOutstanding = order.payment_status !== "paid" && !terminal;
 
   return (
     <section className="container max-w-3xl py-8 sm:py-12">
@@ -89,7 +90,8 @@ export default async function GuestOrderPage({ params }: { params: Promise<{ tok
             </>
           ) : null}
           {paymentOutstanding && order.payer !== "sender" ? <GuestReceiverLink orderId={order.id} guestToken={token} /> : null}
-          {!paymentOutstanding ? <p className="mt-4 rounded-2xl bg-emerald-50 p-4 text-sm font-bold text-emerald-800">Payment has been verified.</p> : null}
+          {order.payment_status === "paid" ? <p className="mt-4 rounded-2xl bg-emerald-50 p-4 text-sm font-bold text-emerald-800">Payment has been verified.</p> : null}
+          {terminal && order.payment_status !== "paid" ? <p className="mt-4 rounded-2xl bg-cloud p-4 text-sm font-bold text-navy">This delivery is closed. No payment can be started.</p> : null}
         </article>
       </div>
 

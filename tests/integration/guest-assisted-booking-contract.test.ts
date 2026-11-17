@@ -70,5 +70,6 @@ describe("guest assisted booking", () => {
     expect(terminalGuardMigration).toContain("customer_surcharges_terminal_order_guard");
     expect(guestPayment).toContain('["cancelled", "delivered"].includes(order.delivery_status)');
     expect(surchargePayment).toContain('["cancelled", "delivered"].includes(order.delivery_status)');
+    expect(guestPage).toContain("This delivery is closed. No payment can be started.");
   });
 });
