@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { ActionFeedback } from "@/components/ui/action-feedback";
 import { allowedTransitions } from "@/features/orders/state-machine";
 import type { DeliveryStatus, PaymentStatus } from "@/types/domain";
 
@@ -33,13 +34,17 @@ export function RiderStatusControls({orderId,currentStatus,paymentStatus}:{order
 
   async function transition(status:DeliveryStatus){
     setState({pending:status,error:""});
-    const response=await fetch(`/api/rider/orders/${orderId}/status`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({status,idempotencyKey:crypto.randomUUID()})});
-    const body=await response.json();
-    if(!response.ok)return setState({pending:"",error:body.error??"Status update failed"});
-    setState({pending:"",error:""});
-    router.refresh();
+    try {
+      const response=await fetch(`/api/rider/orders/${orderId}/status`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({status,idempotencyKey:crypto.randomUUID()})});
+      const body=await response.json().catch(()=>({}));
+      if(!response.ok)return setState({pending:"",error:body.error??"Status update failed"});
+      setState({pending:"",error:""});
+      router.refresh();
+    } catch {
+      setState({pending:"",error:"We could not update the delivery. Check your connection and try again."});
+    }
   }
 
   if(targets.length===0)return null;
-  return <section className="mt-5 rounded-3xl bg-white p-4 sm:p-6" aria-labelledby="rider-status-actions"><h3 id="rider-status-actions" className="font-extrabold text-navy">Update delivery status</h3><div className="mt-4 grid gap-3 sm:flex sm:flex-wrap">{targets.map(status=><Button className="w-full sm:w-auto" key={status} type="button" variant={status==="delivery_failed"?"outline":"primary"} disabled={Boolean(state.pending)} onClick={()=>transition(status)}>{state.pending===status?"Updating…":labels[status]??status.replaceAll("_"," ")}</Button>)}</div>{state.error?<p role="alert" className="mt-4 rounded-2xl bg-red-50 p-4 text-sm text-red-800">{state.error}</p>:null}</section>;
+  return <section className="mt-5 rounded-3xl bg-white p-4 sm:p-6" aria-labelledby="rider-status-actions"><h3 id="rider-status-actions" className="font-extrabold text-navy">Update delivery status</h3><div className="mt-4 grid gap-3 sm:flex sm:flex-wrap">{targets.map(status=><Button className="w-full sm:w-auto" key={status} type="button" variant={status==="delivery_failed"?"outline":"primary"} disabled={Boolean(state.pending)} onClick={()=>transition(status)}>{state.pending===status?"Updating…":labels[status]??status.replaceAll("_"," ")}</Button>)}</div><ActionFeedback feedback={state.error?{text:state.error,ok:false}:null} pending={Boolean(state.pending)} pendingText="Updating delivery status…" onDismiss={()=>setState(current=>({...current,error:""}))}/></section>;
 }

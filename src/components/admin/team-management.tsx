@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { AlertCircle, CheckCircle2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { ActionFeedback } from "@/components/ui/action-feedback";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { ReasonDialog } from "@/components/ui/reason-dialog";
@@ -30,13 +30,19 @@ export function TeamManagement({ currentRole, currentPermissions, members, invit
   async function request(url: string, init: RequestInit, success: { title: string; message: string }) {
     setPending(true);
     setFeedback(null);
-    const response = await fetch(url, init);
-    const body = await response.json().catch(() => ({}));
-    if (!response.ok) { setPending(false); setFeedback({ title: "We could not complete that change", message: body.error ?? "Please check the details and try again.", ok: false }); return false; }
-    setPending(false);
-    setFeedback({ ...success, ok: true });
-    router.refresh();
-    return true;
+    try {
+      const response = await fetch(url, init);
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) { setFeedback({ title: "We could not complete that change", message: body.error ?? "Please check the details and try again.", ok: false }); return false; }
+      setFeedback({ ...success, ok: true });
+      router.refresh();
+      return true;
+    } catch {
+      setFeedback({ title: "Connection interrupted", message: "The change was not confirmed. Check your connection and try again.", ok: false });
+      return false;
+    } finally {
+      setPending(false);
+    }
   }
 
   async function invite(event: React.FormEvent<HTMLFormElement>) {
@@ -70,7 +76,7 @@ export function TeamManagement({ currentRole, currentPermissions, members, invit
     <p className="eyebrow">People & access</p>
     <h1 className="mt-2 text-2xl font-extrabold text-navy sm:text-3xl">Team management</h1>
     <p className="mt-3 max-w-3xl text-slate">Invite people by verified email, review their identity, and give only the access they need. New riders stay offline until readiness checks are complete.</p>
-    {feedback ? <div role={feedback.ok ? "status" : "alert"} aria-live="polite" className={`sticky top-4 z-40 mt-5 flex items-start gap-3 rounded-2xl border p-4 shadow-xl ${feedback.ok ? "border-emerald-200 bg-emerald-50 text-emerald-950" : "border-red-200 bg-red-50 text-red-950"}`}>{feedback.ok ? <CheckCircle2 className="mt-0.5 size-5 shrink-0" aria-hidden="true" /> : <AlertCircle className="mt-0.5 size-5 shrink-0" aria-hidden="true" />}<div className="min-w-0 flex-1"><p className="font-extrabold">{feedback.title}</p><p className="mt-1 text-sm leading-6">{feedback.message}</p></div><button type="button" onClick={() => setFeedback(null)} className="grid size-9 shrink-0 place-items-center rounded-full hover:bg-black/5" aria-label="Dismiss message"><X className="size-4" /></button></div> : null}
+    <ActionFeedback feedback={feedback ? { text: `${feedback.title}. ${feedback.message}`, ok: feedback.ok } : null} pending={pending} pendingText="Saving team access…" onDismiss={() => setFeedback(null)} />
 
     <section className="mt-8 rounded-3xl bg-white p-4 shadow-sm sm:p-6">
       <h2 className="text-xl font-extrabold text-navy">Invite a team member</h2>

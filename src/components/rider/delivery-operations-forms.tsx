@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { ActionFeedback } from "@/components/ui/action-feedback";
 
 type Feedback = { text: string; ok: boolean } | null;
 
@@ -14,10 +15,15 @@ export function DeliveryOperationsForms({ orderId, runId }: { orderId: string; r
     setPending("expense");
     setFeedback(null);
     const amountKobo = Math.round(Number(form.get("amountNaira")) * 100);
-    const response = await fetch("/api/rider/expenses", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orderId, runId: runId ?? null, category: form.get("category"), amountKobo, description: form.get("description"), occurredAt: new Date().toISOString(), alreadyIncurred: form.get("alreadyIncurred") === "on", customerApprovalObtained: false, idempotencyKey: crypto.randomUUID() }) });
-    const body = await response.json();
-    setPending("");
-    setFeedback({ text: response.ok ? "Expense submitted for review. The customer was not charged." : body.error ?? "The expense could not be submitted.", ok: response.ok });
+    try {
+      const response = await fetch("/api/rider/expenses", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orderId, runId: runId ?? null, category: form.get("category"), amountKobo, description: form.get("description"), occurredAt: new Date().toISOString(), alreadyIncurred: form.get("alreadyIncurred") === "on", customerApprovalObtained: false, idempotencyKey: crypto.randomUUID() }) });
+      const body = await response.json().catch(() => ({}));
+      setFeedback({ text: response.ok ? "Expense submitted for review. The customer was not charged." : body.error ?? "The expense could not be submitted.", ok: response.ok });
+    } catch {
+      setFeedback({ text: "We could not reach operations. Check your connection and try again.", ok: false });
+    } finally {
+      setPending("");
+    }
   }
 
   async function reportAttempt(form: FormData) {
@@ -25,32 +31,47 @@ export function DeliveryOperationsForms({ orderId, runId }: { orderId: string; r
     setFeedback(null);
     const status = String(form.get("status"));
     const waitingDurationSeconds = Math.round(Number(form.get("waitingMinutes") || 0) * 60);
-    const response = await fetch("/api/rider/attempts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orderId, runId: runId ?? null, status, contactAttempts: [], waitingDurationSeconds, failureReason: form.get("reason"), evidence: {}, riderNotes: form.get("notes") || undefined, idempotencyKey: crypto.randomUUID() }) });
-    const body = await response.json();
-    setPending("");
-    setFeedback({ text: response.ok ? "Delivery attempt recorded. Dispatch will choose the next safe step." : body.error ?? "The delivery attempt could not be recorded.", ok: response.ok });
+    try {
+      const response = await fetch("/api/rider/attempts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orderId, runId: runId ?? null, status, contactAttempts: [], waitingDurationSeconds, failureReason: form.get("reason"), evidence: {}, riderNotes: form.get("notes") || undefined, idempotencyKey: crypto.randomUUID() }) });
+      const body = await response.json().catch(() => ({}));
+      setFeedback({ text: response.ok ? "Delivery attempt recorded. Dispatch will choose the next safe step." : body.error ?? "The delivery attempt could not be recorded.", ok: response.ok });
+    } catch {
+      setFeedback({ text: "We could not reach operations. Check your connection and try again.", ok: false });
+    } finally {
+      setPending("");
+    }
   }
 
   async function startWaiting() {
     setPending("waiting");
     setFeedback(null);
-    const response = await fetch("/api/rider/waiting", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orderId, runId: runId ?? null, idempotencyKey: crypto.randomUUID() }) });
-    const body = await response.json();
-    setPending("");
-    if (!response.ok) return setFeedback({ text: body.error ?? "The waiting timer could not be started.", ok: false });
-    setWaitingId(body.id);
-    setFeedback({ text: "Waiting timer started. Keep this page open and stop it when the wait ends.", ok: true });
+    try {
+      const response = await fetch("/api/rider/waiting", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orderId, runId: runId ?? null, idempotencyKey: crypto.randomUUID() }) });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) return setFeedback({ text: body.error ?? "The waiting timer could not be started.", ok: false });
+      setWaitingId(body.id);
+      setFeedback({ text: "Waiting timer started. Keep this page open and stop it when the wait ends.", ok: true });
+    } catch {
+      setFeedback({ text: "We could not start the timer. Check your connection and try again.", ok: false });
+    } finally {
+      setPending("");
+    }
   }
 
   async function stopWaiting() {
     setPending("waiting");
     setFeedback(null);
-    const response = await fetch(`/api/rider/waiting/${waitingId}/complete`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ excludedSeconds: 0, expenseIdempotencyKey: crypto.randomUUID() }) });
-    const body = await response.json();
-    setPending("");
-    if (!response.ok) return setFeedback({ text: body.error ?? "The waiting timer could not be stopped.", ok: false });
-    setWaitingId("");
-    setFeedback({ text: body.chargeKobo === null ? "Waiting time recorded. Dispatch must review the pricing setup." : `Waiting time recorded. Proposed amount: ₦${(body.chargeKobo / 100).toFixed(2)}. The customer has not been charged.`, ok: true });
+    try {
+      const response = await fetch(`/api/rider/waiting/${waitingId}/complete`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ excludedSeconds: 0, expenseIdempotencyKey: crypto.randomUUID() }) });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) return setFeedback({ text: body.error ?? "The waiting timer could not be stopped.", ok: false });
+      setWaitingId("");
+      setFeedback({ text: body.chargeKobo === null ? "Waiting time recorded. Dispatch must review the pricing setup." : `Waiting time recorded. Proposed amount: ₦${(body.chargeKobo / 100).toFixed(2)}. The customer has not been charged.`, ok: true });
+    } catch {
+      setFeedback({ text: "We could not stop the timer. Your recorded server time is preserved; check your connection and try again.", ok: false });
+    } finally {
+      setPending("");
+    }
   }
 
   return <section className="mt-5 grid gap-5 lg:grid-cols-2">
@@ -77,6 +98,6 @@ export function DeliveryOperationsForms({ orderId, runId }: { orderId: string; r
       <p className="mt-2 text-sm leading-6 text-slate">Start this when you arrive and are ready to hand over. The server records the time; any extra charge still needs review and approval.</p>
       <Button className="mt-4 w-full sm:w-auto" disabled={Boolean(pending)} onClick={waitingId ? stopWaiting : startWaiting}>{pending === "waiting" ? "Updating timer…" : waitingId ? "Stop waiting timer" : "Start waiting timer"}</Button>
     </div>
-    {feedback ? <p role={feedback.ok ? "status" : "alert"} className={`rounded-2xl p-4 text-sm lg:col-span-2 ${feedback.ok ? "bg-emerald-50 text-emerald-900" : "bg-red-50 text-red-900"}`}>{feedback.text}</p> : null}
+    <ActionFeedback feedback={feedback} pending={Boolean(pending)} pendingText="Updating this delivery…" onDismiss={() => setFeedback(null)} />
   </section>;
 }

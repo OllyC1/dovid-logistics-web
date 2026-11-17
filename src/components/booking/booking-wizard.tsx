@@ -82,35 +82,40 @@ export function BookingWizard() {
   async function requestQuote(nextStep = 3) {
     setPending(true);
     setMessage("");
-    const response = await fetch("/api/delivery/quotes", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        pickupAddress: draft.pickupAddress,
-        pickupCoordinates: { latitude: Number(draft.pickupLatitude), longitude: Number(draft.pickupLongitude) },
-        deliveryAddress: draft.deliveryAddress,
-        deliveryCoordinates: { latitude: Number(draft.deliveryLatitude), longitude: Number(draft.deliveryLongitude) },
-        packageCategory: draft.packageCategory,
-        packageSize: draft.packageSize,
-        serviceLevel: draft.serviceLevel,
-        paymentMethod: draft.paymentMethod,
-        payer: draft.payer,
-        scheduledAt: draft.scheduledAt ? new Date(draft.scheduledAt).toISOString() : undefined,
-        additionalStops: serializedStops,
-        oversized: draft.oversized === "true"
-      })
-    });
-    const body = await response.json();
-    setPending(false);
-    if (!response.ok) return setMessage(body.error ?? "We could not calculate a price right now. Please try again.");
-    if (body.eligibility && body.eligibility !== "standard_eligible") {
-      setQuote(null);
-      setMessage(body.message ?? "This route needs confirmation from our dispatch team.");
-      return;
+    try {
+      const response = await fetch("/api/delivery/quotes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          pickupAddress: draft.pickupAddress,
+          pickupCoordinates: { latitude: Number(draft.pickupLatitude), longitude: Number(draft.pickupLongitude) },
+          deliveryAddress: draft.deliveryAddress,
+          deliveryCoordinates: { latitude: Number(draft.deliveryLatitude), longitude: Number(draft.deliveryLongitude) },
+          packageCategory: draft.packageCategory,
+          packageSize: draft.packageSize,
+          serviceLevel: draft.serviceLevel,
+          paymentMethod: draft.paymentMethod,
+          payer: draft.payer,
+          scheduledAt: draft.scheduledAt ? new Date(draft.scheduledAt).toISOString() : undefined,
+          additionalStops: serializedStops,
+          oversized: draft.oversized === "true"
+        })
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) return setMessage(body.error ?? "We could not calculate a price right now. Please try again.");
+      if (body.eligibility && body.eligibility !== "standard_eligible") {
+        setQuote(null);
+        setMessage(body.message ?? "This route needs confirmation from our dispatch team.");
+        return;
+      }
+      setQuote(body);
+      setMessage(body.message ?? "Great! We can check delivery availability for this route.");
+      setStep(nextStep);
+    } catch {
+      setMessage("We could not reach the delivery service. Check your connection and try again.");
+    } finally {
+      setPending(false);
     }
-    setQuote(body);
-    setMessage(body.message ?? "Great! We can check delivery availability for this route.");
-    setStep(nextStep);
   }
 
   async function confirmOrder() {
@@ -118,20 +123,18 @@ export function BookingWizard() {
     setPending(true);
     setMessage("");
     const idempotencyKey = crypto.randomUUID();
-    const confirmation = await fetch(`/api/delivery/quotes/${quote.quoteId}/confirm`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ idempotencyKey })
-    });
-    const confirmationBody = await confirmation.json();
-    if (!confirmation.ok) {
-      setPending(false);
-      return setMessage(confirmationBody.error ?? "This price has expired. Please request a new one.");
-    }
-    const response = await fetch("/api/orders", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+    try {
+      const confirmation = await fetch(`/api/delivery/quotes/${quote.quoteId}/confirm`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idempotencyKey })
+      });
+      const confirmationBody = await confirmation.json().catch(() => ({}));
+      if (!confirmation.ok) return setMessage(confirmationBody.error ?? "This price has expired. Please request a new one.");
+      const response = await fetch("/api/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
         pickupAddress: draft.pickupAddress,
         pickupCoordinates: { latitude: Number(draft.pickupLatitude), longitude: Number(draft.pickupLongitude) },
         deliveryAddress: draft.deliveryAddress,
@@ -151,23 +154,27 @@ export function BookingWizard() {
         paymentMethod: draft.paymentMethod,
         quoteId: quote.quoteId,
         idempotencyKey
-      })
-    });
-    const body = await response.json();
-    setPending(false);
-    if (!response.ok) return setMessage(body.error ?? "We could not complete your booking. Please try again.");
-    localStorage.removeItem("dovid-booking-draft");
-    localStorage.removeItem("dovid-booking-stops");
-    if (body.receiver_payment_token) sessionStorage.setItem(`dovid-receiver-token-${body.order_id}`, body.receiver_payment_token);
-    if (draft.payer === "sender") {
-      const payment = await fetch("/api/payments/initialize", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orderId: body.order_id, idempotencyKey: crypto.randomUUID() }) }).catch(() => null);
-      if (payment?.ok) {
-        const paymentBody = await payment.json();
-        window.location.assign(paymentBody.checkoutUrl);
-        return;
+        })
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) return setMessage(body.error ?? "We could not complete your booking. Please try again.");
+      localStorage.removeItem("dovid-booking-draft");
+      localStorage.removeItem("dovid-booking-stops");
+      if (body.receiver_payment_token) sessionStorage.setItem(`dovid-receiver-token-${body.order_id}`, body.receiver_payment_token);
+      if (draft.payer === "sender") {
+        const payment = await fetch("/api/payments/initialize", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orderId: body.order_id, idempotencyKey: crypto.randomUUID() }) }).catch(() => null);
+        if (payment?.ok) {
+          const paymentBody = await payment.json();
+          window.location.assign(paymentBody.checkoutUrl);
+          return;
+        }
       }
+      window.location.assign(new URL(`/account/orders/${body.order_id}`, window.location.origin).toString());
+    } catch {
+      setMessage("We could not complete the delivery request. Check your connection and try again.");
+    } finally {
+      setPending(false);
     }
-    window.location.assign(new URL(`/account/orders/${body.order_id}`, window.location.origin).toString());
   }
 
   return <div className="grid min-w-0 gap-6 lg:grid-cols-[260px_1fr] lg:gap-8" data-hydrated={hydrated}>

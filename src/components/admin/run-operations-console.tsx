@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { ActionFeedback } from "@/components/ui/action-feedback";
 import { ReasonDialog } from "@/components/ui/reason-dialog";
 
 type Vehicle = { id: string; code: string; operational_status: string; assigned_rider_id: string | null; safety_status: string };
@@ -22,8 +23,17 @@ export function RunOperationsConsole({ vehicles, riders, runs, orders, expenses,
 
   async function post(url: string, body: object, success: string) {
     setPending(true); setMessage("");
-    const response = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-    const result = await response.json(); setPending(false); setReasonAction(null); setMessage(response.ok ? success : result.error); if (response.ok) router.refresh();
+    try {
+      const response = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const result = await response.json().catch(() => ({}));
+      setReasonAction(null);
+      setMessage(response.ok ? success : result.error ?? "The operation could not be completed.");
+      if (response.ok) router.refresh();
+    } catch {
+      setMessage("We could not reach operations. Check your connection and try again.");
+    } finally {
+      setPending(false);
+    }
   }
 
   async function createRun(form: FormData) {
@@ -41,8 +51,17 @@ export function RunOperationsConsole({ vehicles, riders, runs, orders, expenses,
   async function reviewExpense(expenseId: string, status: "approved" | "rejected" | "disputed", billable: boolean, reason: string) {
     setPending(true); setMessage("");
     const expense = expenses.find((item) => item.id === expenseId)!;
-    const response = await fetch(`/api/admin/expenses/${expenseId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status, reason, customerBillable: billable, proposedAmountKobo: billable ? expense.amount_kobo : undefined, surchargeIdempotencyKey: billable ? crypto.randomUUID() : undefined }) });
-    const result = await response.json(); setPending(false); setReasonAction(null); setMessage(response.ok ? billable ? "Expense approved; separate customer charge proposed for authorization." : `Expense ${status}. No customer charge created.` : result.error); if (response.ok) router.refresh();
+    try {
+      const response = await fetch(`/api/admin/expenses/${expenseId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status, reason, customerBillable: billable, proposedAmountKobo: billable ? expense.amount_kobo : undefined, surchargeIdempotencyKey: billable ? crypto.randomUUID() : undefined }) });
+      const result = await response.json().catch(() => ({}));
+      setReasonAction(null);
+      setMessage(response.ok ? billable ? "Expense approved; separate customer charge proposed for authorization." : `Expense ${status}. No customer charge created.` : result.error ?? "The expense review could not be completed.");
+      if (response.ok) router.refresh();
+    } catch {
+      setMessage("We could not reach operations. Check your connection and try again.");
+    } finally {
+      setPending(false);
+    }
   }
 
   async function resolveAttempt(attemptId: string, resolution: "retry_immediately" | "schedule_redelivery" | "return_to_sender" | "open_incident", reason: string) {
@@ -64,8 +83,17 @@ export function RunOperationsConsole({ vehicles, riders, runs, orders, expenses,
 
   async function saveStopOrder(runId: string, stopIds: string[], reason: string) {
     setPending(true); setMessage("");
-    const response = await fetch(`/api/admin/runs/${runId}/route`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ stopIds, reason, idempotencyKey: crypto.randomUUID() }) });
-    const result = await response.json(); setPending(false); setReasonAction(null); setMessage(response.ok ? "Route order adjusted and audited. Recheck provider feasibility before dispatch." : result.error); if (response.ok) router.refresh();
+    try {
+      const response = await fetch(`/api/admin/runs/${runId}/route`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ stopIds, reason, idempotencyKey: crypto.randomUUID() }) });
+      const result = await response.json().catch(() => ({}));
+      setReasonAction(null);
+      setMessage(response.ok ? "Route order adjusted and audited. Recheck provider feasibility before dispatch." : result.error ?? "The route order could not be saved.");
+      if (response.ok) router.refresh();
+    } catch {
+      setMessage("We could not reach operations. Check your connection and try again.");
+    } finally {
+      setPending(false);
+    }
   }
 
   return <div className="grid gap-8">
@@ -89,7 +117,7 @@ export function RunOperationsConsole({ vehicles, riders, runs, orders, expenses,
     </section>
     <section><h2 className="text-xl font-extrabold text-navy">Additional expense review</h2><div className="mt-4 grid gap-3">{expenses.map((expense) => <article key={expense.id} className="rounded-3xl bg-white p-5"><div className="flex flex-wrap justify-between gap-3"><div><p className="font-bold capitalize text-navy">{expense.category.replaceAll("_", " ")}</p><p className="mt-1 text-sm text-slate">{expense.description}</p></div><p className="font-extrabold text-orange">₦{(expense.amount_kobo / 100).toLocaleString("en-NG")}</p></div><div className="mt-4 grid gap-2 sm:flex sm:flex-wrap"><Button disabled={pending} variant="outline" onClick={() => setReasonAction({ title: "Approve this company expense?", description: "The expense will be recorded against operations and will not create a customer charge.", confirmLabel: "Approve expense", run: (reason) => reviewExpense(expense.id, "approved", false, reason) })}>Approve company expense</Button><Button disabled={pending} onClick={() => setReasonAction({ title: "Propose this customer charge?", description: "Approval creates a separate charge proposal. The customer must authorize and pay it before any mandatory handover.", confirmLabel: "Propose charge", run: (reason) => reviewExpense(expense.id, "approved", true, reason) })}>Propose customer charge</Button><Button disabled={pending} variant="ghost" onClick={() => setReasonAction({ title: "Reject this expense?", description: "Record why this submitted operating expense is being rejected.", confirmLabel: "Reject expense", run: (reason) => reviewExpense(expense.id, "rejected", false, reason) })}>Reject</Button></div></article>)}{!expenses.length ? <p className="rounded-3xl bg-white p-6 text-slate">No expenses awaiting review.</p> : null}</div></section>
     <section><h2 className="text-xl font-extrabold text-navy">Missed-delivery exceptions</h2><div className="mt-4 grid gap-3">{attempts.map((attempt) => <article key={attempt.id} className="rounded-3xl bg-white p-5"><p className="font-bold capitalize text-navy">Attempt {attempt.attempt_number} · {attempt.status.replaceAll("_", " ")}</p><p className="mt-1 text-sm text-slate">{attempt.failure_reason || "No reason recorded"}</p><p className="mt-2 break-all text-xs text-slate">Order {attempt.order_id} · {new Date(attempt.created_at).toLocaleString("en-NG")}</p><div className="mt-4 grid gap-2 sm:flex sm:flex-wrap"><Button disabled={pending} variant="outline" onClick={() => setReasonAction({ title: "Retry this delivery now?", description: "Record why an immediate retry is operationally safe and appropriate.", confirmLabel: "Retry delivery", run: (reason) => resolveAttempt(attempt.id, "retry_immediately", reason) })}>Retry now</Button><Button disabled={pending} variant="outline" onClick={() => setReasonAction({ title: "Plan a redelivery?", description: "Record the reason and confirm that dispatch will schedule a new attempt. No customer charge is created automatically.", confirmLabel: "Plan redelivery", run: (reason) => resolveAttempt(attempt.id, "schedule_redelivery", reason) })}>Plan redelivery</Button><Button disabled={pending} variant="ghost" onClick={() => setReasonAction({ title: "Return this parcel to the sender?", description: "Record why return-to-sender is the correct custody-safe resolution.", confirmLabel: "Return to sender", run: (reason) => resolveAttempt(attempt.id, "return_to_sender", reason) })}>Return to sender</Button><Button disabled={pending} variant="ghost" onClick={() => setReasonAction({ title: "Open an operational incident?", description: "Record why this attempt requires formal investigation and follow-up.", confirmLabel: "Open incident", run: (reason) => resolveAttempt(attempt.id, "open_incident", reason) })}>Open incident</Button></div></article>)}{!attempts.length ? <p className="rounded-3xl bg-white p-6 text-slate">No unresolved delivery attempts.</p> : null}</div></section>
-    {message ? <p role="status" className="rounded-2xl bg-amber-50 p-4 text-sm text-amber-900">{message}</p> : null}
+    <ActionFeedback feedback={message ? { text: message, ok: !/could not|failed|required|invalid|not found|conflict/i.test(message) } : null} pending={pending} pendingText="Updating delivery operations…" onDismiss={() => setMessage("")} />
     <ReasonDialog open={Boolean(reasonAction)} title={reasonAction?.title ?? "Record a reason"} description={reasonAction?.description ?? "This action must remain auditable."} confirmLabel={reasonAction?.confirmLabel ?? "Continue"} pending={pending} onCancel={() => setReasonAction(null)} onConfirm={(reason) => reasonAction?.run(reason)} />
   </div>;
 }
