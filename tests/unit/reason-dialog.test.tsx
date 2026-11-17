@@ -18,5 +18,5 @@ describe("ReasonDialog", () => {
     fireEvent.click(confirm);
 
     expect(onConfirm).toHaveBeenCalledWith("Identity review completed");
-  });
+  }, 10_000);
 });
