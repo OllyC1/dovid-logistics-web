@@ -5,15 +5,40 @@ import { expect, test } from "@playwright/test";
 const runLiveGuestBooking = process.env.RUN_LIVE_GUEST_BOOKING_E2E === "true";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
+const guestQuoteFixtures = new Set<string>();
+
+async function cleanGuestQuoteFixture(quoteId: string) {
+  const admin = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
+  const { data: orders, error: orderReadError } = await admin.from("delivery_orders").select("id").eq("quote_id", quoteId);
+  if (orderReadError) throw orderReadError;
+
+  for (const order of orders ?? []) {
+    const tokenCleanup = await admin.from("guest_order_access_tokens").delete().eq("order_id", order.id);
+    if (tokenCleanup.error) throw tokenCleanup.error;
+  }
+
+  const orderCleanup = await admin.from("delivery_orders").delete().eq("quote_id", quoteId);
+  if (orderCleanup.error) throw orderCleanup.error;
+  const quoteTokenCleanup = await admin.from("guest_quote_access_tokens").delete().eq("quote_id", quoteId);
+  if (quoteTokenCleanup.error) throw quoteTokenCleanup.error;
+  const quoteCleanup = await admin.from("quotes").delete().eq("id", quoteId);
+  if (quoteCleanup.error) throw quoteCleanup.error;
+  guestQuoteFixtures.delete(quoteId);
+}
 
 test.describe("real guest booking API", () => {
   test.skip(!runLiveGuestBooking || !supabaseUrl || !serviceRoleKey, "Requires the isolated local Supabase stack and explicit guest-booking test flag.");
+
+  test.afterEach(async () => {
+    for (const quoteId of [...guestQuoteFixtures]) await cleanGuestQuoteFixture(quoteId);
+  });
 
   test("creates a private delivery without sign-in at mobile widths", async ({ page }, testInfo) => {
     test.skip(!testInfo.project.name.startsWith("mobile"), "The guest journey is mobile-first and is exercised at 375px and 390px.");
 
     const admin = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
     const quoteId = randomUUID();
+    guestQuoteFixtures.add(quoteId);
     const guestQuoteToken = randomBytes(32).toString("base64url");
     const expiresAt = new Date(Date.now() + 60 * 60_000).toISOString();
     const quoteRequest = {

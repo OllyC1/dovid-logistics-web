@@ -33,4 +33,24 @@ describe("ActionFeedback", () => {
     render(<ActionFeedback feedback={{ text: "Saved.", ok: true }} onDismiss={() => undefined} />);
     expect(screen.getByRole("button", { name: "Dismiss message" }).className).toContain("pointer-events-auto");
   });
+
+  it("shows only the latest action message when several workflow controls share a page", () => {
+    const { rerender } = render(<>
+      <ActionFeedback feedback={{ text: "Pickup journey started.", ok: true }} />
+      <ActionFeedback feedback={null} />
+    </>);
+    expect(screen.getByRole("status").textContent).toContain("Pickup journey started.");
+
+    rerender(<>
+      <ActionFeedback feedback={{ text: "Pickup journey started.", ok: true }} />
+      <ActionFeedback feedback={{ text: "Delivery attempt recorded.", ok: true }} />
+    </>);
+
+    expect(screen.getAllByRole("status")).toHaveLength(1);
+    expect(screen.getByRole("status").textContent).toContain("Delivery attempt recorded.");
+
+    rerender(<><ActionFeedback feedback={null} /><ActionFeedback feedback={null} /></>);
+    rerender(<><ActionFeedback feedback={{ text: "Pickup journey started.", ok: true }} /><ActionFeedback feedback={null} /></>);
+    expect(screen.getByRole("status").textContent).toContain("Pickup journey started.");
+  });
 });

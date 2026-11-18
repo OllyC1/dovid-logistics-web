@@ -23,6 +23,6 @@ export default async function AssistedQuotePage({ params }: { params: Promise<{ 
     const payload = draft?.request_payload as Record<string, unknown> | undefined;
     if (quote && payload) details = { pickupAddress: String(payload.pickupAddress), deliveryAddress: String(payload.deliveryAddress), packageDescription: String(payload.packageDescription), packageCategory: String(payload.packageCategory), packageSize: String(payload.packageSize), amountMinor: quote.amount_minor, currency: quote.currency, expiresAt: quote.expires_at };
   }
-  return <section className="container py-8 sm:py-12"><div className="mb-7 flex justify-center"><Link href="/" aria-label="Dovid Logistics home"><Image src="/brand/dovid-primary.svg" alt="Dovid Logistics" width={180} height={46} priority /></Link></div><AssistedQuoteReview token={token} verified={verified} details={details} /></section>;
+  return <section className="container py-8 sm:py-12"><div className="mb-7 flex justify-center"><Link href="/" aria-label="Dovid Logistics home"><Image className="h-auto w-[180px]" src="/brand/dovid-primary.svg" alt="Dovid Logistics" width={195} height={60} priority /></Link></div><AssistedQuoteReview token={token} verified={verified} details={details} /></section>;
 }
 

@@ -50,7 +50,7 @@ export default async function GuestOrderPage({ params }: { params: Promise<{ tok
     <section className="container max-w-3xl py-8 sm:py-12">
       <div className="flex justify-center">
         <Link href="/" aria-label="Dovid Logistics home">
-          <Image src="/brand/dovid-primary.svg" alt="Dovid Logistics" width={180} height={46} priority />
+          <Image className="h-auto w-[180px]" src="/brand/dovid-primary.svg" alt="Dovid Logistics" width={195} height={60} priority />
         </Link>
       </div>
       <div className="mt-7 rounded-3xl bg-white p-5 shadow-sm sm:p-7">
