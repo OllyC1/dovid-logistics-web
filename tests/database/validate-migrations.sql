@@ -124,6 +124,144 @@ begin
   end if;
 end $$;
 
+-- Validate the custody-safe failed-attempt, return-to-sender and run-completion path.
+-- This uses a dedicated disposable order and one of the inactive planning bikes.
+begin;
+set role service_role;
+do $$
+declare
+  return_quote_id uuid := '62626262-6262-4262-8262-626262626262';
+  return_order_id uuid := '63636363-6363-4363-8363-636363636363';
+  return_run_id uuid := '64646464-6464-4464-8464-646464646464';
+  return_attempt_id uuid;
+  resolution_key uuid := '65656565-6565-4565-8565-656565656565';
+  completion_key uuid := '66666666-6666-4666-8666-666666666666';
+  run_completion_key uuid := '67676767-6767-4767-8767-676767676767';
+begin
+  update public.fleet_vehicles
+  set registration_number='TST RTS 001',
+      manufacturer='Validation',
+      model='Return workflow bike',
+      model_year=2024,
+      assigned_rider_id='33333333-3333-3333-3333-333333333333',
+      max_active_assignments=2,
+      max_payload_weight_grams=18000,
+      cargo_length_mm=500,
+      cargo_width_mm=400,
+      cargo_height_mm=400,
+      capacity_verified_at=now(),
+      capacity_verified_by='44444444-4444-4444-4444-444444444444',
+      safety_status='cleared',
+      operational_status='available'
+  where id='20000000-0000-4000-8000-000000000001';
+
+  insert into public.quotes(
+    id,pricing_rule_id,customer_id,request_payload,distance_meters,amount_minor,
+    expires_at,status,service_level,payment_method
+  ) values (
+    return_quote_id,'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','11111111-1111-1111-1111-111111111111',
+    '{"pickupAddress":"Return pickup","deliveryAddress":"Return dropoff","packageSize":"small","packageCategory":"parcel","additionalStops":[],"oversized":false}',
+    4500,200000,now()+interval '1 hour','confirmed','standard','online'
+  );
+
+  insert into public.delivery_orders(
+    id,customer_id,quote_id,order_reference,tracking_reference,idempotency_key,
+    pickup_address,pickup_latitude,pickup_longitude,delivery_address,delivery_latitude,
+    delivery_longitude,sender_name,sender_phone,recipient_name,recipient_phone,payer,
+    payment_method,delivery_status,payment_status,distance_meters,quoted_amount_minor
+  ) values (
+    return_order_id,'11111111-1111-1111-1111-111111111111',return_quote_id,
+    'DOV-RETURN-VALIDATION','TRK-RETURN-VALIDATION','68686868-6868-4868-8868-686868686868',
+    'Return pickup',7.3,3.9,'Return dropoff',7.4,3.8,'Validation Sender','08000000000',
+    'Validation Recipient','08000000001','sender','online','awaiting_assignment','paid',4500,200000
+  );
+  insert into public.delivery_packages(
+    order_id,category,size,description,weight_grams,length_mm,width_mm,height_mm
+  ) values (
+    return_order_id,'parcel','small','Return workflow validation parcel',1000,200,150,100
+  );
+  insert into public.delivery_runs(
+    id,run_reference,rider_id,vehicle_id,status,started_at,compliance_confirmed_at,
+    compliance_confirmed_by,compliance_notes,idempotency_key,created_by
+  ) values (
+    return_run_id,'RUN-RETURN-VALIDATION','33333333-3333-3333-3333-333333333333',
+    '20000000-0000-4000-8000-000000000001','active',now(),now(),
+    '44444444-4444-4444-4444-444444444444','Controlled database return workflow validation',
+    '69696969-6969-4969-8969-696969696969','44444444-4444-4444-4444-444444444444'
+  );
+
+  perform public.assign_order_to_delivery_run(
+    return_order_id,return_run_id,'44444444-4444-4444-4444-444444444444',
+    '{"source":"database_validation"}'::jsonb,null,'70707070-7070-4070-8070-707070707070'
+  );
+  perform public.transition_delivery_order(return_order_id,'rider_en_route_to_pickup','{"source":"database_validation"}'::jsonb);
+  perform public.transition_delivery_order(return_order_id,'picked_up','{"source":"database_validation"}'::jsonb);
+  perform public.transition_delivery_order(return_order_id,'in_transit','{"source":"database_validation"}'::jsonb);
+  perform public.transition_delivery_order(return_order_id,'arrived_at_destination','{"source":"database_validation"}'::jsonb);
+
+  return_attempt_id := public.record_delivery_attempt(
+    return_order_id,return_run_id,'33333333-3333-3333-3333-333333333333',
+    'recipient_unavailable','[]'::jsonb,600,'Recipient unavailable after verified contact attempts',
+    '{}'::jsonb,null,'Controlled failed-attempt validation','71717171-7171-4171-8171-717171717171'
+  );
+  perform public.transition_delivery_order(
+    return_order_id,'delivery_failed',
+    jsonb_build_object('source','database_validation','attemptId',return_attempt_id)
+  );
+  perform public.resolve_delivery_attempt(
+    return_attempt_id,'44444444-4444-4444-4444-444444444444','return_to_sender',
+    'under_review','Recipient remained unavailable; dispatch authorized custody-safe return.',
+    null,null,null,null,resolution_key
+  );
+  perform public.complete_return_to_sender(
+    return_order_id,'33333333-3333-3333-3333-333333333333',
+    '{"recipientName":"Validation Sender","notes":"Identity checked"}'::jsonb,completion_key
+  );
+  perform public.complete_return_to_sender(
+    return_order_id,'33333333-3333-3333-3333-333333333333',
+    '{"recipientName":"Validation Sender","notes":"Idempotent retry"}'::jsonb,completion_key
+  );
+
+  update public.delivery_run_stops
+  set status=case when stop_type='pickup' then 'completed' when stop_type='dropoff' then 'skipped' else status end,
+      completed_at=case when stop_type='pickup' then now() else completed_at end,
+      updated_at=now()
+  where run_id=return_run_id and stop_type in ('pickup','dropoff');
+  perform public.complete_delivery_run(
+    return_run_id,'44444444-4444-4444-4444-444444444444',
+    'All parcel custody events reached a verified terminal state.',run_completion_key
+  );
+  perform public.complete_delivery_run(
+    return_run_id,'44444444-4444-4444-4444-444444444444',
+    'All parcel custody events reached a verified terminal state.',run_completion_key
+  );
+
+  if (select delivery_status from public.delivery_orders where id=return_order_id)<>'cancelled' then
+    raise exception 'returned order did not reach the cancelled terminal state';
+  end if;
+  if (select status from public.run_assignments where order_id=return_order_id)<>'returned' then
+    raise exception 'returned parcel assignment did not preserve terminal custody';
+  end if;
+  if (select count(*) from public.parcel_custody_events where order_id=return_order_id and event_type='returned_to_sender')<>1 then
+    raise exception 'return-to-sender custody completion was not idempotent';
+  end if;
+  if not exists(
+    select 1 from public.delivery_run_stops
+    where run_id=return_run_id and order_id=return_order_id and stop_type='return_to_sender' and status='completed'
+  ) then raise exception 'return-to-sender stop was not completed'; end if;
+  if (select status from public.delivery_runs where id=return_run_id)<>'completed' then
+    raise exception 'custody-safe delivery run did not complete';
+  end if;
+  if (select operational_status from public.fleet_vehicles where id='20000000-0000-4000-8000-000000000001')<>'available' then
+    raise exception 'completed delivery run did not release its bike';
+  end if;
+  if (select count(*) from public.audit_logs where resource_id=return_order_id and action='delivery_attempt.resolved')<>1 then
+    raise exception 'attempt resolution audit history is incomplete or duplicated';
+  end if;
+end $$;
+reset role;
+rollback;
+
 set role authenticated;
 select set_config('request.jwt.claim.sub','11111111-1111-1111-1111-111111111111',false);
 do $$ begin
