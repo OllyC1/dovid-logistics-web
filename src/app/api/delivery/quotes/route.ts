@@ -1,4 +1,6 @@
+import { randomBytes } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
+import { hashAssistedSecret } from "@/features/assisted-bookings/security";
 import { deliveryQuoteRequestSchema } from "@/features/pricing/quote-request";
 import { createQuoteFromContext, loadActivePricingContext, loadComparableCompetitorQuotes, loadPromotion } from "@/features/pricing/service";
 import { evaluateBookingEligibility, isWithinServiceHours } from "@/features/service-areas/eligibility";
@@ -7,6 +9,7 @@ import type { ZoneGeoJson } from "@/features/service-areas/geometry";
 import { publicBookingsEnabled } from "@/lib/launch-controls";
 import { getRouteDistance } from "@/lib/maps/routes";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 const attempts = new Map<string, { count: number; resetAt: number }>();
 function rateLimited(ip: string) { const now = Date.now(); const current = attempts.get(ip); if (!current || current.resetAt < now) { attempts.set(ip, { count: 1, resetAt: now + 60_000 }); return false; } current.count += 1; return current.count > 12; }
@@ -129,11 +132,22 @@ export async function POST(request: NextRequest) {
     }
 
     const quoteId = crypto.randomUUID();
-    const { error: quoteError } = await admin.from("quotes").insert({ id: quoteId, pricing_rule_id: null, pricing_configuration_version_id: context.configurationVersionId, rate_card_id: context.rateCardId, request_payload: enrichedPayload, distance_meters: route.distanceMeters, amount_minor: result.customerTotalKobo, currency: result.currency, expires_at: result.expiresAt, status: "created", service_level: parsed.data.serviceLevel, payment_method: parsed.data.paymentMethod, duration_seconds: durationSeconds(route.duration), customer_breakdown: result.includedCharges, internal_breakdown: result.internal, pricing_flags: result.internal.flags, operational_approval_status: "not_required" });
+    const supabase = await createSupabaseServerClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    const guestQuoteToken = user ? null : randomBytes(32).toString("base64url");
+    const { error: quoteError } = await admin.from("quotes").insert({ id: quoteId, customer_id: user?.id ?? null, pricing_rule_id: null, pricing_configuration_version_id: context.configurationVersionId, rate_card_id: context.rateCardId, request_payload: enrichedPayload, distance_meters: route.distanceMeters, amount_minor: result.customerTotalKobo, currency: result.currency, expires_at: result.expiresAt, status: "created", service_level: parsed.data.serviceLevel, payment_method: parsed.data.paymentMethod, duration_seconds: durationSeconds(route.duration), customer_breakdown: result.includedCharges, internal_breakdown: result.internal, pricing_flags: result.internal.flags, operational_approval_status: "not_required" });
     if (quoteError) throw quoteError;
     const { error: costError } = await admin.from("quote_cost_estimates").insert({ quote_id: quoteId, estimated_operational_cost_kobo: result.internal.operationalCostKobo, minimum_profitable_price_kobo: result.internal.minimumProfitableCustomerTotalKobo, estimated_payment_fee_kobo: result.internal.paymentProcessingFeeKobo, estimated_tax_kobo: result.internal.taxKobo, estimated_profit_kobo: result.internal.estimatedProfitKobo, estimated_operating_margin_bps: result.internal.estimatedOperatingMarginBps, assumptions_snapshot: context.config });
     if (costError) { await admin.from("quotes").delete().eq("id", quoteId); throw costError; }
-    return NextResponse.json({ quoteId, status: "created", eligibility: decision.decision, message: decision.message, currency: result.currency, customerTotalKobo: result.customerTotalKobo, amountMinor: result.customerTotalKobo, expiresAt: result.expiresAt, distanceMeters: route.distanceMeters, duration: route.duration, serviceLevel: parsed.data.serviceLevel, includedCharges: result.includedCharges, explanation: "Delivery fee calculated using your route, operating capacity and service type." });
+    if (guestQuoteToken) {
+      const { error: accessError } = await admin.from("guest_quote_access_tokens").insert({ quote_id: quoteId, token_hash: hashAssistedSecret(guestQuoteToken), expires_at: result.expiresAt });
+      if (accessError) {
+        await admin.from("quote_cost_estimates").delete().eq("quote_id", quoteId);
+        await admin.from("quotes").delete().eq("id", quoteId);
+        throw new Error("The secure guest quote could not be prepared.");
+      }
+    }
+    return NextResponse.json({ quoteId, ...(guestQuoteToken ? { guestQuoteToken } : {}), status: "created", eligibility: decision.decision, message: decision.message, currency: result.currency, customerTotalKobo: result.customerTotalKobo, amountMinor: result.customerTotalKobo, expiresAt: result.expiresAt, distanceMeters: route.distanceMeters, duration: route.duration, serviceLevel: parsed.data.serviceLevel, includedCharges: result.includedCharges, explanation: "Delivery fee calculated using your route, operating capacity and service type." }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "We could not check this route right now.", code: "AVAILABILITY_UNAVAILABLE", manualReview: true }, { status: 503 });
   }

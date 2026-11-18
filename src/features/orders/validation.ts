@@ -17,7 +17,7 @@ export const quoteSchema = z.object({
 export const bookingSchema = quoteSchema.extend({
   pickupInstructions: z.string().max(500).optional(),
   deliveryInstructions: z.string().max(500).optional(),
-  packageDescription: z.string().min(3).max(500),
+  packageDescription: z.string().max(500).default(""),
   handlingInstructions: z.string().max(500).optional(),
   senderName: z.string().min(2).max(120),
   senderPhone: z.string().min(7).max(20),
@@ -28,6 +28,7 @@ export const bookingSchema = quoteSchema.extend({
   serviceLevel: z.enum(["standard", "express", "scheduled"]).default("standard"),
   scheduledAt: z.iso.datetime().optional(),
   quoteId: z.uuid(),
+  guestQuoteToken: z.string().min(40).max(128).optional(),
   idempotencyKey: z.uuid()
 }).superRefine((value, context) => {
   if (value.serviceLevel === "scheduled" && !value.scheduledAt) context.addIssue({ code: "custom", path: ["scheduledAt"], message: "Choose a pickup time for scheduled delivery." });

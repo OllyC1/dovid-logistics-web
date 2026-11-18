@@ -20,10 +20,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
 
   const { data: order } = await admin.from("delivery_orders")
-    .select("id,payer,payment_status,delivery_status,customer_id,assisted_booking_draft_id")
+    .select("id,payer,payment_status,delivery_status,customer_id,assisted_booking_draft_id,guest_booking")
     .eq("id", access.order_id)
     .maybeSingle();
-  if (!order || order.customer_id || !order.assisted_booking_draft_id) return NextResponse.json({ error: "Guest delivery not found." }, { status: 404 });
+  if (!order || order.customer_id || (!order.assisted_booking_draft_id && !order.guest_booking)) return NextResponse.json({ error: "Guest delivery not found." }, { status: 404 });
   if (["cancelled", "delivered"].includes(order.delivery_status)) return NextResponse.json({ error: "This delivery can no longer accept payment." }, { status: 409 });
   if (order.payer === "sender") return NextResponse.json({ error: "The sender is paying for this delivery." }, { status: 409 });
   if (order.payment_status === "paid") return NextResponse.json({ error: "This delivery is already paid." }, { status: 409 });

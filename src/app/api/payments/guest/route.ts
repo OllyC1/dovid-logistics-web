@@ -29,10 +29,10 @@ export async function POST(request: NextRequest) {
   }
 
   const { data: order } = await admin.from("delivery_orders")
-    .select("id,order_reference,quoted_amount_minor,currency,payment_status,payment_method,payer,delivery_status,customer_id,assisted_booking_draft_id")
+    .select("id,order_reference,quoted_amount_minor,currency,payment_status,payment_method,payer,delivery_status,customer_id,assisted_booking_draft_id,guest_booking")
     .eq("id", access.order_id)
     .maybeSingle();
-  if (!order || order.customer_id || !order.assisted_booking_draft_id) return NextResponse.json({ error: "Guest delivery not found." }, { status: 404 });
+  if (!order || order.customer_id || (!order.assisted_booking_draft_id && !order.guest_booking)) return NextResponse.json({ error: "Guest delivery not found." }, { status: 404 });
   if (["cancelled", "delivered"].includes(order.delivery_status)) return NextResponse.json({ error: "This delivery can no longer accept payment." }, { status: 409 });
   if (order.payer !== "sender") return NextResponse.json({ error: "The receiver is paying for this delivery." }, { status: 409 });
   if (order.payment_status === "paid") return NextResponse.json({ error: "This delivery is already paid." }, { status: 409 });
@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
       email: parsed.data.email,
       amountMinor: order.quoted_amount_minor,
       reference: intent.provider_reference,
-      callbackUrl: `${publicEnv.NEXT_PUBLIC_APP_URL}/pay/callback`,
+      callbackUrl: `${publicEnv.NEXT_PUBLIC_APP_URL}/pay/callback?returnTo=${encodeURIComponent(`/guest/orders/${parsed.data.token}`)}`,
       metadata: { order_id: order.id, payment_intent_id: intent.id, payment_type: "guest_sender" },
       channels: order.payment_method === "bank_transfer" ? ["bank_transfer"] : undefined,
     });

@@ -31,10 +31,10 @@ export default async function GuestOrderPage({ params }: { params: Promise<{ tok
   if (!access || access.revoked_at || new Date(access.expires_at) <= new Date()) notFound();
 
   const { data: order } = await admin.from("delivery_orders")
-    .select("id,order_reference,tracking_reference,pickup_address,delivery_address,payer,payment_status,delivery_status,quoted_amount_minor,currency,created_at,customer_id,assisted_booking_draft_id,delivery_status_events(id,new_status,created_at)")
+    .select("id,order_reference,tracking_reference,pickup_address,delivery_address,payer,payment_status,delivery_status,quoted_amount_minor,currency,created_at,customer_id,assisted_booking_draft_id,guest_booking,delivery_status_events(id,new_status,created_at)")
     .eq("id", access.order_id)
     .maybeSingle();
-  if (!order || order.customer_id || !order.assisted_booking_draft_id) notFound();
+  if (!order || order.customer_id || (!order.assisted_booking_draft_id && !order.guest_booking)) notFound();
   const [{ data: surcharges }] = await Promise.all([
     admin.from("customer_surcharges").select("id,category,description,proposed_amount_kobo,approved_amount_kobo,status").eq("order_id", order.id).order("created_at", { ascending: false }),
     admin.from("guest_order_access_tokens").update({ last_used_at: new Date().toISOString() }).eq("id", access.id),

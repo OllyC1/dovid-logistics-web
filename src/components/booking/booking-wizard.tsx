@@ -10,6 +10,7 @@ import { formatMoney } from "@/lib/utils";
 type Draft = Record<string, string>;
 type CustomerQuote = {
   quoteId: string;
+  guestQuoteToken?: string;
   distanceMeters: number;
   customerTotalKobo: number;
   currency: string;
@@ -125,13 +126,15 @@ export function BookingWizard() {
     setMessage("");
     const idempotencyKey = crypto.randomUUID();
     try {
-      const confirmation = await fetch(`/api/delivery/quotes/${quote.quoteId}/confirm`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idempotencyKey })
-      });
-      const confirmationBody = await confirmation.json().catch(() => ({}));
-      if (!confirmation.ok) return setMessage(confirmationBody.error ?? "This price has expired. Please request a new one.");
+      if (!quote.guestQuoteToken) {
+        const confirmation = await fetch(`/api/delivery/quotes/${quote.quoteId}/confirm`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ idempotencyKey })
+        });
+        const confirmationBody = await confirmation.json().catch(() => ({}));
+        if (!confirmation.ok) return setMessage(confirmationBody.error ?? "This price has expired. Please request a new one.");
+      }
       const response = await fetch("/api/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -154,6 +157,7 @@ export function BookingWizard() {
         payer: draft.payer,
         paymentMethod: draft.paymentMethod,
         quoteId: quote.quoteId,
+        guestQuoteToken: quote.guestQuoteToken,
         idempotencyKey
         })
       });
@@ -161,6 +165,10 @@ export function BookingWizard() {
       if (!response.ok) return setMessage(body.error ?? "We could not complete your booking. Please try again.");
       localStorage.removeItem("dovid-booking-draft");
       localStorage.removeItem("dovid-booking-stops");
+      if (body.guest_order_url) {
+        window.location.assign(new URL(body.guest_order_url, window.location.origin).toString());
+        return;
+      }
       if (body.receiver_payment_token) sessionStorage.setItem(`dovid-receiver-token-${body.order_id}`, body.receiver_payment_token);
       if (draft.payer === "sender") {
         const payment = await fetch("/api/payments/initialize", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orderId: body.order_id, idempotencyKey: crypto.randomUUID() }) }).catch(() => null);

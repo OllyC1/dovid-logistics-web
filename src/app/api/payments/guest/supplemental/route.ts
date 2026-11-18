@@ -33,12 +33,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "This secure delivery link is invalid or has expired." }, { status: 410 });
   }
   const { data: surcharge } = await admin.from("customer_surcharges")
-    .select("id,order_id,status,approved_amount_kobo,category,delivery_orders!inner(order_reference,currency,delivery_status,customer_id,assisted_booking_draft_id)")
+    .select("id,order_id,status,approved_amount_kobo,category,delivery_orders!inner(order_reference,currency,delivery_status,customer_id,assisted_booking_draft_id,guest_booking)")
     .eq("id", parsed.data.surchargeId)
     .eq("order_id", access.order_id)
     .maybeSingle();
   const order = Array.isArray(surcharge?.delivery_orders) ? surcharge.delivery_orders[0] : surcharge?.delivery_orders;
-  if (!surcharge || !order || order.customer_id || !order.assisted_booking_draft_id) {
+  if (!surcharge || !order || order.customer_id || (!order.assisted_booking_draft_id && !order.guest_booking)) {
     return NextResponse.json({ error: "Additional charge not found." }, { status: 404 });
   }
   if (["cancelled", "delivered"].includes(order.delivery_status)) return NextResponse.json({ error: "This delivery can no longer accept payment." }, { status: 409 });
@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
       email: parsed.data.email,
       amountMinor: surcharge.approved_amount_kobo,
       reference: intent.provider_reference,
-      callbackUrl: `${publicEnv.NEXT_PUBLIC_APP_URL}/pay/callback`,
+      callbackUrl: `${publicEnv.NEXT_PUBLIC_APP_URL}/pay/callback?returnTo=${encodeURIComponent(`/guest/orders/${parsed.data.token}`)}`,
       metadata: { order_id: surcharge.order_id, payment_intent_id: intent.id, surcharge_id: surcharge.id, payment_type: "guest_supplemental" },
     });
     await Promise.all([
