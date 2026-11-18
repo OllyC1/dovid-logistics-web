@@ -26,7 +26,7 @@ describe("ActionFeedback", () => {
     const feedback = screen.getByRole("status");
     expect(feedback.textContent).toContain("completed and audited");
     expect(feedback.className).toContain("pointer-events-none");
-    expect(feedback.className).toContain("z-[70]");
+    expect(feedback.className).toContain("z-[130]");
   });
 
   it("leaves only its explicit dismiss control interactive", () => {

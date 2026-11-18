@@ -47,7 +47,10 @@ describe("role-specific authentication and navigation", () => {
   });
 
   it("closes the public mobile menu on button links and explains sign-out progress", () => {
-    expect(header).toContain('href="/login" variant="outline" aria-busy={loginPending} onClick={beginLoginNavigation}>');
+    expect(header).toContain('aria-busy={loginPending}');
+    expect(header).toContain('onPointerDown={() => setLoginPending(true)}');
+    expect(header).toContain('onPointerCancel={() => setLoginPending(false)}');
+    expect(header).toMatch(/function beginLoginNavigation\(\)[\s\S]*?setMobileMenuOpen\(false\)/);
     expect(header).toContain("Opening login…");
     expect(button).toContain("<Link className={buttonClasses(className, variant)} href={href} {...props}>");
     expect(logoutButton).toContain('pending ? "Signing out…" : "Log out"');

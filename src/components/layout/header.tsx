@@ -30,7 +30,7 @@ export function Header() {
 
   function beginLoginNavigation() {
     setLoginPending(true);
-    window.setTimeout(closeMobileMenu, 180);
+    setMobileMenuOpen(false);
   }
 
   useEffect(() => {
@@ -85,7 +85,15 @@ export function Header() {
               <Link onClick={closeMobileMenu} className={cn("min-h-12 rounded-2xl px-4 py-3 font-bold text-navy", pathname === "/contact" ? "bg-cloud text-orange" : "hover:bg-cloud")} aria-current={pathname === "/contact" ? "page" : undefined} href="/contact">Help & contact</Link>
             </nav>
             <div className="mt-auto grid gap-3 pt-6">
-              <Button className="gap-2" href="/login" variant="outline" aria-busy={loginPending} onClick={beginLoginNavigation}>
+              <Button
+                className="gap-2"
+                href="/login"
+                variant="outline"
+                aria-busy={loginPending}
+                onPointerDown={() => setLoginPending(true)}
+                onPointerCancel={() => setLoginPending(false)}
+                onClick={beginLoginNavigation}
+              >
                 {loginPending ? <><LoaderCircle className="size-4 animate-spin" aria-hidden="true" />Opening login…</> : "Log in"}
               </Button>
               <Button href="/book" onClick={closeMobileMenu}>Book delivery</Button>

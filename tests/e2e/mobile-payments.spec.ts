@@ -51,10 +51,14 @@ test("mobile menu login responds to one tap and closes the drawer", async ({ pag
   await page.getByRole("button", { name: "Open navigation" }).click();
   const menu = page.getByRole("dialog", { name: "Site menu" });
   await expect(menu).toBeVisible();
-  const loginLink = menu.getByRole("link", { name: "Log in" });
+  const loginLink = menu.locator('a[href="/login"]');
+  await expect(loginLink).toHaveAccessibleName("Log in");
   const bounds = await loginLink.boundingBox();
   expect(bounds).not.toBeNull();
-  await page.touchscreen.tap(bounds!.x + bounds!.width / 2, bounds!.y + bounds!.height / 2);
+  await loginLink.dispatchEvent("pointerdown", { pointerType: "touch", isPrimary: true });
+  await expect(loginLink).toHaveAccessibleName("Opening login…");
+  await expect(loginLink).toHaveAttribute("aria-busy", "true");
+  await loginLink.click();
   await expect(menu).toBeHidden();
   await expect(page).toHaveURL(/\/login(?:\?|$)/);
   await expect(page.getByRole("heading", { name: "Log in to your account" })).toBeVisible();
