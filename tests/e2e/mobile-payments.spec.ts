@@ -57,6 +57,12 @@ test("mobile menu login responds to one tap and closes the drawer", async ({ pag
   await expect(page.getByRole("heading", { name: "Log in to your account" })).toBeVisible();
 });
 
+test("sign-out return confirms completion and cleans the URL", async ({ page }) => {
+  await page.goto("/?signedOut=1");
+  await expect(page.getByRole("status")).toContainText("You’re signed out. See you again soon.");
+  await expect(page).toHaveURL(/\/$/);
+});
+
 test("private workspaces stay protected", async ({ page }) => {
   test.skip(!process.env.PLAYWRIGHT_BASE_URL, "Private-route release checks run against the configured deployed environment");
   for (const path of ["/account", "/admin", "/rider"]) {
