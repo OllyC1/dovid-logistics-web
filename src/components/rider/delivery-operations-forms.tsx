@@ -6,7 +6,7 @@ import { ActionFeedback } from "@/components/ui/action-feedback";
 
 type Feedback = { text: string; ok: boolean } | null;
 
-export function DeliveryOperationsForms({ orderId, runId }: { orderId: string; runId?: string | null }) {
+export function DeliveryOperationsForms({ orderId, runId, returnInProgress = false }: { orderId: string; runId?: string | null; returnInProgress?: boolean }) {
   const [pending, setPending] = useState("");
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [waitingId, setWaitingId] = useState("");
@@ -74,7 +74,7 @@ export function DeliveryOperationsForms({ orderId, runId }: { orderId: string; r
     }
   }
 
-  return <section className="mt-5 grid gap-5 lg:grid-cols-2">
+  return <section className={`mt-5 grid gap-5 ${returnInProgress ? "" : "lg:grid-cols-2"}`}>
     <form action={reportExpense} className="rounded-3xl bg-white p-4 sm:p-6">
       <h3 className="font-extrabold text-navy">Report an operating expense</h3>
       <p className="mt-2 text-sm leading-6 text-slate">Dispatch reviews every expense. This form never charges a customer automatically.</p>
@@ -84,7 +84,7 @@ export function DeliveryOperationsForms({ orderId, runId }: { orderId: string; r
       <label className="mt-3 flex min-h-12 items-center gap-3 rounded-xl border p-3 text-sm font-bold text-navy"><input name="alreadyIncurred" type="checkbox" className="size-5 shrink-0"/>This cost has already been paid</label>
       <Button className="mt-4 w-full sm:w-auto" disabled={Boolean(pending)} type="submit">{pending === "expense" ? "Submitting expense…" : "Submit for review"}</Button>
     </form>
-    <form action={reportAttempt} className="rounded-3xl bg-white p-4 sm:p-6">
+    {!returnInProgress ? <form action={reportAttempt} className="rounded-3xl bg-white p-4 sm:p-6">
       <h3 className="font-extrabold text-navy">Report a failed or missed attempt</h3>
       <p className="mt-2 text-sm leading-6 text-slate">Record the facts for dispatch. Do not promise a retry or redelivery until dispatch confirms it.</p>
       <label className="mt-4 grid gap-2 text-sm font-bold text-navy">What stopped the delivery?<select name="status" className="min-h-12 w-full rounded-xl border p-3 font-normal"><option value="recipient_unavailable">Recipient unavailable</option><option value="address_problem">Address problem</option><option value="recipient_refused">Recipient refused</option><option value="payment_refused">Receiver refused payment</option><option value="access_blocked">Access blocked</option><option value="unsafe_delivery">Unsafe delivery area</option><option value="incident_escalated">Escalate an incident</option></select></label>
@@ -92,12 +92,12 @@ export function DeliveryOperationsForms({ orderId, runId }: { orderId: string; r
       <label className="mt-3 grid gap-2 text-sm font-bold text-navy">Time spent waiting (minutes)<input name="waitingMinutes" inputMode="decimal" type="number" min={0} step="0.5" placeholder="For example, 10" className="min-h-12 w-full rounded-xl border p-3 text-base font-normal"/></label>
       <label className="mt-3 grid gap-2 text-sm font-bold text-navy">Private notes for dispatch<textarea name="notes" className="min-h-20 w-full rounded-xl border p-3 text-base font-normal"/></label>
       <Button className="mt-4 w-full sm:w-auto" variant="outline" disabled={Boolean(pending)} type="submit">{pending === "attempt" ? "Recording attempt…" : "Record attempt safely"}</Button>
-    </form>
-    <div className="rounded-3xl bg-white p-4 sm:p-6 lg:col-span-2">
+    </form> : null}
+    {!returnInProgress ? <div className="rounded-3xl bg-white p-4 sm:p-6 lg:col-span-2">
       <h3 className="font-extrabold text-navy">Recipient waiting timer</h3>
       <p className="mt-2 text-sm leading-6 text-slate">Start this when you arrive and are ready to hand over. The server records the time; any extra charge still needs review and approval.</p>
       <Button className="mt-4 w-full sm:w-auto" disabled={Boolean(pending)} onClick={waitingId ? stopWaiting : startWaiting}>{pending === "waiting" ? "Updating timer…" : waitingId ? "Stop waiting timer" : "Start waiting timer"}</Button>
-    </div>
+    </div> : null}
     <ActionFeedback feedback={feedback} pending={Boolean(pending)} pendingText="Updating this delivery…" onDismiss={() => setFeedback(null)} />
   </section>;
 }

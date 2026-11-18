@@ -63,6 +63,9 @@ describe("dispatch mobile layout", () => {
   });
 
   it("keeps authenticated test provisioning short-lived and origin-bound", () => {
+    expect(provisionerSource).toContain("E2E_ACCOUNT_PROVISIONING_COMMIT_REF");
+    expect(provisionerSource).toContain("process.env.COMMIT_REF");
+    expect(provisionerSource).toContain("authorizedCommit !== currentCommit");
     expect(provisionerSource).toContain("E2E_ACCOUNT_PROVISIONING_EXPIRES_AT");
     expect(provisionerSource).toContain("remainingMs > 60 * 60 * 1000");
     expect(provisionerSource).toContain("publicEnv.NEXT_PUBLIC_APP_URL");

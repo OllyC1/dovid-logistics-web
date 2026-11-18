@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 const sql = readFileSync("supabase/migrations/20261115163957_operational_workflows_and_onboarding.sql", "utf8");
 const pricingHardeningSql = readFileSync("supabase/migrations/20261115164500_pricing_activation_rpc_hardening.sql", "utf8");
+const riderOrderPage = readFileSync("src/app/(rider)/rider/orders/[id]/page.tsx", "utf8");
 
 describe("operational workflows migration", () => {
   it("keeps privileged assignments verified, explicit and service-role only", () => {
@@ -21,6 +22,12 @@ describe("operational workflows migration", () => {
     expect(sql).toContain("all parcel assignments must reach a terminal custody state");
     expect(sql).toContain("delivered parcels require completed custody records");
     expect(sql).toContain("returned parcels require return custody records");
+  });
+
+  it("switches the rider workspace from receiver handover controls to return custody", () => {
+    expect(riderOrderPage).toContain("Return authorized by dispatch");
+    expect(riderOrderPage).toContain("returnInProgress={Boolean(returningAssignment)}");
+    expect(riderOrderPage).toContain("!returningAssignment ? <DeliveryProofForm");
   });
 });
 

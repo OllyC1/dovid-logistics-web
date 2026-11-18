@@ -15,6 +15,9 @@ const adminPermissions = [
 
 function disabled(request: Request) {
   if (process.env.ENABLE_E2E_ACCOUNT_PROVISIONING !== "true") return true;
+  const authorizedCommit = process.env.E2E_ACCOUNT_PROVISIONING_COMMIT_REF?.trim();
+  const currentCommit = process.env.COMMIT_REF?.trim();
+  if (!authorizedCommit || !currentCommit || authorizedCommit !== currentCommit) return true;
   const expiresAt = Date.parse(process.env.E2E_ACCOUNT_PROVISIONING_EXPIRES_AT ?? "");
   const remainingMs = expiresAt - Date.now();
   if (!Number.isFinite(expiresAt) || remainingMs <= 0 || remainingMs > 60 * 60 * 1000) return true;
