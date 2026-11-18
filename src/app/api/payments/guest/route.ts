@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { hashAssistedSecret } from "@/features/assisted-bookings/security";
-import { getOrCreateMainPaymentIntent, markPaymentInitializationFailed } from "@/features/payments/intents";
+import { getOrInitializePaymentCheckout, paymentCheckoutErrorStatus } from "@/features/payments/checkout";
+import { getOrCreateMainPaymentIntent } from "@/features/payments/intents";
 import { publicEnv } from "@/lib/env";
 import { initializePaystackPayment } from "@/lib/paystack/client";
 import { takeRateLimit } from "@/lib/server/rate-limit";
@@ -38,9 +39,8 @@ export async function POST(request: NextRequest) {
   if (order.payment_status === "paid") return NextResponse.json({ error: "This delivery is already paid." }, { status: 409 });
   if (order.currency !== "NGN") return NextResponse.json({ error: "This currency is not supported." }, { status: 400 });
 
-  let intent: Awaited<ReturnType<typeof getOrCreateMainPaymentIntent>> | null = null;
   try {
-    intent = await getOrCreateMainPaymentIntent(admin, {
+    const intent = await getOrCreateMainPaymentIntent(admin, {
       orderId: order.id,
       orderReference: order.order_reference,
       amountMinor: order.quoted_amount_minor,
@@ -48,14 +48,14 @@ export async function POST(request: NextRequest) {
       idempotencyKey: parsed.data.idempotencyKey,
       receiver: false,
     });
-    const checkout = await initializePaystackPayment({
+    const checkout = await getOrInitializePaymentCheckout(admin, intent, () => initializePaystackPayment({
       email: parsed.data.email,
       amountMinor: order.quoted_amount_minor,
       reference: intent.provider_reference,
       callbackUrl: `${publicEnv.NEXT_PUBLIC_APP_URL}/pay/callback?returnTo=${encodeURIComponent(`/guest/orders/${parsed.data.token}`)}`,
       metadata: { order_id: order.id, payment_intent_id: intent.id, payment_type: "guest_sender" },
       channels: order.payment_method === "bank_transfer" ? ["bank_transfer"] : undefined,
-    });
+    }));
     const now = new Date().toISOString();
     await Promise.all([
       admin.from("delivery_orders").update({ payment_status: "processing", updated_at: now }).eq("id", order.id).neq("payment_status", "paid"),
@@ -63,7 +63,6 @@ export async function POST(request: NextRequest) {
     ]);
     return NextResponse.json({ checkoutUrl: checkout.authorization_url }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
-    if (intent) await markPaymentInitializationFailed(admin, intent.id);
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Payment is unavailable right now." }, { status: 503 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Payment is unavailable right now." }, { status: paymentCheckoutErrorStatus(error) });
   }
 }

@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
-import { getOrCreateMainPaymentIntent, markPaymentInitializationFailed } from "@/features/payments/intents";
+import { getOrInitializePaymentCheckout, paymentCheckoutErrorStatus } from "@/features/payments/checkout";
+import { getOrCreateMainPaymentIntent } from "@/features/payments/intents";
 import { publicEnv } from "@/lib/env";
 import { initializePaystackPayment } from "@/lib/paystack/client";
 import { takeRateLimit } from "@/lib/server/rate-limit";
@@ -24,14 +25,12 @@ export async function POST(request: NextRequest) {
   if (order.payment_status === "paid") return NextResponse.json({ error: "This order does not require payment" }, { status: 409 });
   if (order.currency !== "NGN") return NextResponse.json({ error: "Unsupported currency" }, { status: 400 });
 
-  let intent: Awaited<ReturnType<typeof getOrCreateMainPaymentIntent>> | null = null;
   try {
-    intent = await getOrCreateMainPaymentIntent(admin, { orderId: order.id, orderReference: order.order_reference, amountMinor: order.quoted_amount_minor, currency: order.currency, receiver: true });
-    const checkout = await initializePaystackPayment({ email: parsed.data.email, amountMinor: order.quoted_amount_minor, reference: intent.provider_reference, callbackUrl: `${publicEnv.NEXT_PUBLIC_APP_URL}/pay/callback`, metadata: { order_id: order.id, payment_intent_id: intent.id, receiver_token_id: paymentToken.id, payment_type: "receiver" }, channels: order.payment_method === "bank_transfer" ? ["bank_transfer"] : undefined });
+    const intent = await getOrCreateMainPaymentIntent(admin, { orderId: order.id, orderReference: order.order_reference, amountMinor: order.quoted_amount_minor, currency: order.currency, receiver: true });
+    const checkout = await getOrInitializePaymentCheckout(admin, intent, () => initializePaystackPayment({ email: parsed.data.email, amountMinor: order.quoted_amount_minor, reference: intent.provider_reference, callbackUrl: `${publicEnv.NEXT_PUBLIC_APP_URL}/pay/callback`, metadata: { order_id: order.id, payment_intent_id: intent.id, receiver_token_id: paymentToken.id, payment_type: "receiver" }, channels: order.payment_method === "bank_transfer" ? ["bank_transfer"] : undefined }));
     await admin.from("delivery_orders").update({ payment_status: "processing", updated_at: new Date().toISOString() }).eq("id", order.id).neq("payment_status", "paid");
     return NextResponse.json({ checkoutUrl: checkout.authorization_url });
   } catch (error) {
-    if (intent) await markPaymentInitializationFailed(admin, intent.id);
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Payment unavailable" }, { status: 503 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Payment unavailable" }, { status: paymentCheckoutErrorStatus(error) });
   }
 }

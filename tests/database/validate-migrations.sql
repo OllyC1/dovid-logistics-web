@@ -270,6 +270,7 @@ do $$ begin
   if (select count(*) from public.delivery_orders) <> 1 then raise exception 'customer order RLS failed'; end if;
   if (select count(*) from public.pricing_configurations) <> 0 then raise exception 'customer can read pricing configuration'; end if;
   if (select count(*) from public.promotions) <> 0 then raise exception 'customer can read protected promotions'; end if;
+  if (select count(*) from public.payment_checkout_sessions) <> 0 then raise exception 'customer can read hosted checkout authorization URLs'; end if;
 
   update public.profiles set full_name='Customer One Updated' where id=auth.uid();
   if (select full_name from public.profiles where id=auth.uid()) <> 'Customer One Updated' then
