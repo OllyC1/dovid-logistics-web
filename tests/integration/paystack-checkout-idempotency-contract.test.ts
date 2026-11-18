@@ -36,4 +36,14 @@ describe("Paystack hosted checkout idempotency", () => {
     expect(checkout).toContain("authorization_url: session!.authorization_url!");
     expect(checkout).toContain("markPaymentInitializationFailed(admin, intent.id)");
   });
+
+  it("allows approved supplemental checkouts to resume after entering payment pending", () => {
+    for (const path of [
+      "src/app/api/payments/supplemental/route.ts",
+      "src/app/api/payments/guest/supplemental/route.ts",
+    ]) {
+      const source = readFileSync(path, "utf8");
+      expect(source, path).toContain('["customer_approved", "payment_pending"].includes(surcharge.status)');
+    }
+  });
 });

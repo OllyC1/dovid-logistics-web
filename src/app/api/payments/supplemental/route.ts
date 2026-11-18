@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
   if (!surcharge || order?.customer_id !== auth.user.id) return NextResponse.json({ error: "Supplemental charge not found" }, { status: 404 });
   if (["cancelled", "delivered"].includes(order.delivery_status)) return NextResponse.json({ error: "This delivery can no longer accept payment" }, { status: 409 });
   if (surcharge.status === "paid") return NextResponse.json({ error: "This charge is already paid" }, { status: 409 });
-  if (surcharge.status !== "customer_approved" || !surcharge.approved_amount_kobo) return NextResponse.json({ error: "Customer approval is required before payment" }, { status: 409 });
+  if (!["customer_approved", "payment_pending"].includes(surcharge.status) || !surcharge.approved_amount_kobo) return NextResponse.json({ error: "Customer approval is required before payment" }, { status: 409 });
   if (!new Set(["waiting_time", "toll_road_access", "redelivery", "authorized_parking_access", "extra_stop", "address_correction", "return_journey", "other"]).has(surcharge.category)) return NextResponse.json({ error: "Unsupported supplemental charge" }, { status: 409 });
 
   try {

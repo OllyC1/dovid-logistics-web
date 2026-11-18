@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
   }
   if (["cancelled", "delivered"].includes(order.delivery_status)) return NextResponse.json({ error: "This delivery can no longer accept payment." }, { status: 409 });
   if (surcharge.status === "paid") return NextResponse.json({ error: "This charge is already paid." }, { status: 409 });
-  if (surcharge.status !== "customer_approved" || !surcharge.approved_amount_kobo) {
+  if (!["customer_approved", "payment_pending"].includes(surcharge.status) || !surcharge.approved_amount_kobo) {
     return NextResponse.json({ error: "Approve this charge before paying it." }, { status: 409 });
   }
   if (!supportedCategories.has(surcharge.category)) return NextResponse.json({ error: "This charge needs staff review." }, { status: 409 });

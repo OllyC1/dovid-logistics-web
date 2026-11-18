@@ -9,7 +9,12 @@ test.describe("Paystack hosted TEST acceptance", () => {
 
   test("opens the controlled sender order in Paystack hosted checkout", async ({ page }) => {
     test.setTimeout(120_000);
-    await page.goto(`/guest/orders/${guestToken}`);
+    try {
+      await page.goto(`/guest/orders/${guestToken}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message.replaceAll(guestToken!, "[secure-test-token]") : "The guest order could not be opened";
+      throw new Error(message);
+    }
     await expect(page.getByRole("heading", { name: "Your delivery" })).toBeVisible();
     await expect(page.getByText("DOV-E2E-PAY-", { exact: false })).toBeVisible();
     await page.getByLabel("Email address for the payment receipt").fill(receiptEmail!);
@@ -17,6 +22,11 @@ test.describe("Paystack hosted TEST acceptance", () => {
     await page.waitForURL((url) => url.hostname.endsWith("paystack.com"), { timeout: 30_000 });
     expect(new URL(page.url()).protocol).toBe("https:");
     await page.waitForFunction(() => !document.body.innerText.includes("Performing security verification"), undefined, { timeout: 45_000 });
-    await page.screenshot({ path: ".tmp/paystack-hosted-test-checkout.png", fullPage: true });
+    await expect(page.getByText("Use any of the options below to test the payment flow")).toBeVisible({ timeout: 60_000 });
+    await page.getByText("Success", { exact: true }).click();
+    await page.getByRole("button", { name: /Pay NGN/ }).click();
+    await page.waitForURL((url) => url.hostname === "dovid-logistics-prelaunch.netlify.app" && url.pathname === "/pay/callback", { timeout: 60_000 });
+    await expect(page.getByText("Payment confirmed. Your delivery can continue.")).toBeVisible({ timeout: 30_000 });
+    await page.screenshot({ path: ".tmp/paystack-hosted-test-payment-confirmed.png", fullPage: true });
   });
 });
