@@ -3,6 +3,10 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   reactStrictMode: true,
+  // Netlify exposes COMMIT_REF while building, but not to the deployed Next.js
+  // server runtime. The value is a public Git identifier (never a credential)
+  // and lets the temporary acceptance provisioner bind itself to one build.
+  env: { DOVID_DEPLOY_COMMIT_REF: process.env.COMMIT_REF ?? "local" },
   allowedDevOrigins: ["127.0.0.1", "localhost"],
   turbopack: { root: process.cwd() },
   experimental: { optimizePackageImports: ["lucide-react", "motion"] },
