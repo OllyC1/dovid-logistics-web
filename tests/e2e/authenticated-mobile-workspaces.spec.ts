@@ -516,6 +516,48 @@ test("administrator reaches the admin workspace without MFA and every authorized
   await quoteEvidence.locator("summary").click();
   await expect(quoteEvidence.getByText(/Add a competitor source|Pickup address/).first()).toBeVisible();
 
+  let assistedPayload: Record<string, unknown> | undefined;
+  await page.route("**/api/maps/places**", async route => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/maps/places") {
+      const pickup = url.searchParams.get("input")?.toLowerCase().includes("bodija");
+      return route.fulfill({ contentType: "application/json", body: JSON.stringify({ suggestions: [{ placeId: pickup ? "assisted-pickup" : "assisted-destination", description: pickup ? "Bodija, Ibadan" : "Dugbe, Ibadan", mainText: pickup ? "Bodija" : "Dugbe", secondaryText: "Ibadan, Oyo, Nigeria" }] }) });
+    }
+    const pickup = url.pathname.endsWith("assisted-pickup");
+    return route.fulfill({ contentType: "application/json", body: JSON.stringify({ address: pickup ? "Bodija, Ibadan, Nigeria" : "Dugbe, Ibadan, Nigeria", coordinates: pickup ? { latitude: 7.435, longitude: 3.91 } : { latitude: 7.3878, longitude: 3.8796 } }) });
+  });
+  await page.route("**/api/admin/assisted-bookings**", async route => {
+    const url = new URL(route.request().url());
+    if (url.pathname.endsWith("/quote")) {
+      return route.fulfill({ contentType: "application/json", body: JSON.stringify({ quote: { amountMinor: 250000, currency: "NGN", distanceMeters: 5200, duration: "1200s" }, reviewUrl: "https://example.test/assisted/quote/controlled-test", verificationCode: "482913", whatsappUrl: "https://wa.me/2348000000000", automatedMessageSent: false }) });
+    }
+    assistedPayload = route.request().postDataJSON() as Record<string, unknown>;
+    return route.fulfill({ contentType: "application/json", body: JSON.stringify({ id: "controlled-assisted-draft" }) });
+  });
+  await page.goto("/admin/whatsapp-bookings");
+  await page.getByLabel("Customer name").fill("Assisted Test Customer");
+  await page.getByLabel("Customer phone").fill("08000000000");
+  await page.getByLabel("Sender name").fill("Assisted Sender");
+  await page.getByLabel("Sender phone").fill("08000000000");
+  await page.getByLabel("Recipient name").fill("Assisted Receiver");
+  await page.getByLabel("Recipient phone").fill("08000000001");
+  await page.getByRole("button", { name: "Continue to delivery details" }).click();
+  await page.getByLabel("Pickup address").fill("Bodija");
+  await page.getByRole("button", { name: /Bodija/ }).click();
+  await page.getByLabel("Destination address").fill("Dugbe");
+  await page.getByRole("button", { name: /Dugbe/ }).click();
+  await page.getByLabel("What is being sent?").fill("A controlled assisted-booking acceptance parcel");
+  await page.getByRole("button", { name: "Continue to payment choices" }).click();
+  await page.getByLabel("Who pays?").selectOption("receiver_before_delivery");
+  await page.getByRole("button", { name: "Create request and check availability" }).click();
+  await expect(page.getByText("Secure customer review link created.")).toBeVisible();
+  await expect(page.getByText("No automated message was sent.")).toBeVisible();
+  expect(assistedPayload?.customerEmail).toBe("");
+  expect(assistedPayload?.payer).toBe("receiver_before_delivery");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(await page.evaluate(() => window.innerWidth));
+  await page.unroute("**/api/maps/places**");
+  await page.unroute("**/api/admin/assisted-bookings**");
+
   await page.goto("/admin/coverage");
   if (deployedBaseUrl?.includes(".netlify.app")) {
     await expect(page.locator(".gm-style")).toBeVisible({ timeout: 30_000 });
