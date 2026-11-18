@@ -405,7 +405,7 @@ test.afterAll(async () => {
 test.beforeEach(async ({ page }, testInfo) => {
   test.skip(!testInfo.project.name.startsWith("mobile"), "Authenticated workspace audit is mobile-first");
   test.skip(!canRunLiveRoleChecks, "Live role checks are not configured");
-  expect(await page.evaluate(() => window.innerWidth)).toBe(testInfo.project.name === "mobile-375" ? 375 : 390);
+  expect(page.viewportSize()?.width).toBe(testInfo.project.name === "mobile-375" ? 375 : 390);
 });
 
 test("customer keeps a customer-only mobile workspace", async ({ page }) => {
@@ -466,6 +466,16 @@ test("customer keeps a customer-only mobile workspace", async ({ page }) => {
   await page.getByRole("button", { name: "Update password" }).click();
   await expect(page.getByRole("status")).toContainText("Password updated securely");
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(await page.evaluate(() => window.innerWidth));
+
+  await page.getByLabel("Open My Dovid menu").click();
+  const logOut = page.getByRole("button", { name: "Log out" });
+  const logOutBounds = await logOut.boundingBox();
+  expect(logOutBounds).not.toBeNull();
+  await page.touchscreen.tap(logOutBounds!.x + logOutBounds!.width / 2, logOutBounds!.y + logOutBounds!.height / 2);
+  await expect(page).toHaveURL(/\/?(?:\?|$)/);
+  await expect(page.getByRole("status")).toContainText("You’re signed out. See you again soon.");
+  await page.goto("/account");
+  await expect(page).toHaveURL(/\/login(?:\?|$)/);
 });
 
 test("administrator reaches the admin workspace without MFA and every authorized page fits mobile", async ({ page }) => {

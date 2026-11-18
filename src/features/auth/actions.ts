@@ -56,6 +56,11 @@ export async function recoverAction(_: AuthState, formData: FormData): Promise<A
 }
 
 export async function logoutAction() {
-  try { const supabase = await createSupabaseServerClient(); await supabase.auth.signOut(); } catch {}
-  redirect("/?signedOut=1");
+  let signedOut = false;
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { error } = await supabase.auth.signOut({ scope: "local" });
+    signedOut = !error;
+  } catch {}
+  redirect(signedOut ? "/?signedOut=1" : "/?signOutError=1");
 }

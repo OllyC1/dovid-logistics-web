@@ -47,10 +47,12 @@ describe("role-specific authentication and navigation", () => {
   });
 
   it("closes the public mobile menu on button links and explains sign-out progress", () => {
-    expect(header).toContain('<Button href="/login" variant="outline" onClick={closeMobileMenu}>');
+    expect(header).toContain('href="/login" variant="outline" aria-busy={loginPending} onClick={beginLoginNavigation}>');
+    expect(header).toContain("Opening login…");
     expect(button).toContain("<Link className={buttonClasses(className, variant)} href={href} {...props}>");
     expect(logoutButton).toContain('pending ? "Signing out…" : "Log out"');
-    expect(loginActions).toContain('redirect("/?signedOut=1")');
+    expect(loginActions).toContain('supabase.auth.signOut({ scope: "local" })');
+    expect(loginActions).toContain('redirect(signedOut ? "/?signedOut=1" : "/?signOutError=1")');
     expect(signedOutNotice).toContain("You’re signed out. See you again soon.");
   });
 

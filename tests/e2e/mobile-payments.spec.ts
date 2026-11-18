@@ -15,7 +15,7 @@ async function mockAddresses(page: Page) {
 test.beforeEach(async ({ page }, testInfo) => {
   test.skip(!testInfo.project.name.startsWith("mobile"), "Mobile payment coverage");
   const expectedWidth = testInfo.project.name === "mobile-375" ? 375 : 390;
-  expect(await page.evaluate(() => window.innerWidth)).toBe(expectedWidth);
+  expect(page.viewportSize()?.width).toBe(expectedWidth);
 });
 
 test("registration is usable and validates safely", async ({ page }) => {
@@ -51,7 +51,10 @@ test("mobile menu login responds to one tap and closes the drawer", async ({ pag
   await page.getByRole("button", { name: "Open navigation" }).click();
   const menu = page.getByRole("dialog", { name: "Site menu" });
   await expect(menu).toBeVisible();
-  await menu.getByRole("link", { name: "Log in" }).click();
+  const loginLink = menu.getByRole("link", { name: "Log in" });
+  const bounds = await loginLink.boundingBox();
+  expect(bounds).not.toBeNull();
+  await page.touchscreen.tap(bounds!.x + bounds!.width / 2, bounds!.y + bounds!.height / 2);
   await expect(menu).toBeHidden();
   await expect(page).toHaveURL(/\/login(?:\?|$)/);
   await expect(page.getByRole("heading", { name: "Log in to your account" })).toBeVisible();

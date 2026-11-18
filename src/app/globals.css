@@ -17,6 +17,7 @@ html { max-width: 100%; overflow-x: clip; scroll-behavior: auto; }
 body { margin: 0; max-width: 100%; overflow-x: clip; background: #f8fafc; color: #1f2937; font-family: var(--font-sans); }
 h1, h2, h3, h4 { font-family: var(--font-display); }
 ::selection { background: #c44700; color: white; }
+:is(a, button, summary, [role="button"]) { touch-action: manipulation; }
 .container { width: min(100% - 1.25rem, 1180px); margin-inline: auto; }
 [data-workspace-content] { min-width: 0; overflow-wrap: anywhere; }
 [data-workspace-content] input, [data-workspace-content] select, [data-workspace-content] textarea { min-width: 0; max-width: 100%; }

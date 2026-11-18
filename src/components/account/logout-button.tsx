@@ -2,10 +2,11 @@
 
 import { LoaderCircle, LogOut } from "lucide-react";
 import { useFormStatus } from "react-dom";
+import { ActionFeedback } from "@/components/ui/action-feedback";
 
 export function LogoutButton() {
   const { pending } = useFormStatus();
-  return (
+  return <>
     <button
       type="submit"
       disabled={pending}
@@ -15,5 +16,6 @@ export function LogoutButton() {
       {pending ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : <LogOut className="size-4" aria-hidden />}
       {pending ? "Signing out…" : "Log out"}
     </button>
-  );
+    <ActionFeedback feedback={null} pending={pending} pendingText="Signing you out securely…" />
+  </>;
 }

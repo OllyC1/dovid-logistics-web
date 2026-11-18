@@ -18,4 +18,14 @@ describe("SignedOutNotice", () => {
     fireEvent.click(screen.getByRole("button", { name: "Dismiss message" }));
     expect(screen.queryByText("You’re signed out. See you again soon.")).toBeNull();
   });
+
+  it("renders server-provided sign-out success immediately", () => {
+    render(<SignedOutNotice initialStatus="success" />);
+    expect(screen.getByText("You’re signed out. See you again soon.")).toBeTruthy();
+  });
+
+  it("does not claim success when sign-out could not be confirmed", () => {
+    render(<SignedOutNotice initialStatus="error" />);
+    expect(screen.getByRole("alert").textContent).toContain("couldn’t confirm sign-out");
+  });
 });
