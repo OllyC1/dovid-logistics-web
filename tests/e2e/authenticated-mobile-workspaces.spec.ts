@@ -154,6 +154,17 @@ test.beforeAll(async ({}, testInfo) => {
   admin = createClient(supabaseUrl!, serviceRoleKey!, { auth: { persistSession: false, autoRefreshToken: false } });
   const suffix = `${Date.now()}-${testInfo.project.name.replace(/[^a-z0-9]/gi, "-")}`;
   for (const role of ["customer", "admin", "rider", "super_admin"] as const) accounts.push(await createAccount(role, suffix));
+  const customer = accounts.find((account) => account.role === "customer")!;
+  const notification = await admin.from("notifications").insert({
+    customer_id: customer.id,
+    channel: "in_app",
+    event_type: "controlled.account.acceptance",
+    title: "Your test delivery update",
+    body: "This controlled message verifies the mobile notification workflow.",
+    deduplication_key: `mobile-account-${customer.id}`,
+    status: "sent",
+  });
+  if (notification.error) throw notification.error;
 });
 
 test.afterAll(async () => {
@@ -184,6 +195,56 @@ test("customer keeps a customer-only mobile workspace", async ({ page }) => {
     await expectMobilePage(page, path);
     await captureMobilePage(page, path, test.info().project.name);
   }
+
+  await page.goto("/account/settings");
+  const updatedName = `Mobile Customer ${test.info().project.name.replace("mobile-", "")}`;
+  await page.getByLabel("Full name").fill(updatedName);
+  await page.getByLabel("Phone number").fill("08012345678");
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await expect(page.getByRole("status")).toContainText("Your details have been updated");
+  await page.goto("/account");
+  await expect(page.getByRole("heading", { level: 1 })).toContainText(updatedName);
+
+  await page.route("**/api/maps/places**", route => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/maps/places") return route.fulfill({ contentType: "application/json", body: JSON.stringify({ suggestions: [{ placeId: "saved-address-mobile", description: "Dugbe, Ibadan", mainText: "Dugbe", secondaryText: "Ibadan, Oyo, Nigeria" }] }) });
+    return route.fulfill({ contentType: "application/json", body: JSON.stringify({ address: "Dugbe, Ibadan, Nigeria", coordinates: { latitude: 7.3878, longitude: 3.8796 } }) });
+  });
+  await page.goto("/account/addresses");
+  await page.getByLabel("What would you like to call this place?").fill("Family house");
+  await page.getByLabel("Find the address").fill("Dugbe");
+  await page.getByRole("button", { name: /Dugbe/ }).click();
+  await page.getByRole("button", { name: "Save address" }).click();
+  await expect(page.getByRole("status")).toContainText("Address saved");
+  let addressCard = page.locator("details").filter({ hasText: "Family house" }).first();
+  await expect(addressCard).toBeVisible();
+  await addressCard.locator("summary").click();
+  await addressCard.getByLabel("Name for this place").fill("Grandma's house");
+  await addressCard.getByLabel("Directions for the rider (optional)").fill("Blue gate beside the pharmacy");
+  await addressCard.getByRole("button", { name: "Save changes" }).click();
+  await expect(page.getByText("Address updated.", { exact: true })).toBeVisible();
+  addressCard = page.locator("details").filter({ hasText: "Grandma's house" }).first();
+  if (!(await addressCard.evaluate(element => (element as HTMLDetailsElement).open))) await addressCard.locator("summary").click();
+  await addressCard.getByRole("button", { name: "Remove this address" }).click();
+  const confirmation = addressCard.getByRole("alertdialog");
+  await expect(confirmation).toContainText("Existing deliveries will keep their original address");
+  await confirmation.getByRole("button", { name: "Yes, remove address" }).click();
+  await expect(page.getByText("Grandma's house", { exact: true })).toHaveCount(0);
+
+  if (canUseAdminClient) {
+    await page.goto("/account/notifications");
+    await expect(page.getByText("Your test delivery update")).toBeVisible();
+    await expect(page.getByText("New", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: /Mark all 1 as read/ }).click();
+    await expect(page.getByRole("status")).toContainText("All updates marked as read");
+    await expect(page.getByText("Read", { exact: true })).toBeVisible();
+  }
+
+  await page.goto("/account/settings");
+  await page.getByLabel("New password").fill(`Updated-${randomBytes(18).toString("base64url")}!Aa1`);
+  await page.getByRole("button", { name: "Update password" }).click();
+  await expect(page.getByRole("status")).toContainText("Password updated securely");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(await page.evaluate(() => window.innerWidth));
 });
 
 test("administrator reaches the admin workspace without MFA and every authorized page fits mobile", async ({ page }) => {
