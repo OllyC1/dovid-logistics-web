@@ -239,7 +239,12 @@ test("administrator reaches the admin workspace without MFA and every authorized
     expect(places.status()).toBe(200);
     expect(((await places.json()) as { suggestions?: unknown[] }).suggestions?.length ?? 0).toBeGreaterThan(0);
   }
+});
 
+test("administrator registers a bike, assigns its rider and prepares a compliant run on mobile", async ({ page }) => {
+  test.setTimeout(240_000);
+  const account = accounts.find((item) => item.role === "admin")!;
+  await login(page, account, /\/admin(?:\?|$)/);
   const riderAccount = accounts.find((item) => item.role === "rider")!;
   const viewportCode = test.info().project.name === "mobile-375" ? "375" : "390";
   const plateNumber = `TST ${viewportCode} ${fixtureRunCode}`;
