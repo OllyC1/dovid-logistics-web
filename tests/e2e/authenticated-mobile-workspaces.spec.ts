@@ -1,4 +1,4 @@
-import { createHmac, randomBytes } from "node:crypto";
+import { createHmac, randomBytes, randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { loadEnvFile } from "node:process";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
@@ -8,6 +8,7 @@ if (existsSync(".env.local")) loadEnvFile(".env.local");
 
 type TestRole = "customer" | "admin" | "rider" | "super_admin";
 type TestAccount = { id: string; email: string; password: string; role: TestRole };
+type RiderFixture = { orderId: string; quoteId: string; pricingRuleId: string; paymentIntentId: string; runId?: string; vehicleId?: string };
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -20,12 +21,231 @@ const requireLiveRoleChecks = process.env.REQUIRE_AUTHENTICATED_E2E === "true";
 const fixtureRunCode = randomBytes(3).toString("hex").toUpperCase();
 let admin: SupabaseClient;
 const accounts: TestAccount[] = [];
+const riderFixtures: RiderFixture[] = [];
 
 const adminPermissions = [
   "staff.view", "riders.invite", "riders.manage", "dispatch.manage", "bookings.manage",
   "pricing.view", "pricing.manage", "payments.view", "payments.reconcile", "reports.view",
   "zones.manage", "staff.suspend",
 ];
+
+async function insertFixture(table: string, values: Record<string, unknown> | Record<string, unknown>[]) {
+  const result = await admin.from(table).insert(values);
+  if (result.error) throw result.error;
+}
+
+async function createRiderFixture({ withRun = false }: { withRun?: boolean } = {}) {
+  const customer = accounts.find((account) => account.role === "customer")!;
+  const rider = accounts.find((account) => account.role === "rider")!;
+  const administrator = accounts.find((account) => account.role === "admin")!;
+  const pricingRuleId = randomUUID();
+  const quoteId = randomUUID();
+  const orderId = randomUUID();
+  const paymentIntentId = randomUUID();
+  const suffix = orderId.slice(0, 8).toUpperCase();
+
+  await insertFixture("pricing_rules", {
+    id: pricingRuleId,
+    name: `Rider acceptance ${suffix}`,
+    base_fee_minor: 10_000,
+    included_distance_meters: 0,
+    per_kilometer_minor: 0,
+    minimum_fee_minor: 10_000,
+    active: false,
+  });
+  await insertFixture("quotes", {
+    id: quoteId,
+    pricing_rule_id: pricingRuleId,
+    customer_id: customer.id,
+    request_payload: {
+      pickupAddress: "Bodija, Ibadan",
+      deliveryAddress: "Dugbe, Ibadan",
+      packageSize: "small",
+      packageCategory: "parcel",
+      additionalStops: [],
+      oversized: false,
+    },
+    distance_meters: 4_000,
+    amount_minor: 10_000,
+    currency: "NGN",
+    expires_at: new Date(Date.now() + 60 * 60_000).toISOString(),
+    status: "confirmed",
+    service_level: "standard",
+    payment_method: "online",
+  });
+  await insertFixture("delivery_orders", {
+    id: orderId,
+    customer_id: customer.id,
+    rider_id: rider.id,
+    quote_id: quoteId,
+    order_reference: `DOV-RIDER-${suffix}`,
+    tracking_reference: `TRK-RIDER-${suffix}`,
+    idempotency_key: randomUUID(),
+    pickup_address: "Bodija, Ibadan",
+    pickup_latitude: 7.435,
+    pickup_longitude: 3.91,
+    delivery_address: "Dugbe, Ibadan",
+    delivery_latitude: 7.3878,
+    delivery_longitude: 3.8796,
+    sender_name: "Controlled Sender",
+    sender_phone: "08000000000",
+    recipient_name: "Controlled Receiver",
+    recipient_phone: "08000000001",
+    payer: "sender",
+    payment_method: "online",
+    delivery_status: "assigned",
+    payment_status: "paid",
+    distance_meters: 4_000,
+    quoted_amount_minor: 10_000,
+    currency: "NGN",
+  });
+  await insertFixture("delivery_packages", {
+    order_id: orderId,
+    category: "parcel",
+    size: "small",
+    description: "Controlled mobile rider acceptance parcel",
+    weight_grams: 1_000,
+    length_mm: 250,
+    width_mm: 180,
+    height_mm: 120,
+  });
+  await insertFixture("delivery_status_events", {
+    order_id: orderId,
+    previous_status: null,
+    new_status: "assigned",
+    actor_id: administrator.id,
+    actor_type: "admin",
+    metadata: { fixture: true },
+  });
+  await insertFixture("payment_intents", {
+    id: paymentIntentId,
+    order_id: orderId,
+    provider: "paystack",
+    provider_reference: `rider-fixture-${orderId}`,
+    amount_minor: 10_000,
+    currency: "NGN",
+    status: "paid",
+    idempotency_key: randomUUID(),
+    last_provider_status: "success",
+    last_verified_at: new Date().toISOString(),
+  });
+  await insertFixture("payment_transactions", {
+    payment_intent_id: paymentIntentId,
+    order_id: orderId,
+    provider_transaction_id: `rider-test-${orderId}`,
+    amount_minor: 10_000,
+    currency: "NGN",
+    status: "paid",
+    immutable_payload: { domain: "test", fixture: true },
+  });
+
+  const fixture: RiderFixture = { orderId, quoteId, pricingRuleId, paymentIntentId };
+  if (withRun) {
+    const vehicleId = randomUUID();
+    const runId = randomUUID();
+    const deliveryAssignmentId = randomUUID();
+    await insertFixture("fleet_vehicles", {
+      id: vehicleId,
+      code: `E2E-RIDER-${suffix}`,
+      registration_number: `TST ${suffix.slice(0, 3)} RT`,
+      manufacturer: "Honda",
+      model: "Controlled test motorcycle",
+      model_year: 2024,
+      operational_status: "assigned",
+      assigned_rider_id: rider.id,
+      max_active_assignments: 2,
+      safety_status: "cleared",
+      max_payload_weight_grams: 18_000,
+      cargo_length_mm: 500,
+      cargo_width_mm: 400,
+      cargo_height_mm: 400,
+      capacity_verified_at: new Date().toISOString(),
+      capacity_verified_by: administrator.id,
+      created_by: administrator.id,
+    });
+    await insertFixture("delivery_runs", {
+      id: runId,
+      run_reference: `RUN-RIDER-${suffix}`,
+      rider_id: rider.id,
+      vehicle_id: vehicleId,
+      status: "active",
+      scheduled_start_at: new Date().toISOString(),
+      started_at: new Date().toISOString(),
+      compliance_confirmed_at: new Date().toISOString(),
+      compliance_confirmed_by: administrator.id,
+      compliance_notes: "Controlled rider return workflow",
+      idempotency_key: randomUUID(),
+      created_by: administrator.id,
+    });
+    await insertFixture("delivery_assignments", {
+      id: deliveryAssignmentId,
+      order_id: orderId,
+      vehicle_id: vehicleId,
+      rider_id: rider.id,
+      assigned_by: administrator.id,
+      score_snapshot: { fixture: true },
+      delivery_run_id: runId,
+    });
+    await insertFixture("run_assignments", {
+      run_id: runId,
+      order_id: orderId,
+      delivery_assignment_id: deliveryAssignmentId,
+      status: "assigned",
+      package_weight_grams: 1_000,
+      package_volume_mm3: 5_400_000,
+      compatibility_snapshot: { fixture: true },
+      route_snapshot: { fixture: true },
+      idempotency_key: randomUUID(),
+    });
+    await insertFixture("delivery_run_stops", [{
+      run_id: runId,
+      order_id: orderId,
+      stop_type: "pickup",
+      sequence: 1,
+      status: "next",
+      address: "Bodija, Ibadan",
+      latitude: 7.435,
+      longitude: 3.91,
+    }, {
+      run_id: runId,
+      order_id: orderId,
+      stop_type: "dropoff",
+      sequence: 2,
+      status: "pending",
+      address: "Dugbe, Ibadan",
+      latitude: 7.3878,
+      longitude: 3.8796,
+    }]);
+    fixture.runId = runId;
+    fixture.vehicleId = vehicleId;
+  }
+  riderFixtures.push(fixture);
+  return fixture;
+}
+
+async function cleanupRiderFixture(fixture: RiderFixture) {
+  const deleteBy = async (table: string, column: string, value: string) => {
+    const result = await admin.from(table).delete().eq(column, value);
+    if (result.error) throw result.error;
+  };
+  for (const table of ["payment_refunds", "payment_disputes", "payment_reconciliations"]) await deleteBy(table, "payment_intent_id", fixture.paymentIntentId);
+  for (const table of ["delivery_incidents", "redelivery_requests", "delivery_attempts", "delivery_waiting_sessions", "delivery_expense_reports", "parcel_custody_events", "delivery_proofs", "notifications", "payment_transactions"]) await deleteBy(table, "order_id", fixture.orderId);
+  if (fixture.runId) {
+    await deleteBy("delivery_run_stops", "run_id", fixture.runId);
+    await deleteBy("run_assignments", "run_id", fixture.runId);
+  }
+  await deleteBy("delivery_assignments", "order_id", fixture.orderId);
+  await deleteBy("payment_checkout_sessions", "payment_intent_id", fixture.paymentIntentId);
+  await deleteBy("payment_intents", "id", fixture.paymentIntentId);
+  await deleteBy("delivery_status_events", "order_id", fixture.orderId);
+  await deleteBy("delivery_packages", "order_id", fixture.orderId);
+  await deleteBy("audit_logs", "resource_id", fixture.orderId);
+  await deleteBy("delivery_orders", "id", fixture.orderId);
+  if (fixture.runId) await deleteBy("delivery_runs", "id", fixture.runId);
+  if (fixture.vehicleId) await deleteBy("fleet_vehicles", "id", fixture.vehicleId);
+  await deleteBy("quotes", "id", fixture.quoteId);
+  await deleteBy("pricing_rules", "id", fixture.pricingRuleId);
+}
 
 async function createAccount(role: TestRole, suffix: string) {
   const email = `mobile-e2e-${role}-${suffix}@example.com`;
@@ -168,6 +388,7 @@ test.beforeAll(async ({}, testInfo) => {
 });
 
 test.afterAll(async () => {
+  for (const fixture of [...riderFixtures].reverse()) await cleanupRiderFixture(fixture);
   if (canUseProvisioner && accounts.length) {
     const cleanup = await fetch(`${deployedBaseUrl}/api/internal/e2e/accounts`, { method: "POST", headers: { "Content-Type": "application/json", "x-e2e-secret": provisioningSecret! }, body: JSON.stringify({ action: "cleanup", userIds: accounts.map((account) => account.id) }) });
     if (!cleanup.ok) throw new Error(`Test account cleanup returned ${cleanup.status}`);
@@ -459,4 +680,111 @@ test("rider reaches only the rider workspace and its mobile menu responds immedi
     await expectMobilePage(page, path);
     await captureMobilePage(page, path, test.info().project.name);
   }
+});
+
+test("rider completes a paid pickup and handover with proof on mobile", async ({ page }) => {
+  test.skip(!canUseAdminClient, "The full rider handover fixture runs only against the isolated local Supabase stack");
+  const fixture = await createRiderFixture();
+  const rider = accounts.find((item) => item.role === "rider")!;
+  await login(page, rider, /\/rider(?:\?|$)/);
+  await page.goto(`/rider/orders/${fixture.orderId}`);
+  await expect(page.getByText(/Release the parcel only when payment status is paid/)).toBeVisible();
+
+  await page.getByLabel("Expense type").selectOption("toll_road_access");
+  await page.getByLabel("Amount (NGN)").fill("500");
+  await page.getByLabel("What happened?").fill("Controlled toll-road acceptance expense");
+  await page.getByRole("button", { name: "Submit for review" }).click();
+  await expect(page.getByRole("status")).toContainText("Expense submitted for review");
+  await page.getByRole("button", { name: "Dismiss message" }).click();
+
+  await page.getByRole("button", { name: "Start waiting timer" }).click();
+  await expect(page.getByRole("status")).toContainText("Waiting timer started");
+  await page.getByRole("button", { name: "Dismiss message" }).click();
+  await page.getByRole("button", { name: "Stop waiting timer" }).click();
+  await expect(page.getByRole("status")).toContainText("Waiting time recorded");
+  await page.getByRole("button", { name: "Dismiss message" }).click();
+
+  for (const [button, next] of [
+    ["Start pickup journey", "Confirm pickup"],
+    ["Confirm pickup", "Start delivery journey"],
+    ["Start delivery journey", "Arrived at destination"],
+  ] as const) {
+    await page.getByRole("button", { name: button }).click();
+    await expect(page.getByRole("button", { name: next })).toBeVisible();
+  }
+  await page.getByRole("button", { name: "Arrived at destination" }).click();
+  await expect(page.getByRole("heading", { name: "Confirm the recipient before handover" })).toBeVisible();
+  await page.getByLabel("Handover notes (optional)").fill("Recipient checked the controlled parcel");
+  await page.getByLabel(/I checked the recipient's identity/).check();
+  await page.getByRole("button", { name: "Record recipient confirmation" }).click();
+  await expect(page.getByRole("heading", { name: "Recipient confirmation recorded" })).toBeVisible();
+  await page.getByRole("button", { name: "Complete delivery" }).click();
+  await expect.poll(async () => {
+    const { data } = await admin.from("delivery_orders").select("delivery_status").eq("id", fixture.orderId).single();
+    return data?.delivery_status;
+  }).toBe("delivered");
+  await expect(page.getByText("delivered", { exact: true }).first()).toBeVisible();
+  const [{ count: proofCount }, { count: handoverCount }, { count: expenseCount }] = await Promise.all([
+    admin.from("delivery_proofs").select("id", { count: "exact", head: true }).eq("order_id", fixture.orderId),
+    admin.from("parcel_custody_events").select("id", { count: "exact", head: true }).eq("order_id", fixture.orderId).eq("event_type", "handover_completed"),
+    admin.from("delivery_expense_reports").select("id", { count: "exact", head: true }).eq("order_id", fixture.orderId),
+  ]);
+  expect(proofCount).toBe(1);
+  expect(handoverCount).toBe(1);
+  expect(expenseCount).toBe(1);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(await page.evaluate(() => window.innerWidth));
+});
+
+test("rider reports a missed delivery and completes an authorized return on mobile", async ({ page }) => {
+  test.skip(!canUseAdminClient, "The full rider return fixture runs only against the isolated local Supabase stack");
+  const fixture = await createRiderFixture({ withRun: true });
+  const rider = accounts.find((item) => item.role === "rider")!;
+  const administrator = accounts.find((item) => item.role === "admin")!;
+  await login(page, rider, /\/rider(?:\?|$)/);
+  await page.goto(`/rider/orders/${fixture.orderId}`);
+  await page.getByRole("button", { name: "Start pickup journey" }).click();
+  await expect(page.getByRole("button", { name: "Confirm pickup" })).toBeVisible();
+  await page.getByLabel("What stopped the delivery?").selectOption("recipient_unavailable");
+  await page.getByLabel("Reason", { exact: true }).fill("Recipient could not be reached at the address");
+  await page.getByLabel("Time spent waiting (minutes)").fill("5");
+  await page.getByLabel("Private notes for dispatch").fill("Called twice using the verified delivery number");
+  await page.getByRole("button", { name: "Record attempt safely" }).click();
+  await expect(page.getByRole("status")).toContainText("Delivery attempt recorded");
+
+  let attemptId = "";
+  await expect.poll(async () => {
+    const { data } = await admin.from("delivery_attempts").select("id,status").eq("order_id", fixture.orderId).maybeSingle();
+    attemptId = data?.id ?? "";
+    return data?.status;
+  }).toBe("recipient_unavailable");
+  const resolution = await admin.rpc("resolve_delivery_attempt", {
+    target_attempt_id: attemptId,
+    actor_id: administrator.id,
+    resolution: "return_to_sender",
+    attributable_to: "customer",
+    resolution_reason: "Controlled return authorized after verified missed delivery",
+    requested_schedule: null,
+    corrected_address: null,
+    corrected_latitude: null,
+    corrected_longitude: null,
+    request_idempotency_key: randomUUID(),
+  });
+  if (resolution.error) throw resolution.error;
+
+  await page.reload();
+  await expect(page.getByText("Return authorized by dispatch", { exact: false })).toBeVisible();
+  await page.getByLabel("Return notes (optional)").fill("Sender checked the parcel condition");
+  await page.getByRole("button", { name: "Confirm parcel returned" }).click();
+  await expect.poll(async () => {
+    const { data } = await admin.from("delivery_orders").select("delivery_status").eq("id", fixture.orderId).single();
+    return data?.delivery_status;
+  }).toBe("cancelled");
+  const [{ count: returnCount }, { data: runAssignment }] = await Promise.all([
+    admin.from("parcel_custody_events").select("id", { count: "exact", head: true }).eq("order_id", fixture.orderId).eq("event_type", "returned_to_sender"),
+    admin.from("run_assignments").select("status,released_at").eq("order_id", fixture.orderId).single(),
+  ]);
+  expect(returnCount).toBe(1);
+  expect(runAssignment?.status).toBe("returned");
+  expect(runAssignment?.released_at).toBeTruthy();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(await page.evaluate(() => window.innerWidth));
 });
