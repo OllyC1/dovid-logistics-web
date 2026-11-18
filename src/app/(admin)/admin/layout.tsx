@@ -4,6 +4,7 @@ import { WorkspaceNavigation } from "@/components/layout/workspace-navigation";
 import { logoutAction } from "@/features/auth/actions";
 import { getStaffAuthorization, type StaffPermission } from "@/lib/auth/staff";
 import { requireRole } from "@/lib/auth/roles";
+import { LogoutButton } from "@/components/account/logout-button";
 export const metadata:Metadata={title:"Dovid administration",robots:{index:false,follow:false}};
 export const dynamic="force-dynamic";
 const links=[
@@ -27,6 +28,6 @@ export default async function AdminLayout({children}:{children:React.ReactNode})
   const auth=await getStaffAuthorization();
   if(!auth) notFound();
   const visibleLinks=links.filter(([, , permission])=>auth.staffRole==="super_admin"||permission===null||auth.permissions.includes(permission as StaffPermission)).map(([label,href])=>[label,href] as const);
-  const logout=<form action={logoutAction}><button className="min-h-11 rounded-xl px-3 py-2 text-sm font-bold text-orange">Log out</button></form>;
+  const logout=<form action={logoutAction}><LogoutButton /></form>;
   return <section className="container py-6 sm:py-10 lg:py-12"><div className="grid min-w-0 gap-6 lg:grid-cols-[250px_minmax(0,1fr)] lg:gap-8"><WorkspaceNavigation label={auth.staffRole==="super_admin"?"Super Admin":"Dovid admin"} links={visibleLinks} footer={logout}/><main className="min-w-0" data-workspace-content>{children}</main></div></section>
 }

@@ -1,0 +1,19 @@
+"use client";
+
+import { LoaderCircle, LogOut } from "lucide-react";
+import { useFormStatus } from "react-dom";
+
+export function LogoutButton() {
+  const { pending } = useFormStatus();
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      aria-busy={pending}
+      className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl px-3 py-3 text-sm font-bold text-orange transition hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange disabled:cursor-wait disabled:opacity-80"
+    >
+      {pending ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : <LogOut className="size-4" aria-hidden />}
+      {pending ? "Signing out…" : "Log out"}
+    </button>
+  );
+}

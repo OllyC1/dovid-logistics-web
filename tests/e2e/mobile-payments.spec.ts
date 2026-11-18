@@ -46,6 +46,17 @@ test("login password visibility works", async ({ page }) => {
   await expect(password).toHaveAttribute("type", "password");
 });
 
+test("mobile menu login responds to one tap and closes the drawer", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Open navigation" }).click();
+  const menu = page.getByRole("dialog", { name: "Site menu" });
+  await expect(menu).toBeVisible();
+  await menu.getByRole("link", { name: "Log in" }).click();
+  await expect(menu).toBeHidden();
+  await expect(page).toHaveURL(/\/login(?:\?|$)/);
+  await expect(page.getByRole("heading", { name: "Log in to your account" })).toBeVisible();
+});
+
 test("private workspaces stay protected", async ({ page }) => {
   test.skip(!process.env.PLAYWRIGHT_BASE_URL, "Private-route release checks run against the configured deployed environment");
   for (const path of ["/account", "/admin", "/rider"]) {

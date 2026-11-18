@@ -13,6 +13,9 @@ const loginActions = readFileSync("src/features/auth/actions.ts", "utf8");
 const staffSetup = readFileSync("src/app/staff/setup/page.tsx", "utf8");
 const workspaceNavigation = readFileSync("src/components/layout/workspace-navigation.tsx", "utf8");
 const transitionIndicator = readFileSync("src/components/layout/route-transition-indicator.tsx", "utf8");
+const button = readFileSync("src/components/ui/button.tsx", "utf8");
+const logoutButton = readFileSync("src/components/account/logout-button.tsx", "utf8");
+const signedOutNotice = readFileSync("src/components/account/signed-out-notice.tsx", "utf8");
 
 describe("role-specific authentication and navigation", () => {
   it("offers accessible show and hide password controls", () => {
@@ -41,6 +44,14 @@ describe("role-specific authentication and navigation", () => {
   it("provides immediate feedback while internal pages are opening", () => {
     expect(transitionIndicator).toContain('document.addEventListener("click", start, true)');
     expect(transitionIndicator).toContain("Opening page…");
+  });
+
+  it("closes the public mobile menu on button links and explains sign-out progress", () => {
+    expect(header).toContain('<Button href="/login" variant="outline" onClick={closeMobileMenu}>');
+    expect(button).toContain("<Link className={buttonClasses(className, variant)} href={href} {...props}>");
+    expect(logoutButton).toContain('pending ? "Signing out…" : "Log out"');
+    expect(loginActions).toContain('redirect("/?signedOut=1")');
+    expect(signedOutNotice).toContain("You’re signed out. See you again soon.");
   });
 
   it("loads pending staff separately from profiles and limits MFA to Super Admin", () => {

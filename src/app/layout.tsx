@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Footer } from "@/components/layout/footer";
 import { Header } from "@/components/layout/header";
 import { RouteTransitionIndicator } from "@/components/layout/route-transition-indicator";
+import { SignedOutNotice } from "@/components/account/signed-out-notice";
 import { siteConfig } from "@/config/site";
 import "./globals.css";
 
@@ -24,5 +25,5 @@ const structuredData={
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="en"><body><script type="application/ld+json" dangerouslySetInnerHTML={{__html:JSON.stringify(structuredData).replaceAll("<","\\u003c")}}/><a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-full focus:bg-white focus:px-4 focus:py-2">Skip to content</a><RouteTransitionIndicator /><Header /><main id="main">{children}</main><Footer /></body></html>;
+  return <html lang="en"><body><script type="application/ld+json" dangerouslySetInnerHTML={{__html:JSON.stringify(structuredData).replaceAll("<","\\u003c")}}/><a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-full focus:bg-white focus:px-4 focus:py-2">Skip to content</a><RouteTransitionIndicator /><SignedOutNotice /><Header /><main id="main">{children}</main><Footer /></body></html>;
 }
