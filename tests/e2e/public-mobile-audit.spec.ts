@@ -40,14 +40,22 @@ for (const path of publicPages) {
       const duplicateIds = [...new Set(ids.filter((id, index) => ids.indexOf(id) !== index))];
       const undersizedInteractiveControls = [...document.querySelectorAll<HTMLElement>("button, input, select, textarea, [role='button'], nav a[href], footer a[href]")]
         .filter((element) => {
-          const target = element instanceof HTMLInputElement && ["checkbox", "radio"].includes(element.type) ? element.closest<HTMLElement>("label") ?? element : element;
+          const target = element instanceof HTMLInputElement && ["checkbox", "radio"].includes(element.type)
+            ? element.closest<HTMLElement>("label") ?? element.labels?.item(0) ?? element
+            : element;
           const style = getComputedStyle(target);
           if (style.display === "none" || style.visibility === "hidden") return false;
           const box = target.getBoundingClientRect();
           if (!box.width || !box.height) return false;
           return box.width < 40 || box.height < 40;
         })
-        .map((element) => ({ tag: element.tagName, text: element.getAttribute("aria-label") ?? element.textContent?.trim().slice(0, 50) ?? "", width: Math.round(element.getBoundingClientRect().width), height: Math.round(element.getBoundingClientRect().height) }));
+        .map((element) => {
+          const target = element instanceof HTMLInputElement && ["checkbox", "radio"].includes(element.type)
+            ? element.closest<HTMLElement>("label") ?? element.labels?.item(0) ?? element
+            : element;
+          const box = target.getBoundingClientRect();
+          return { tag: element.tagName, text: element.getAttribute("aria-label") ?? target.textContent?.trim().slice(0, 50) ?? "", width: Math.round(box.width), height: Math.round(box.height) };
+        });
       return {
         viewportWidth: window.innerWidth,
         documentWidth: document.documentElement.scrollWidth,

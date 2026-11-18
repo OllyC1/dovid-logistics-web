@@ -349,9 +349,46 @@ async function expectMobilePage(page: Page, path: string) {
   }
   expect(response?.status(), `${path} should load`).toBeLessThan(400);
   await expect(page.locator("main[data-workspace-content]")).toBeVisible();
-  const dimensions = await page.evaluate(() => ({ viewport: window.innerWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth }));
-  expect(dimensions.document, `${path} document overflow`).toBeLessThanOrEqual(dimensions.viewport);
-  expect(dimensions.body, `${path} body overflow`).toBeLessThanOrEqual(dimensions.viewport);
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  const audit = await page.evaluate(() => {
+    const ids = [...document.querySelectorAll<HTMLElement>("[id]")].map((element) => element.id).filter(Boolean);
+    const duplicateIds = [...new Set(ids.filter((id, index) => ids.indexOf(id) !== index))];
+    const undersizedInteractiveControls = [...document.querySelectorAll<HTMLElement>("button, input, select, textarea, [role='button'], summary, a[href]")]
+      .filter((element) => {
+        const target = element instanceof HTMLInputElement && ["checkbox", "radio"].includes(element.type)
+          ? element.closest<HTMLElement>("label") ?? element.labels?.item(0) ?? element
+          : element;
+        const style = getComputedStyle(target);
+        if (style.display === "none" || style.visibility === "hidden") return false;
+        if (target.classList.contains("sr-only") && !target.matches(":focus")) return false;
+        const box = target.getBoundingClientRect();
+        if (!box.width || !box.height) return false;
+        return box.width < 40 || box.height < 40;
+      })
+      .map((element) => {
+        const target = element instanceof HTMLInputElement && ["checkbox", "radio"].includes(element.type)
+          ? element.closest<HTMLElement>("label") ?? element.labels?.item(0) ?? element
+          : element;
+        const box = target.getBoundingClientRect();
+        return {
+          tag: element.tagName,
+          text: element.getAttribute("aria-label") ?? target.textContent?.trim().slice(0, 50) ?? "",
+          width: Math.round(box.width),
+          height: Math.round(box.height),
+        };
+      });
+    return {
+      viewportWidth: window.innerWidth,
+      documentWidth: document.documentElement.scrollWidth,
+      bodyWidth: document.body.scrollWidth,
+      duplicateIds,
+      undersizedInteractiveControls,
+    };
+  });
+  expect(audit.documentWidth, `${path} document overflow`).toBeLessThanOrEqual(audit.viewportWidth);
+  expect(audit.bodyWidth, `${path} body overflow`).toBeLessThanOrEqual(audit.viewportWidth);
+  expect(audit.duplicateIds, `${path} should not expose duplicate element IDs`).toEqual([]);
+  expect(audit.undersizedInteractiveControls, `${path} controls should provide at least a 40px touch target`).toEqual([]);
 }
 
 async function captureMobilePage(page: Page, path: string, projectName: string) {
