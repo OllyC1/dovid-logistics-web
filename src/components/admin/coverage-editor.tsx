@@ -119,7 +119,7 @@ export function CoverageEditor({ initialZones, settings: initialSettings, mapsKe
     }
     const script = document.createElement("script");
     script.dataset.dovidMaps = "true";
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(mapsKey)}&v=weekly`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(mapsKey)}&v=weekly&loading=async`;
     script.async = true;
     script.addEventListener("load", loaded, { once: true });
     script.addEventListener("error", failed, { once: true });
