@@ -1,5 +1,10 @@
 \set ON_ERROR_STOP on
 
+-- Keep the validation repeatable: every fixture, grant and state transition is
+-- rolled back after the assertions complete. A failing psql session also rolls
+-- this open transaction back when the connection closes.
+begin;
+
 grant usage on schema public to authenticated, service_role;
 grant select on all tables in schema public to authenticated, service_role;
 grant usage, select on all sequences in schema public to authenticated, service_role;
@@ -126,7 +131,7 @@ end $$;
 
 -- Validate the custody-safe failed-attempt, return-to-sender and run-completion path.
 -- This uses a dedicated disposable order and one of the inactive planning bikes.
-begin;
+savepoint return_workflow_validation;
 set role service_role;
 do $$
 declare
@@ -260,7 +265,8 @@ begin
   end if;
 end $$;
 reset role;
-rollback;
+rollback to savepoint return_workflow_validation;
+release savepoint return_workflow_validation;
 
 set role authenticated;
 select set_config('request.jwt.claim.sub','11111111-1111-1111-1111-111111111111',false);
@@ -708,3 +714,5 @@ end $$;
 reset role;
 
 select 'migration and RLS validation passed' as result;
+
+rollback;
