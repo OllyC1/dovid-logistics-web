@@ -76,9 +76,36 @@ function totp(secret: string, timestamp = Date.now()) {
 }
 
 async function removeAccount(account: TestAccount) {
-  if (account.role === "admin") await admin.from("staff_permission_grants").delete().eq("user_id", account.id);
-  if (account.role !== "customer") await admin.from("staff_memberships").delete().eq("user_id", account.id);
-  await admin.auth.admin.deleteUser(account.id);
+  const { data: vehicles, error: vehicleLookupError } = await admin.from("fleet_vehicles")
+    .select("id")
+    .eq("created_by", account.id)
+    .like("code", "E2E-%");
+  if (vehicleLookupError) throw vehicleLookupError;
+  for (const vehicle of vehicles ?? []) {
+    const reset = await admin.from("fleet_vehicles").update({
+      operational_status: "offline",
+      assigned_rider_id: null,
+      safety_status: "review_required",
+      capacity_verified_at: null,
+      capacity_verified_by: null,
+    }).eq("id", vehicle.id);
+    if (reset.error) throw reset.error;
+    const removed = await admin.from("fleet_vehicles").delete()
+      .eq("id", vehicle.id)
+      .eq("created_by", account.id)
+      .like("code", "E2E-%");
+    if (removed.error) throw removed.error;
+  }
+  if (account.role === "admin") {
+    const grants = await admin.from("staff_permission_grants").delete().eq("user_id", account.id);
+    if (grants.error) throw grants.error;
+  }
+  if (account.role !== "customer") {
+    const membership = await admin.from("staff_memberships").delete().eq("user_id", account.id);
+    if (membership.error) throw membership.error;
+  }
+  const deleted = await admin.auth.admin.deleteUser(account.id);
+  if (deleted.error) throw deleted.error;
 }
 
 async function login(page: Page, account: TestAccount, expectedPath: RegExp) {
@@ -138,8 +165,9 @@ test.afterAll(async () => {
     return;
   }
   if (!admin) return;
-  await admin.from("promotions").delete().like("code", "E2EMOBILE%");
-  await Promise.all(accounts.map(removeAccount));
+  const promotions = await admin.from("promotions").delete().like("code", "E2EMOBILE%");
+  if (promotions.error) throw promotions.error;
+  for (const account of accounts) await removeAccount(account);
 });
 
 test.beforeEach(async ({ page }, testInfo) => {
