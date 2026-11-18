@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { createHmac, randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
 import { loadEnvFile } from "node:process";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
@@ -6,7 +6,7 @@ import { expect, test, type Page } from "@playwright/test";
 
 if (existsSync(".env.local")) loadEnvFile(".env.local");
 
-type TestRole = "customer" | "admin" | "rider";
+type TestRole = "customer" | "admin" | "rider" | "super_admin";
 type TestAccount = { id: string; email: string; password: string; role: TestRole };
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -17,6 +17,7 @@ const canUseAdminClient = Boolean(supabaseUrl && serviceRoleKey);
 const canUseProvisioner = Boolean(deployedBaseUrl && provisioningSecret);
 const canRunLiveRoleChecks = canUseAdminClient || canUseProvisioner;
 const requireLiveRoleChecks = process.env.REQUIRE_AUTHENTICATED_E2E === "true";
+const fixtureRunCode = randomBytes(3).toString("hex").toUpperCase();
 let admin: SupabaseClient;
 const accounts: TestAccount[] = [];
 
@@ -37,7 +38,7 @@ async function createAccount(role: TestRole, suffix: string) {
   });
   if (created.error || !created.data.user) throw created.error ?? new Error(`Could not create ${role} test account`);
   const id = created.data.user.id;
-  const profileRole = role === "customer" ? "customer" : role;
+  const profileRole = role === "customer" ? "customer" : role === "rider" ? "rider" : "admin";
   const profile = await admin.from("profiles").upsert({ id, full_name: `Mobile ${role} check`, phone: "08000000000", role: profileRole });
   if (profile.error) throw profile.error;
   if (role !== "customer") {
@@ -57,6 +58,21 @@ async function createAccount(role: TestRole, suffix: string) {
     if (grants.error) throw grants.error;
   }
   return { id, email, password, role } satisfies TestAccount;
+}
+
+function totp(secret: string, timestamp = Date.now()) {
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+  const normalized = secret.toUpperCase().replace(/[^A-Z2-7]/g, "");
+  let bits = "";
+  for (const character of normalized) bits += alphabet.indexOf(character).toString(2).padStart(5, "0");
+  const bytes: number[] = [];
+  for (let index = 0; index + 8 <= bits.length; index += 8) bytes.push(Number.parseInt(bits.slice(index, index + 8), 2));
+  const counter = Buffer.alloc(8);
+  counter.writeBigUInt64BE(BigInt(Math.floor(timestamp / 30_000)));
+  const digest = createHmac("sha1", Buffer.from(bytes)).update(counter).digest();
+  const offset = digest[digest.length - 1] & 0x0f;
+  const value = ((digest[offset] & 0x7f) << 24) | ((digest[offset + 1] & 0xff) << 16) | ((digest[offset + 2] & 0xff) << 8) | (digest[offset + 3] & 0xff);
+  return String(value % 1_000_000).padStart(6, "0");
 }
 
 async function removeAccount(account: TestAccount) {
@@ -110,7 +126,7 @@ test.beforeAll(async ({}, testInfo) => {
   }
   admin = createClient(supabaseUrl!, serviceRoleKey!, { auth: { persistSession: false, autoRefreshToken: false } });
   const suffix = `${Date.now()}-${testInfo.project.name.replace(/[^a-z0-9]/gi, "-")}`;
-  for (const role of ["customer", "admin", "rider"] as const) accounts.push(await createAccount(role, suffix));
+  for (const role of ["customer", "admin", "rider", "super_admin"] as const) accounts.push(await createAccount(role, suffix));
 });
 
 test.afterAll(async () => {
@@ -122,6 +138,7 @@ test.afterAll(async () => {
     return;
   }
   if (!admin) return;
+  await admin.from("promotions").delete().like("code", "E2EMOBILE%");
   await Promise.all(accounts.map(removeAccount));
 });
 
@@ -162,12 +179,15 @@ test("administrator reaches the admin workspace without MFA and every authorized
   const routes = [
     "/admin", "/admin/team", "/admin/email", "/admin/whatsapp-bookings", "/admin/coverage",
     "/admin/dispatch", "/admin/run-operations", "/admin/operations", "/admin/rate-cards",
-    "/admin/cost-configuration", "/admin/competitors", "/admin/profitability", "/admin/promotions", "/admin/history",
+    "/admin/cost-configuration", "/admin/competitors", "/admin/profitability", "/admin/history",
   ];
   for (const path of routes) {
     await expectMobilePage(page, path);
     await captureMobilePage(page, path, test.info().project.name);
   }
+  await page.goto("/admin/promotions");
+  await expect(page).toHaveURL(/\/admin(?:\?|$)/);
+  await expect(page.getByRole("heading", { name: "Promotions" })).toHaveCount(0);
 
   await page.goto("/admin/competitors");
   await expect(page.getByLabel("Pickup latitude")).toHaveCount(0);
@@ -194,8 +214,8 @@ test("administrator reaches the admin workspace without MFA and every authorized
 
   const riderAccount = accounts.find((item) => item.role === "rider")!;
   const viewportCode = test.info().project.name === "mobile-375" ? "375" : "390";
-  const plateNumber = `TST ${viewportCode} QA`;
-  const bikeCode = `E2E-${viewportCode}`;
+  const plateNumber = `TST ${viewportCode} ${fixtureRunCode}`;
+  const bikeCode = `E2E-${viewportCode}-${fixtureRunCode}`;
   await page.goto("/admin/dispatch");
   const addBike = page.locator("details").filter({ hasText: "Add a motorcycle" });
   await addBike.locator("summary").click();
@@ -258,6 +278,75 @@ test("administrator reaches the admin workspace without MFA and every authorized
   await bikeForm.getByLabel("Reason and verification evidence").fill("Controlled acceptance completed; fixture returned offline");
   await bikeForm.getByRole("button", { name: "Save bike record" }).click();
   await expect(page.getByRole("status")).toContainText("Bike configuration updated and recorded");
+});
+
+test("Super Admin completes MFA and controls promotions and immutable rate-card drafts on mobile", async ({ page }) => {
+  test.skip(canUseProvisioner, "The deployed provisioner intentionally cannot create Super Admin identities");
+  test.setTimeout(240_000);
+  const account = accounts.find((item) => item.role === "super_admin")!;
+  await login(page, account, /\/staff\/mfa/);
+  const setupSecret = page.locator("code");
+  await expect(setupSecret).toBeVisible();
+  if (Date.now() % 30_000 > 27_000) await page.waitForTimeout(3_500);
+  await page.getByLabel("Six-digit authenticator code").fill(totp((await setupSecret.textContent()) ?? ""));
+  await page.getByRole("button", { name: "Verify and continue" }).click();
+  await expect(page).toHaveURL(/\/admin(?:\?|$)/);
+  await expect(page.getByRole("heading", { name: "Super Admin Dashboard" })).toBeVisible();
+
+  await expectMobilePage(page, "/admin/team");
+  const invitePanel = page.locator("details").filter({ hasText: "Invite a team member" }).first();
+  await invitePanel.locator(":scope > summary").click();
+  const inviteRole = invitePanel.getByLabel("Role");
+  await expect(inviteRole.getByRole("option", { name: "Admin", exact: true })).toHaveCount(1);
+  await expect(inviteRole.getByRole("option", { name: "Rider", exact: true })).toHaveCount(1);
+  await expect(page.getByRole("button", { name: /Suspend/ })).toHaveCount(0);
+
+  await expectMobilePage(page, "/admin/promotions");
+  const viewportCode = test.info().project.name === "mobile-375" ? "375" : "390";
+  const promotionCode = `E2EMOBILE${viewportCode}${Date.now().toString().slice(-6)}`;
+  const createPromotion = page.locator("details").filter({ hasText: "Create a checkout discount code" }).first();
+  await createPromotion.locator("summary").click();
+  await createPromotion.getByLabel("Discount code").fill(promotionCode);
+  await createPromotion.getByLabel("Discount type").selectOption("percentage");
+  await createPromotion.getByRole("spinbutton", { name: "Percentage (0.01–100)", exact: true }).fill("20");
+  await createPromotion.getByLabel("Starts").fill(new Date(Date.now() + 60_000).toISOString().slice(0, 16));
+  await createPromotion.getByRole("button", { name: "Create inactive discount code" }).click();
+  await expect(page.getByRole("status")).toContainText(`Code ${promotionCode} was created inactive`);
+  let promotion = page.locator("details").filter({ hasText: promotionCode }).first();
+  await promotion.locator("summary").click();
+  await promotion.getByRole("button", { name: "Activate code" }).click();
+  let dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Operational reason").fill("Controlled mobile Super Admin acceptance");
+  await dialog.getByRole("button", { name: "Activate code" }).click();
+  await expect(page.getByRole("status")).toContainText(`Code ${promotionCode} is now active`);
+  promotion = page.locator("details").filter({ hasText: promotionCode }).first();
+  if (!(await promotion.evaluate((element) => (element as HTMLDetailsElement).open))) await promotion.locator("summary").click();
+  await promotion.getByRole("button", { name: "Deactivate code" }).click();
+  dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Operational reason").fill("Controlled acceptance completed safely");
+  await dialog.getByRole("button", { name: "Deactivate code" }).click();
+  await expect(page.getByRole("status")).toContainText(`Code ${promotionCode} is now inactive`);
+
+  await expectMobilePage(page, "/admin/rate-cards");
+  const rateCardName = `E2E mobile ${viewportCode} inactive draft`;
+  const rateCardEditor = page.locator("details#rate-card-editor");
+  await rateCardEditor.locator("summary").click();
+  await rateCardEditor.getByLabel("Rate card name").fill(rateCardName);
+  await rateCardEditor.getByLabel("Service level").selectOption("scheduled");
+  await rateCardEditor.getByLabel("Effective from").fill(new Date(Date.now() + 120_000).toISOString().slice(0, 16));
+  await rateCardEditor.getByRole("button", { name: "Create inactive version" }).click();
+  await expect(rateCardEditor.getByRole("status")).toContainText("Inactive rate-card version created");
+  const rateCard = page.locator("details").filter({ hasText: rateCardName }).first();
+  await rateCard.locator("summary").click();
+  await expect(rateCard).toContainText("scheduled");
+  await rateCard.getByRole("button", { name: "Delete unused draft" }).click();
+  dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Operational reason").fill("Controlled unused draft cleanup");
+  const deleted = page.waitForResponse((response) => response.request().method() === "DELETE" && response.url().includes("/api/admin/pricing/rate-cards/"));
+  await dialog.getByRole("button", { name: "Delete draft" }).click();
+  expect((await deleted).status()).toBe(200);
+  await expect(page.getByText(rateCardName, { exact: true })).toHaveCount(0);
+  await expectMobilePage(page, "/admin/history");
 });
 
 test("rider reaches only the rider workspace and its mobile menu responds immediately", async ({ page }) => {
