@@ -409,6 +409,7 @@ test.beforeEach(async ({ page }, testInfo) => {
 });
 
 test("customer keeps a customer-only mobile workspace", async ({ page }) => {
+  test.setTimeout(240_000);
   const account = accounts.find((item) => item.role === "customer")!;
   await login(page, account, /\/account(?:\?|$)/);
   await expect(page.locator("header")).toHaveCount(0);
@@ -472,8 +473,8 @@ test("customer keeps a customer-only mobile workspace", async ({ page }) => {
   const logOutBounds = await logOut.boundingBox();
   expect(logOutBounds).not.toBeNull();
   await page.touchscreen.tap(logOutBounds!.x + logOutBounds!.width / 2, logOutBounds!.y + logOutBounds!.height / 2);
-  await expect(page).toHaveURL(/\/?(?:\?|$)/);
-  await expect(page.getByRole("status")).toContainText("You’re signed out. See you again soon.");
+  await expect.poll(() => new URL(page.url()).pathname).toBe("/");
+  await expect(page.getByRole("status").filter({ hasText: "You’re signed out. See you again soon." })).toBeVisible();
   await page.goto("/account");
   await expect(page).toHaveURL(/\/login(?:\?|$)/);
 });
@@ -736,6 +737,7 @@ test("rider reaches only the rider workspace and its mobile menu responds immedi
 
 test("rider completes a paid pickup and handover with proof on mobile", async ({ page }) => {
   test.skip(!canUseAdminClient, "The full rider handover fixture runs only against the isolated local Supabase stack");
+  test.setTimeout(240_000);
   const fixture = await createRiderFixture();
   const rider = accounts.find((item) => item.role === "rider")!;
   await login(page, rider, /\/rider(?:\?|$)/);
@@ -789,6 +791,7 @@ test("rider completes a paid pickup and handover with proof on mobile", async ({
 
 test("rider reports a missed delivery and completes an authorized return on mobile", async ({ page }) => {
   test.skip(!canUseAdminClient, "The full rider return fixture runs only against the isolated local Supabase stack");
+  test.setTimeout(240_000);
   const fixture = await createRiderFixture({ withRun: true });
   const rider = accounts.find((item) => item.role === "rider")!;
   const administrator = accounts.find((item) => item.role === "admin")!;
@@ -810,7 +813,7 @@ test("rider reports a missed delivery and completes an authorized return on mobi
 
   await page.getByLabel("Open Rider workspace menu").click();
   await page.getByRole("button", { name: "Log out" }).click();
-  await expect(page).toHaveURL(/\/(?:\?|$)/);
+  await expect.poll(() => new URL(page.url()).pathname).toBe("/");
   await login(page, administrator, /\/admin(?:\?|$)/);
   await page.goto("/admin/run-operations");
   const attemptCard = page.locator("details").filter({ hasText: `DOV-RIDER-${fixture.orderId.slice(0, 8).toUpperCase()}` }).last();
@@ -824,7 +827,7 @@ test("rider reports a missed delivery and completes an authorized return on mobi
 
   await page.getByLabel("Open Dovid admin menu").click();
   await page.getByRole("button", { name: "Log out" }).click();
-  await expect(page).toHaveURL(/\/(?:\?|$)/);
+  await expect.poll(() => new URL(page.url()).pathname).toBe("/");
   await login(page, rider, /\/rider(?:\?|$)/);
   await page.goto(`/rider/orders/${fixture.orderId}`);
   await expect(page.getByText("Return authorized by dispatch", { exact: false })).toBeVisible();

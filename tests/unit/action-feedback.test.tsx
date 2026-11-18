@@ -23,6 +23,14 @@ describe("ActionFeedback", () => {
 
   it("keeps success feedback available to assistive technology", () => {
     render(<ActionFeedback feedback={{ text: "Delivery run completed and audited.", ok: true }} />);
-    expect(screen.getByRole("status").textContent).toContain("completed and audited");
+    const feedback = screen.getByRole("status");
+    expect(feedback.textContent).toContain("completed and audited");
+    expect(feedback.className).toContain("pointer-events-none");
+    expect(feedback.className).toContain("z-[70]");
+  });
+
+  it("leaves only its explicit dismiss control interactive", () => {
+    render(<ActionFeedback feedback={{ text: "Saved.", ok: true }} onDismiss={() => undefined} />);
+    expect(screen.getByRole("button", { name: "Dismiss message" }).className).toContain("pointer-events-auto");
   });
 });

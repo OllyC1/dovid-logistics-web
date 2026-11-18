@@ -9,6 +9,10 @@ import { Field } from "@/components/ui/field";
 
 type Factor = { id: string; status?: string };
 
+export function sanitizeMfaQrCode(source: string) {
+  return source.trimEnd();
+}
+
 export function MfaPanel({ mode, next = "/admin", completeOnboarding = mode === "enroll" }: { mode: "enroll" | "challenge"; next?: string; completeOnboarding?: boolean }) {
   const router = useRouter();
   const [factor, setFactor] = useState<Factor | null>(null);
@@ -71,7 +75,7 @@ export function MfaPanel({ mode, next = "/admin", completeOnboarding = mode === 
 
   return <div className="grid gap-5">
     {qrCode ? <div className="grid gap-4 rounded-3xl bg-white p-5 sm:grid-cols-[180px_1fr] sm:items-center">
-      <Image src={qrCode} alt="QR code for Dovid staff authenticator setup" width={176} height={176} unoptimized className="h-44 w-44 rounded-2xl border border-navy/10 bg-white p-2" />
+      <Image src={sanitizeMfaQrCode(qrCode)} alt="QR code for Dovid staff authenticator setup" width={176} height={176} unoptimized className="h-44 w-44 rounded-2xl border border-navy/10 bg-white p-2" />
       <div><p className="font-bold text-navy">Can’t scan the code?</p><p className="mt-2 text-sm leading-6 text-slate">Enter this one-time setup key in your authenticator app. Keep it private.</p><code className="mt-3 block break-all rounded-xl bg-cloud p-3 text-xs text-navy">{secret}</code></div>
     </div> : null}
     <p role="status" className="rounded-2xl bg-cloud p-4 text-sm text-slate">{message}</p>
