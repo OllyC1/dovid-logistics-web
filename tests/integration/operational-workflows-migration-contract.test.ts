@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 const sql = readFileSync("supabase/migrations/20261115163957_operational_workflows_and_onboarding.sql", "utf8");
 const pricingHardeningSql = readFileSync("supabase/migrations/20261115164500_pricing_activation_rpc_hardening.sql", "utf8");
+const pricingActorAuditSql = readFileSync("supabase/migrations/20261118170636_pricing_activation_actor_audit.sql", "utf8");
 const riderOrderPage = readFileSync("src/app/(rider)/rider/orders/[id]/page.tsx", "utf8");
 
 describe("operational workflows migration", () => {
@@ -35,5 +36,14 @@ describe("pricing activation RPC hardening", () => {
   it("moves pricing activation behind server-only authorization", () => {
     expect(pricingHardeningSql).toContain("revoke execute on function public.activate_rate_card(uuid) from authenticated");
     expect(pricingHardeningSql).toContain("to service_role");
+  });
+
+  it("preserves the authorized actor and approval reason across the server-only boundary", () => {
+    expect(pricingActorAuditSql).toContain("activate_pricing_configuration_version(");
+    expect(pricingActorAuditSql).toContain("activate_rate_card(");
+    expect(pricingActorAuditSql).toContain("permission.permission_key='pricing.manage'");
+    expect(pricingActorAuditSql).toContain("jsonb_build_object('reason',trim(reason)");
+    expect(pricingActorAuditSql).toContain("to service_role");
+    expect(pricingActorAuditSql).toContain("from public,anon,authenticated");
   });
 });

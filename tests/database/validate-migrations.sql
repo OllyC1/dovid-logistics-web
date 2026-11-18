@@ -397,7 +397,8 @@ select set_config('request.jwt.claim.sub','44444444-4444-4444-4444-444444444444'
 do $$ begin
   perform public.activate_pricing_configuration_version(
     (select id from public.pricing_configuration_versions where version=2),
-    'Validated activation path'
+    'Validated activation path',
+    '44444444-4444-4444-4444-444444444444'
   );
   if (select count(*) from public.pricing_configuration_versions where status='active' and version=2) <> 1 then
     raise exception 'pricing version activation failed';

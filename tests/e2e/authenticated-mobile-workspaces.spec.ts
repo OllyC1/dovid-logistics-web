@@ -552,7 +552,7 @@ test("administrator reaches the admin workspace without MFA and every authorized
   await page.getByRole("button", { name: "Create request and check availability" }).click();
   await expect(page.getByText("Secure customer review link created.")).toBeVisible();
   await expect(page.getByText("No automated message was sent.")).toBeVisible();
-  expect(assistedPayload?.customerEmail).toBe("");
+  expect(assistedPayload).not.toHaveProperty("customerEmail");
   expect(assistedPayload?.payer).toBe("receiver_before_delivery");
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(await page.evaluate(() => window.innerWidth));
   await page.unroute("**/api/maps/places**");
@@ -803,27 +803,30 @@ test("rider reports a missed delivery and completes an authorized return on mobi
   await page.getByRole("button", { name: "Record attempt safely" }).click();
   await expect(page.getByRole("status")).toContainText("Delivery attempt recorded");
 
-  let attemptId = "";
   await expect.poll(async () => {
     const { data } = await admin.from("delivery_attempts").select("id,status").eq("order_id", fixture.orderId).maybeSingle();
-    attemptId = data?.id ?? "";
     return data?.status;
   }).toBe("recipient_unavailable");
-  const resolution = await admin.rpc("resolve_delivery_attempt", {
-    target_attempt_id: attemptId,
-    actor_id: administrator.id,
-    resolution: "return_to_sender",
-    attributable_to: "customer",
-    resolution_reason: "Controlled return authorized after verified missed delivery",
-    requested_schedule: null,
-    corrected_address: null,
-    corrected_latitude: null,
-    corrected_longitude: null,
-    request_idempotency_key: randomUUID(),
-  });
-  if (resolution.error) throw resolution.error;
 
-  await page.reload();
+  await page.getByLabel("Open Rider workspace menu").click();
+  await page.getByRole("button", { name: "Log out" }).click();
+  await expect(page).toHaveURL(/\/(?:\?|$)/);
+  await login(page, administrator, /\/admin(?:\?|$)/);
+  await page.goto("/admin/run-operations");
+  const attemptCard = page.locator("details").filter({ hasText: `DOV-RIDER-${fixture.orderId.slice(0, 8).toUpperCase()}` }).last();
+  await attemptCard.locator("summary").click();
+  await attemptCard.getByLabel("What should happen next?").selectOption("return_to_sender");
+  await attemptCard.getByLabel("Who caused the failed attempt?").selectOption("customer");
+  await attemptCard.getByLabel("Decision reason and verification evidence").fill("Controlled return authorized after verified missed delivery");
+  await attemptCard.getByRole("button", { name: "Save reviewed resolution" }).click();
+  await expect(page.getByRole("status")).toContainText("separate approval and verified payment");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(await page.evaluate(() => window.innerWidth));
+
+  await page.getByLabel("Open Dovid admin menu").click();
+  await page.getByRole("button", { name: "Log out" }).click();
+  await expect(page).toHaveURL(/\/(?:\?|$)/);
+  await login(page, rider, /\/rider(?:\?|$)/);
+  await page.goto(`/rider/orders/${fixture.orderId}`);
   await expect(page.getByText("Return authorized by dispatch", { exact: false })).toBeVisible();
   await page.getByLabel("Return notes (optional)").fill("Sender checked the parcel condition");
   await page.getByRole("button", { name: "Confirm parcel returned" }).click();
