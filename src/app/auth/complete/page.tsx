@@ -38,10 +38,10 @@ export default function AuthCompletePage() {
     return () => { active = false; };
   }, []);
 
-  return <main className="container max-w-xl py-20 text-center">
+  return <section className="container max-w-xl py-20 text-center" aria-labelledby="auth-complete-title">
     <p className="eyebrow">Secure account verification</p>
-    <h1 className="mt-3 text-3xl font-extrabold text-navy">{failed ? "This link cannot be used" : "Confirming your secure link…"}</h1>
+    <h1 id="auth-complete-title" className="mt-3 text-3xl font-extrabold text-navy">{failed ? "This link cannot be used" : "Confirming your secure link…"}</h1>
     <p className="mt-4 leading-7 text-slate">{failed ? "The link may have expired or already been used. Request a fresh link and try again." : "Please wait while we verify your account and protect your session."}</p>
     {failed ? <Link className="mt-7 inline-flex font-bold text-orange" href="/login">Return to login</Link> : null}
-  </main>;
+  </section>;
 }

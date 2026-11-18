@@ -27,7 +27,7 @@ export function Footer() {
         {groups.map((group) => <div key={group.title}>
           <h2 className="text-sm font-extrabold">{group.title}</h2>
           <ul className="mt-4 grid gap-3">
-            {group.links.map(([label, href]) => <li key={href}><Link href={href} className="text-sm text-white/65 transition hover:text-orange-light">{label}</Link></li>)}
+            {group.links.map(([label, href]) => <li key={href}><Link href={href} className="inline-flex min-h-11 min-w-11 items-center px-1 py-1 text-sm text-white/65 transition hover:text-orange-light">{label}</Link></li>)}
           </ul>
         </div>)}
       </div>
