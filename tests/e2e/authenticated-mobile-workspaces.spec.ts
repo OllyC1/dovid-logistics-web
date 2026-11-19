@@ -4,11 +4,12 @@ import { loadEnvFile } from "node:process";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { expect, test, type Page } from "@playwright/test";
 
-if (existsSync(".env.local")) loadEnvFile(".env.local");
+if (existsSync(".env.local") && process.env.DOVID_LOCAL_E2E !== "true") loadEnvFile(".env.local");
 
 type TestRole = "customer" | "admin" | "rider" | "super_admin";
 type TestAccount = { id: string; email: string; password: string; role: TestRole };
 type RiderFixture = { orderId: string; quoteId: string; pricingRuleId: string; paymentIntentId: string; runId?: string; vehicleId?: string };
+type MailpitMessage = { ID: string; To?: { Address?: string }[] };
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -21,7 +22,9 @@ const requireLiveRoleChecks = process.env.REQUIRE_AUTHENTICATED_E2E === "true";
 const fixtureRunCode = randomBytes(3).toString("hex").toUpperCase();
 let admin: SupabaseClient;
 const accounts: TestAccount[] = [];
+const invitedAccounts: TestAccount[] = [];
 const riderFixtures: RiderFixture[] = [];
+let superAdminMfaSecret = "";
 
 const adminPermissions = [
   "staff.view", "riders.invite", "riders.manage", "dispatch.manage", "bookings.manage",
@@ -296,6 +299,11 @@ function totp(secret: string, timestamp = Date.now()) {
 }
 
 async function removeAccount(account: TestAccount) {
+  const { data: auditReferences, error: auditLookupError } = await admin.from("staff_audit_events")
+    .select("id")
+    .or(`actor_id.eq.${account.id},target_user_id.eq.${account.id}`)
+    .limit(1);
+  if (auditLookupError) throw auditLookupError;
   const { data: vehicles, error: vehicleLookupError } = await admin.from("fleet_vehicles")
     .select("id")
     .eq("created_by", account.id)
@@ -324,6 +332,11 @@ async function removeAccount(account: TestAccount) {
     const membership = await admin.from("staff_memberships").delete().eq("user_id", account.id);
     if (membership.error) throw membership.error;
   }
+  if (auditReferences?.length) {
+    const disabled = await admin.auth.admin.updateUserById(account.id, { ban_duration: "876000h" });
+    if (disabled.error) throw disabled.error;
+    return;
+  }
   const deleted = await admin.auth.admin.deleteUser(account.id);
   if (deleted.error) throw deleted.error;
 }
@@ -336,8 +349,62 @@ async function login(page: Page, account: TestAccount, expectedPath: RegExp) {
   await expect(page).toHaveURL(expectedPath);
 }
 
-async function expectCurrentMobilePage(page: Page, label: string) {
-  await expect(page.locator("main[data-workspace-content]")).toBeVisible();
+async function clearBrowserSession(page: Page) {
+  await page.context().clearCookies();
+  await page.goto("/");
+  await page.evaluate(() => {
+    window.localStorage.clear();
+    window.sessionStorage.clear();
+  });
+}
+
+async function authenticateSuperAdmin(page: Page) {
+  const account = accounts.find((item) => item.role === "super_admin")!;
+  await login(page, account, /\/staff\/mfa/);
+  const setupSecret = page.locator("code").first();
+  if (!superAdminMfaSecret) {
+    await expect(setupSecret).toBeVisible({ timeout: 15_000 });
+    await expect.poll(async () => (await setupSecret.textContent())?.trim() ?? "", {
+      message: "MFA enrollment should render its generated setup secret",
+      timeout: 15_000,
+    }).not.toBe("");
+    superAdminMfaSecret = (await setupSecret.textContent())?.trim() ?? "";
+  }
+  if (!superAdminMfaSecret) {
+    const status = (await page.getByRole("status").textContent().catch(() => null))?.trim() ?? "No MFA status was rendered";
+    throw new Error(`Controlled Super Admin MFA enrollment did not provide a setup secret: ${status}`);
+  }
+  if (Date.now() % 30_000 > 27_000) await page.waitForTimeout(3_500);
+  await page.getByLabel("Six-digit authenticator code").fill(totp(superAdminMfaSecret));
+  await page.getByRole("button", { name: "Verify and continue" }).click();
+  await expect(page).toHaveURL(/\/admin(?:\?|$)/);
+  await expect(page.getByRole("heading", { level: 1, name: "Super Admin Dashboard" })).toBeVisible();
+}
+
+async function waitForLocalInvitationLink(email: string) {
+  const mailboxUrl = "http://127.0.0.1:54324/api/v1/messages";
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    const mailboxResponse = await fetch(mailboxUrl);
+    if (mailboxResponse.ok) {
+      const mailbox = await mailboxResponse.json() as { messages?: MailpitMessage[] };
+      const message = mailbox.messages?.find((item) => item.To?.some((recipient) => recipient.Address?.toLowerCase() === email.toLowerCase()));
+      if (message) {
+        const detailResponse = await fetch(`http://127.0.0.1:54324/api/v1/message/${encodeURIComponent(message.ID)}`);
+        if (detailResponse.ok) {
+          const detail = await detailResponse.json() as { HTML?: string; Text?: string };
+          const content = `${detail.HTML ?? ""}\n${detail.Text ?? ""}`.replaceAll("&amp;", "&");
+          const link = content.match(/https?:\/\/[^\s"'<>]+\/auth\/v1\/verify\?[^\s"'<>]+/)?.[0];
+          if (link) return link;
+        }
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  throw new Error(`The isolated local mailbox did not receive the invitation for ${email}`);
+}
+
+async function expectCurrentMobilePage(page: Page, label: string, workspace = true) {
+  if (workspace) await expect(page.locator("main[data-workspace-content]")).toBeVisible();
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   const audit = await page.evaluate(() => {
     const ids = [...document.querySelectorAll<HTMLElement>("[id]")].map((element) => element.id).filter(Boolean);
@@ -440,6 +507,9 @@ test.afterAll(async () => {
   if (!admin) return;
   const promotions = await admin.from("promotions").delete().like("code", "E2EMOBILE%");
   if (promotions.error) throw promotions.error;
+  for (const account of invitedAccounts) {
+    await removeAccount(account);
+  }
   for (const account of accounts) await removeAccount(account);
 });
 
@@ -692,17 +762,100 @@ test("administrator registers a bike, assigns its rider and prepares a compliant
   await expect(page.getByRole("status")).toContainText("Bike configuration updated and recorded");
 });
 
+test("staff invitation, identity approval and trusted role routing complete on mobile", async ({ page }) => {
+  test.skip(canUseProvisioner, "Invitation email acceptance runs only against the isolated local Supabase mailbox");
+  test.setTimeout(240_000);
+  const intendedRole = test.info().project.name === "mobile-375" ? "admin" : "rider";
+  const email = `mobile-invite-${intendedRole}-${Date.now()}@example.com`;
+  const password = `Invite-${randomBytes(18).toString("base64url")}!Aa1`;
+
+  await authenticateSuperAdmin(page);
+  const teamResponse = await page.goto("/admin/team");
+  expect(teamResponse?.status(), "team management should load after Super Admin MFA").toBeLessThan(400);
+  await expect(page).toHaveURL(/\/admin\/team(?:\?|$)/);
+  await expect(page.getByRole("heading", { level: 1, name: "Team management" })).toBeVisible();
+  const invitePanel = page.locator("details").filter({ hasText: "Invite a team member" }).first();
+  await invitePanel.locator(":scope > summary").click();
+  await invitePanel.getByLabel("Work email").fill(email);
+  await invitePanel.getByLabel("Role").selectOption(intendedRole);
+  if (intendedRole === "admin") {
+    const permissionPanel = invitePanel.locator("details").filter({ hasText: "Choose administrator permissions" });
+    await permissionPanel.locator("summary").click();
+    await permissionPanel.locator('input[type="checkbox"][value="staff.view"]').check();
+  }
+  const invitationResponse = page.waitForResponse((response) => response.url().endsWith("/api/admin/team/invitations") && response.request().method() === "POST");
+  await invitePanel.getByRole("button", { name: new RegExp(`Send ${intendedRole} invitation`, "i") }).click();
+  expect((await invitationResponse).status()).toBe(201);
+  await expect(page.getByRole("status")).toContainText(`${intendedRole === "admin" ? "Admin" : "Rider"} invitation sent`);
+  await expect(page.getByRole("status")).toContainText("Access stays inactive until the invitation is accepted and a Super Admin completes the approval");
+  await expectCurrentMobilePage(page, "staff invitation confirmation");
+
+  const { data: invitation, error: invitationError } = await admin.from("staff_invitations")
+    .select("id,auth_user_id,status")
+    .eq("email", email)
+    .single();
+  if (invitationError || !invitation?.auth_user_id) throw invitationError ?? new Error("Invitation record was not created");
+  invitedAccounts.push({ id: invitation.auth_user_id, email, password, role: intendedRole });
+  expect(invitation.status).toBe("sent");
+
+  const invitationLink = await waitForLocalInvitationLink(email);
+  await page.goto(invitationLink);
+  await expect(page).toHaveURL(/\/staff\/setup(?:\?|$)/);
+  await expect(page.getByRole("heading", { name: "Secure your Dovid account" })).toBeVisible();
+  await expectCurrentMobilePage(page, `${intendedRole} invitation setup`, false);
+  await page.getByLabel("New password").fill(password);
+  await page.getByRole("button", { name: "Update password" }).click();
+  await expect(page.getByRole("status")).toContainText("Password updated securely");
+  await page.getByLabel("First name").fill("Mobile");
+  await page.getByLabel("Last name").fill(intendedRole === "admin" ? "Administrator" : "Rider");
+  await page.getByLabel("Preferred name (optional)").fill(intendedRole === "admin" ? "Mobi Admin" : "Mobi Rider");
+  if (intendedRole === "rider") await page.getByLabel("Mobile phone").fill("08012345678");
+  await page.getByRole("button", { name: "Save details and confirm invitation" }).click();
+  await expect(page.getByRole("heading", { name: "Invitation confirmed" })).toBeVisible();
+  await expect(page.getByText("You do not need multifactor authentication.")).toBeVisible();
+  await expectCurrentMobilePage(page, `${intendedRole} awaiting approval`, false);
+
+  const { data: pendingMembership, error: pendingMembershipError } = await admin.from("staff_memberships")
+    .select("staff_role,status")
+    .eq("user_id", invitation.auth_user_id)
+    .single();
+  if (pendingMembershipError) throw pendingMembershipError;
+  expect(pendingMembership).toEqual({ staff_role: intendedRole, status: "pending" });
+
+  await clearBrowserSession(page);
+  await authenticateSuperAdmin(page);
+  await page.goto("/admin/team");
+  const memberCard = page.locator("details").filter({ hasText: email }).first();
+  await memberCard.locator(":scope > summary").click();
+  await expect(memberCard).toContainText("Pending");
+  await memberCard.getByLabel("Verification method").fill("Controlled in-person identity check");
+  await memberCard.getByLabel("Verification reference").fill(`E2E-${intendedRole}-${test.info().project.name}`);
+  await memberCard.getByLabel("Activation reason").fill("Controlled mobile onboarding acceptance completed");
+  await memberCard.getByRole("button", { name: "Approve and activate" }).click();
+  await expect(page.getByRole("status")).toContainText("Staff access activated");
+  await expectCurrentMobilePage(page, `${intendedRole} activation confirmation`);
+
+  await clearBrowserSession(page);
+  await login(page, invitedAccounts.at(-1)!, intendedRole === "admin" ? /\/admin(?:\?|$)/ : /\/rider(?:\?|$)/);
+  await expect(page).not.toHaveURL(/\/staff\/mfa/);
+  await expect(page.getByRole("heading", { level: 1, name: intendedRole === "admin" ? "Admin Dashboard" : "Rider Dashboard" })).toBeVisible();
+  await expectCurrentMobilePage(page, `${intendedRole} trusted role workspace`);
+
+  const { data: activeMembership, error: activeMembershipError } = await admin.from("staff_memberships")
+    .select("staff_role,status,identity_verified_at,identity_verification_method")
+    .eq("user_id", invitation.auth_user_id)
+    .single();
+  if (activeMembershipError) throw activeMembershipError;
+  expect(activeMembership.staff_role).toBe(intendedRole);
+  expect(activeMembership.status).toBe("active");
+  expect(activeMembership.identity_verified_at).toBeTruthy();
+  expect(activeMembership.identity_verification_method).toBe("Controlled in-person identity check");
+});
+
 test("Super Admin completes MFA and controls promotions and immutable rate-card drafts on mobile", async ({ page }) => {
   test.skip(canUseProvisioner, "The deployed provisioner intentionally cannot create Super Admin identities");
   test.setTimeout(240_000);
-  const account = accounts.find((item) => item.role === "super_admin")!;
-  await login(page, account, /\/staff\/mfa/);
-  const setupSecret = page.locator("code");
-  await expect(setupSecret).toBeVisible();
-  if (Date.now() % 30_000 > 27_000) await page.waitForTimeout(3_500);
-  await page.getByLabel("Six-digit authenticator code").fill(totp((await setupSecret.textContent()) ?? ""));
-  await page.getByRole("button", { name: "Verify and continue" }).click();
-  await expect(page).toHaveURL(/\/admin(?:\?|$)/);
+  await authenticateSuperAdmin(page);
   await expect(page.getByRole("heading", { name: "Super Admin Dashboard" })).toBeVisible();
 
   await expectMobilePage(page, "/admin/team");

@@ -61,6 +61,10 @@ export function MfaPanel({ mode, next = "/admin", completeOnboarding = mode === 
     if (challenge.error) { setPending(false); setMessage("The verification challenge could not be created."); return; }
     const verified = await supabase.auth.mfa.verify({ factorId: factor.id, challengeId: challenge.data.id, code: code.trim() });
     if (verified.error) { setPending(false); setMessage("That code was not accepted. Wait for a new code and try again."); return; }
+    const refreshed = await supabase.auth.refreshSession();
+    if (refreshed.error) { setPending(false); setMessage("Your code was accepted, but the secure session could not be refreshed. Please try again."); return; }
+    const assurance = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+    if (assurance.error || assurance.data.currentLevel !== "aal2") { setPending(false); setMessage("Your code was accepted, but privileged access is not ready yet. Please try again."); return; }
     if (mode === "challenge" || !completeOnboarding) {
       router.replace(next);
       router.refresh();

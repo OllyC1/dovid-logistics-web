@@ -11,6 +11,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "npm run build && playwright test",
+    "test:e2e:local:supabase": "node scripts/run-local-supabase-e2e.mjs",
     "validate:maps": "node scripts/validate-google-maps.mjs",
     "validate:maps:browser": "node scripts/validate-google-maps-browser.mjs",
     "staff:bootstrap": "node --env-file=.env.local scripts/invite-initial-super-admin.mjs"
