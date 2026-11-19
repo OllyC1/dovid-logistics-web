@@ -32,6 +32,7 @@ for (const path of publicPages) {
 
     const response = await page.goto(path, { waitUntil: "networkidle" });
     expect(response?.ok(), `${path} should return a successful document response`).toBe(true);
+    expect(response?.headers()["content-security-policy"], `${path} should include the structural CSP`).toContain("frame-ancestors 'none'");
     await expect(page.locator("main")).toBeVisible();
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
 
@@ -73,3 +74,13 @@ for (const path of publicPages) {
     expect(failedResources, `${path} should not fail resource requests`).toEqual([]);
   });
 }
+
+test("an unknown route provides useful mobile recovery options", async ({ page }, testInfo) => {
+  test.skip(!testInfo.project.name.startsWith("mobile"), "This audit is intentionally mobile-first.");
+  const response = await page.goto("/this-page-does-not-exist", { waitUntil: "networkidle" });
+  expect(response?.status()).toBe(404);
+  await expect(page.getByRole("heading", { name: "We cannot find that page" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Book a delivery" })).toHaveAttribute("href", "/book");
+  await expect(page.getByRole("link", { name: "Track a delivery" })).toHaveAttribute("href", "/track");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(page.viewportSize()!.width);
+});

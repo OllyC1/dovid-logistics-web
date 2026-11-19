@@ -1,5 +1,13 @@
 import type { NextConfig } from "next";
 
+const structuralContentSecurityPolicy = [
+  "base-uri 'self'",
+  "object-src 'none'",
+  "frame-ancestors 'none'",
+  "form-action 'self'",
+  "upgrade-insecure-requests",
+].join("; ");
+
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   reactStrictMode: true,
@@ -22,7 +30,8 @@ const nextConfig: NextConfig = {
       { key: "X-Content-Type-Options", value: "nosniff" },
       { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
       { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(self)" },
-      { key: "X-Frame-Options", value: "DENY" }
+      { key: "X-Frame-Options", value: "DENY" },
+      { key: "Content-Security-Policy", value: structuralContentSecurityPolicy }
     ]
   }]
 };
