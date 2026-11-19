@@ -32,7 +32,7 @@ export function RouteTransitionIndicator() {
   if (!pendingPathname || pendingPathname === pathname) return null;
   return <div className="pointer-events-none fixed inset-0 z-[120]" role="status" aria-live="polite">
     <div className="absolute inset-x-0 top-0 h-1 overflow-hidden bg-orange/20"><div className="h-full w-2/3 animate-pulse rounded-r-full bg-orange" /></div>
-    <div className="absolute bottom-5 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full bg-navy px-4 py-3 text-sm font-bold whitespace-nowrap text-white shadow-2xl ring-1 ring-white/15">
+    <div className="absolute bottom-[calc(env(safe-area-inset-bottom)+1rem)] left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full bg-navy px-4 py-3 text-sm font-bold whitespace-nowrap text-white shadow-2xl ring-1 ring-white/15">
       <LoaderCircle className="size-4 animate-spin text-orange" aria-hidden="true" />Opening page…
     </div>
   </div>;

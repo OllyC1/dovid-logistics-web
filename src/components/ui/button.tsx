@@ -15,7 +15,7 @@ type NativeButtonProps = BaseProps & { href?: never } & Omit<ButtonHTMLAttribute
 type Props = LinkButtonProps | NativeButtonProps;
 
 function buttonClasses(className: string | undefined, variant: keyof typeof styles) {
-  return cn("inline-flex min-h-11 max-w-full items-center justify-center rounded-full px-5 py-2.5 text-center text-sm font-bold whitespace-normal transition focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-50", styles[variant], className);
+  return cn("inline-flex min-h-11 max-w-full touch-manipulation items-center justify-center rounded-full px-5 py-2.5 text-center text-sm font-bold whitespace-normal transition active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100", styles[variant], className);
 }
 
 function LinkButton({ children, className, href, variant = "primary", ...props }: LinkButtonProps) {

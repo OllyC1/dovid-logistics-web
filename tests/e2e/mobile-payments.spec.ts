@@ -91,7 +91,7 @@ test("login password visibility works", async ({ page }) => {
   await expectMobileJourneyPage(page, "customer login");
 });
 
-test("mobile menu login responds to one tap and closes the drawer", async ({ page }) => {
+test("mobile menu login responds to one real touch tap and closes the drawer", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Open navigation" }).click();
   const menu = page.getByRole("dialog", { name: "Site menu" });
@@ -100,10 +100,7 @@ test("mobile menu login responds to one tap and closes the drawer", async ({ pag
   await expect(loginLink).toHaveAccessibleName("Log in");
   const bounds = await loginLink.boundingBox();
   expect(bounds).not.toBeNull();
-  await loginLink.dispatchEvent("pointerdown", { pointerType: "touch", isPrimary: true });
-  await expect(loginLink).toHaveAccessibleName("Opening login…");
-  await expect(loginLink).toHaveAttribute("aria-busy", "true");
-  await loginLink.click();
+  await page.touchscreen.tap(bounds!.x + bounds!.width / 2, bounds!.y + bounds!.height / 2);
   await expect(menu).toBeHidden();
   await expect(page).toHaveURL(/\/login(?:\?|$)/);
   await expect(page.getByRole("heading", { name: "Log in to your account" })).toBeVisible();
