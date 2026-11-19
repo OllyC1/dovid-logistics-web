@@ -9,7 +9,7 @@ const nextConfig: NextConfig = {
   env: { DOVID_DEPLOY_COMMIT_REF: process.env.COMMIT_REF ?? "local" },
   allowedDevOrigins: ["127.0.0.1", "localhost"],
   turbopack: { root: process.cwd() },
-  experimental: { optimizePackageImports: ["lucide-react", "motion"] },
+  experimental: { optimizePackageImports: ["lucide-react"] },
   redirects: async () => [{
     source: "/track/result",
     has: [{ type: "query", key: "reference", value: "(?<reference>.+)" }],
