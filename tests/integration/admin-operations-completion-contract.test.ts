@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 const migration = readFileSync("supabase/migrations/20261117180000_admin_operations_completion.sql", "utf8");
 const assistedSchema = readFileSync("src/features/assisted-bookings/schema.ts", "utf8");
 const teamApi = readFileSync("src/app/api/admin/team/members/[id]/route.ts", "utf8");
+const invitationApi = readFileSync("src/app/api/admin/team/invitations/route.ts", "utf8");
 const promotionApi = readFileSync("src/app/api/admin/promotions/route.ts", "utf8");
 
 describe("admin operations completion contract", () => {
@@ -21,5 +22,12 @@ describe("admin operations completion contract", () => {
     expect(promotionApi).toContain("getSuperAdminAuthorization");
     expect(promotionApi).toContain('active: false');
     expect(migration).toContain("'fixed_price'");
+  });
+
+  it("rolls back only newly created identities when staff invitation registration fails", () => {
+    expect(invitationApi).toContain("createdForInvitation");
+    expect(invitationApi).toContain("removeUnregisteredInvitationIdentity");
+    expect(invitationApi).toContain("This identity already has a staff membership");
+    expect(invitationApi).toContain("An active invitation already exists for this email");
   });
 });

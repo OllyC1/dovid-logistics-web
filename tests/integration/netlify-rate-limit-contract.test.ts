@@ -12,7 +12,8 @@ describe("Netlify provider rate-limit contracts", () => {
 
   it("protects road-route quote requests without intercepting payment webhooks", () => {
     const source = readFileSync("netlify/edge-functions/limit-quote-requests.js", "utf8");
-    expect(source).toContain('path: "/api/delivery/quotes"');
+    expect(source).toContain('path: ["/api/delivery/quotes", "/api/quotes"]');
+    expect(source).toContain('method: "POST"');
     expect(source).toContain("windowLimit: 12");
     expect(source).toContain("windowSize: 60");
     expect(source).not.toContain("/api/payments");
