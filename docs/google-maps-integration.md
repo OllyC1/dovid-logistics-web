@@ -49,9 +49,18 @@ Live validation on 14 November 2026 successfully resolved Places sessions and re
 - Long representative route: 25,481 metres, 2,761 seconds.
 - Optimized multi-stop route: 27,195 metres, 2,987 seconds, provider order `[0, 1]`.
 
+The controlled validation was repeated on 19 November 2026 after the Google credential update. Places resolution succeeded and Routes API returned:
+
+- Short representative route: 11,952 metres, 1,164 seconds.
+- Medium representative route: 12,358 metres, 1,250 seconds.
+- Long representative route: 25,481 metres, 2,634 seconds.
+- Optimized multi-stop route: 27,195 metres, 2,864 seconds, provider order `[0, 1]`.
+
+These are provider planning estimates captured at the test time, not promised journey times or approved operating boundaries.
+
 The browser key also loaded Maps JavaScript successfully from `http://localhost:3000`. That localhost result does not validate a deployed hostname.
 
-On 18 November 2026, executable Chrome acceptance at `https://dovid-logistics-prelaunch.netlify.app/admin/coverage` initially found `RefererNotAllowedMapError`. Google Cloud was then updated to authorize both `https://dovid-logistics-prelaunch.netlify.app` and `https://dovid-logistics-prelaunch.netlify.app/*`; the browser-origin validator subsequently returned `loaded` with no detected API errors. A plain HTTP download of the Maps loader is not sufficient evidence because referrer authorization is completed while the script executes. `npm run validate:maps:browser` now performs that real browser-origin check and must pass after any referrer change.
+On 18 November 2026, executable Chrome acceptance at `https://dovid-logistics-prelaunch.netlify.app/admin/coverage` initially found `RefererNotAllowedMapError`. Google Cloud was then updated to authorize both `https://dovid-logistics-prelaunch.netlify.app` and `https://dovid-logistics-prelaunch.netlify.app/*`. On 19 November the browser-origin validator loaded Maps JavaScript API with HTTP 200, no request failures and no key, referrer, activation, billing or quota error. A plain HTTP download of the Maps loader is not sufficient evidence because referrer authorization is completed while the script executes. `npm run validate:maps:browser` performs that real browser-origin check and must pass after any referrer change.
 
 ## Activation checklist
 

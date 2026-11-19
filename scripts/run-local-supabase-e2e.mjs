@@ -34,6 +34,8 @@ if (!["127.0.0.1", "localhost"].includes(apiUrl.hostname)) {
   process.exit(1);
 }
 
+const enableLocalGuestBooking = process.env.DOVID_ENABLE_LOCAL_GUEST_BOOKING_E2E === "true";
+
 const environment = {
   ...process.env,
   DOVID_LOCAL_E2E: "true",
@@ -42,9 +44,10 @@ const environment = {
   SUPABASE_SERVICE_ROLE_KEY: status.SERVICE_ROLE_KEY,
   NEXT_PUBLIC_APP_URL: "http://127.0.0.1:3102",
   PLAYWRIGHT_LOCAL_BASE_URL: "http://127.0.0.1:3102",
-  ENABLE_PUBLIC_BOOKINGS: "false",
+  ENABLE_PUBLIC_BOOKINGS: enableLocalGuestBooking ? "true" : "false",
   ENABLE_ASSISTED_BOOKINGS: "false",
   ENABLE_LIVE_PAYMENTS: "false",
+  RUN_LIVE_GUEST_BOOKING_E2E: enableLocalGuestBooking ? "true" : "false",
 };
 delete environment.PLAYWRIGHT_BASE_URL;
 

@@ -17,8 +17,10 @@ Migrations `202611140006_operations_expansion.sql` through `202611140008_deliver
 3. A short-lived high-entropy review token and separately hashed six-digit OTP are created.
 4. Phase 1 only creates a manual `wa.me` link. It never sends an automated message.
 5. The customer verifies the OTP. A separate short-lived browser-bound verification session is required before details are shown or accepted.
-6. The customer signs in, confirms payer and terms, and the existing authenticated `create_delivery_order` function creates the order.
-7. `ENABLE_ASSISTED_BOOKINGS=false` prevents real assisted orders until launch approval.
+6. The customer enters the six-digit code, reviews the quote, chooses the payer and accepts the terms. No account or password is required.
+7. A service-role-only database function creates the guest order atomically, binds it to the approved quote and issues a separate hashed guest-access token. Ordinary browser database roles cannot call that function.
+8. The guest order preserves sender-pay, receiver-pay and mandatory supplemental-payment clearance without exposing staff credentials or weakening authenticated customer order ownership.
+9. `ENABLE_ASSISTED_BOOKINGS=false` prevents real assisted orders until launch approval.
 
 WhatsApp messages are not charge authorization. Administrators never sign in as customers, and private message contents are not stored in customer-readable tables.
 
@@ -69,7 +71,7 @@ Riders record an attempt and may leave an unsafe location immediately. Dispatch 
 
 ## Unresolved integrations
 
-- Official WhatsApp Business Platform credentials and approved templates are absent.
+- Official WhatsApp Business Platform credentials and approved templates are absent. The current reviewed workflow uses a manual `wa.me` handoff and does not claim to send automated WhatsApp messages.
 - Motorcycle capacity measurements and local restriction confirmation are absent.
 - Service-zone polygons remain draft and inactive.
 - The two-bike fleet remains offline.

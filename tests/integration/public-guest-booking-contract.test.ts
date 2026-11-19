@@ -7,12 +7,20 @@ const orderRoute = readFileSync("src/app/api/orders/route.ts", "utf8");
 const booking = readFileSync("src/components/booking/booking-wizard.tsx", "utf8");
 const guestPage = readFileSync("src/app/guest/orders/[token]/page.tsx", "utf8");
 const guestPayment = readFileSync("src/app/api/payments/guest/route.ts", "utf8");
+const localAcceptanceRunner = readFileSync("scripts/run-local-supabase-e2e.mjs", "utf8");
 
 describe("direct public guest booking", () => {
   it("keeps launch activation behind the existing server flag", () => {
     expect(quoteRoute).toContain("publicBookingsEnabled()");
     expect(orderRoute).toContain("publicBookingsEnabled()");
     expect(orderRoute).not.toContain("ENABLE_PUBLIC_BOOKINGS = true");
+  });
+
+  it("allows real guest acceptance only through the isolated local runner", () => {
+    expect(localAcceptanceRunner).toContain('["127.0.0.1", "localhost"].includes(apiUrl.hostname)');
+    expect(localAcceptanceRunner).toContain('DOVID_ENABLE_LOCAL_GUEST_BOOKING_E2E === "true"');
+    expect(localAcceptanceRunner).toContain('ENABLE_PUBLIC_BOOKINGS: enableLocalGuestBooking ? "true" : "false"');
+    expect(localAcceptanceRunner).toContain('RUN_LIVE_GUEST_BOOKING_E2E: enableLocalGuestBooking ? "true" : "false"');
   });
 
   it("issues only hashed, server-held quote and order access tokens", () => {
