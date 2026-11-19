@@ -17,3 +17,6 @@ Dovid_Logistics_Brand_Kit_v1.zip
 
 # Local Netlify folder
 .netlify
+
+.vercel
+.env*
