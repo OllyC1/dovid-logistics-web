@@ -76,7 +76,7 @@ export function DeliveryOperationsForms({ orderId, runId, returnInProgress = fal
 
   return <section className={`mt-5 grid gap-5 ${returnInProgress ? "" : "lg:grid-cols-2"}`}>
     <form action={reportExpense} className="rounded-3xl bg-white p-4 sm:p-6">
-      <h3 className="font-extrabold text-navy">Report an operating expense</h3>
+      <h2 className="font-extrabold text-navy">Report an operating expense</h2>
       <p className="mt-2 text-sm leading-6 text-slate">Dispatch reviews every expense. This form never charges a customer automatically.</p>
       <label className="mt-4 grid gap-2 text-sm font-bold text-navy">Expense type<select name="category" className="min-h-12 w-full rounded-xl border p-3 font-normal"><option value="toll_road_access">Toll or road access</option><option value="authorized_parking_access">Authorized parking or access</option><option value="extra_stop">Extra stop</option><option value="address_correction">Address correction</option><option value="return_journey">Return journey</option><option value="redelivery">Redelivery</option><option value="other">Other</option></select></label>
       <label className="mt-3 grid gap-2 text-sm font-bold text-navy">Amount (NGN)<input required name="amountNaira" inputMode="decimal" type="number" min={1} step="0.01" placeholder="For example, 500" className="min-h-12 w-full rounded-xl border p-3 text-base font-normal"/></label>
@@ -85,7 +85,7 @@ export function DeliveryOperationsForms({ orderId, runId, returnInProgress = fal
       <Button className="mt-4 w-full sm:w-auto" disabled={Boolean(pending)} type="submit">{pending === "expense" ? "Submitting expense…" : "Submit for review"}</Button>
     </form>
     {!returnInProgress ? <form action={reportAttempt} className="rounded-3xl bg-white p-4 sm:p-6">
-      <h3 className="font-extrabold text-navy">Report a failed or missed attempt</h3>
+      <h2 className="font-extrabold text-navy">Report a failed or missed attempt</h2>
       <p className="mt-2 text-sm leading-6 text-slate">Record the facts for dispatch. Do not promise a retry or redelivery until dispatch confirms it.</p>
       <label className="mt-4 grid gap-2 text-sm font-bold text-navy">What stopped the delivery?<select name="status" className="min-h-12 w-full rounded-xl border p-3 font-normal"><option value="recipient_unavailable">Recipient unavailable</option><option value="address_problem">Address problem</option><option value="recipient_refused">Recipient refused</option><option value="payment_refused">Receiver refused payment</option><option value="access_blocked">Access blocked</option><option value="unsafe_delivery">Unsafe delivery area</option><option value="incident_escalated">Escalate an incident</option></select></label>
       <label className="mt-3 grid gap-2 text-sm font-bold text-navy">Reason<input required minLength={3} name="reason" className="min-h-12 w-full rounded-xl border p-3 text-base font-normal"/></label>
@@ -94,7 +94,7 @@ export function DeliveryOperationsForms({ orderId, runId, returnInProgress = fal
       <Button className="mt-4 w-full sm:w-auto" variant="outline" disabled={Boolean(pending)} type="submit">{pending === "attempt" ? "Recording attempt…" : "Record attempt safely"}</Button>
     </form> : null}
     {!returnInProgress ? <div className="rounded-3xl bg-white p-4 sm:p-6 lg:col-span-2">
-      <h3 className="font-extrabold text-navy">Recipient waiting timer</h3>
+      <h2 className="font-extrabold text-navy">Recipient waiting timer</h2>
       <p className="mt-2 text-sm leading-6 text-slate">Start this when you arrive and are ready to hand over. The server records the time; any extra charge still needs review and approval.</p>
       <Button className="mt-4 w-full sm:w-auto" disabled={Boolean(pending)} onClick={waitingId ? stopWaiting : startWaiting}>{pending === "waiting" ? "Updating timer…" : waitingId ? "Stop waiting timer" : "Start waiting timer"}</Button>
     </div> : null}

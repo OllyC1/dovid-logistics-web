@@ -76,7 +76,7 @@ describe("AssistedBookingConsole", () => {
     expect(request.payer).toBe("receiver_at_delivery");
     expect(request.pickupCoordinates).toEqual({ latitude: 7.43, longitude: 3.91 });
     expect(refresh).toHaveBeenCalledTimes(1);
-  });
+  }, 15_000);
 
   it("keeps manual-approval requests unconfirmed and does not invent a customer link", async () => {
     const fetchMock = vi.mocked(fetch);

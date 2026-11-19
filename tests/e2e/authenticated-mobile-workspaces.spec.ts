@@ -336,18 +336,7 @@ async function login(page: Page, account: TestAccount, expectedPath: RegExp) {
   await expect(page).toHaveURL(expectedPath);
 }
 
-async function expectMobilePage(page: Page, path: string) {
-  let response;
-  try {
-    response = await page.goto(path, { waitUntil: "domcontentloaded" });
-  } catch (error) {
-    // Chromium can cancel a hard navigation while the previous Next.js RSC
-    // request is still settling. Retry only that transport-level abort; all
-    // HTTP, authorization and rendering failures still fail below.
-    if (!(error instanceof Error) || !error.message.includes("net::ERR_ABORTED")) throw error;
-    response = await page.goto(path, { waitUntil: "domcontentloaded" });
-  }
-  expect(response?.status(), `${path} should load`).toBeLessThan(400);
+async function expectCurrentMobilePage(page: Page, label: string) {
   await expect(page.locator("main[data-workspace-content]")).toBeVisible();
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   const audit = await page.evaluate(() => {
@@ -385,10 +374,25 @@ async function expectMobilePage(page: Page, path: string) {
       undersizedInteractiveControls,
     };
   });
-  expect(audit.documentWidth, `${path} document overflow`).toBeLessThanOrEqual(audit.viewportWidth);
-  expect(audit.bodyWidth, `${path} body overflow`).toBeLessThanOrEqual(audit.viewportWidth);
-  expect(audit.duplicateIds, `${path} should not expose duplicate element IDs`).toEqual([]);
-  expect(audit.undersizedInteractiveControls, `${path} controls should provide at least a 40px touch target`).toEqual([]);
+  expect(audit.documentWidth, `${label} document overflow`).toBeLessThanOrEqual(audit.viewportWidth);
+  expect(audit.bodyWidth, `${label} body overflow`).toBeLessThanOrEqual(audit.viewportWidth);
+  expect(audit.duplicateIds, `${label} should not expose duplicate element IDs`).toEqual([]);
+  expect(audit.undersizedInteractiveControls, `${label} controls should provide at least a 40px touch target`).toEqual([]);
+}
+
+async function expectMobilePage(page: Page, path: string) {
+  let response;
+  try {
+    response = await page.goto(path, { waitUntil: "domcontentloaded" });
+  } catch (error) {
+    // Chromium can cancel a hard navigation while the previous Next.js RSC
+    // request is still settling. Retry only that transport-level abort; all
+    // HTTP, authorization and rendering failures still fail below.
+    if (!(error instanceof Error) || !error.message.includes("net::ERR_ABORTED")) throw error;
+    response = await page.goto(path, { waitUntil: "domcontentloaded" });
+  }
+  expect(response?.status(), `${path} should load`).toBeLessThan(400);
+  await expectCurrentMobilePage(page, path);
 }
 
 async function captureMobilePage(page: Page, path: string, projectName: string) {
@@ -624,6 +628,7 @@ test("administrator registers a bike, assigns its rider and prepares a compliant
   await page.goto("/admin/dispatch");
   const addBike = page.locator("details").filter({ hasText: "Add a motorcycle" });
   await addBike.locator("summary").click();
+  await expectCurrentMobilePage(page, "expanded motorcycle registration");
   await addBike.getByLabel("Plate / registration number").fill(plateNumber);
   await addBike.getByLabel(/Internal bike name/).fill(bikeCode);
   await addBike.getByLabel("Manufacturer").fill("Honda");
@@ -637,6 +642,7 @@ test("administrator registers a bike, assigns its rider and prepares a compliant
   await bikeCard.locator("summary").click();
   let bikeForm = bikeCard.locator("form");
   await expect(bikeForm).toBeVisible();
+  await expectCurrentMobilePage(page, "expanded motorcycle assignment");
   await expect(bikeForm).not.toContainText(/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i);
   await bikeForm.getByLabel("Assigned rider").selectOption(riderAccount.id);
   await bikeForm.getByLabel("Safety review").selectOption("cleared");
@@ -654,6 +660,7 @@ test("administrator registers a bike, assigns its rider and prepares a compliant
   await page.goto("/admin/run-operations");
   const runCreator = page.locator("details").filter({ hasText: "Create a compliant delivery run" }).first();
   await runCreator.locator("summary").click();
+  await expectCurrentMobilePage(page, "expanded delivery-run creation");
   for (const [label, role] of [
     ["Bike", "combobox"],
     ["Rider", "combobox"],
@@ -780,6 +787,7 @@ test("rider completes a paid pickup and handover with proof on mobile", async ({
   await login(page, rider, /\/rider(?:\?|$)/);
   await page.goto(`/rider/orders/${fixture.orderId}`);
   await expect(page.getByText(/Release the parcel only when payment status is paid/)).toBeVisible();
+  await expectCurrentMobilePage(page, "rider paid-delivery operations");
 
   await page.getByLabel("Expense type").selectOption("toll_road_access");
   await page.getByLabel("Amount (NGN)").fill("500");
@@ -805,16 +813,19 @@ test("rider completes a paid pickup and handover with proof on mobile", async ({
   }
   await page.getByRole("button", { name: "Arrived at destination" }).click();
   await expect(page.getByRole("heading", { name: "Confirm the recipient before handover" })).toBeVisible();
+  await expectCurrentMobilePage(page, "rider handover confirmation");
   await page.getByLabel("Handover notes (optional)").fill("Recipient checked the controlled parcel");
   await page.getByLabel(/I checked the recipient's identity/).check();
   await page.getByRole("button", { name: "Record recipient confirmation" }).click();
   await expect(page.getByRole("heading", { name: "Recipient confirmation recorded" })).toBeVisible();
+  await expectCurrentMobilePage(page, "recorded recipient confirmation");
   await page.getByRole("button", { name: "Complete delivery" }).click();
   await expect.poll(async () => {
     const { data } = await admin.from("delivery_orders").select("delivery_status").eq("id", fixture.orderId).single();
     return data?.delivery_status;
   }).toBe("delivered");
   await expect(page.getByText("delivered", { exact: true }).first()).toBeVisible();
+  await expectCurrentMobilePage(page, "completed rider delivery");
   const [{ count: proofCount }, { count: handoverCount }, { count: expenseCount }] = await Promise.all([
     admin.from("delivery_proofs").select("id", { count: "exact", head: true }).eq("order_id", fixture.orderId),
     admin.from("parcel_custody_events").select("id", { count: "exact", head: true }).eq("order_id", fixture.orderId).eq("event_type", "handover_completed"),
@@ -840,6 +851,7 @@ test("rider reports a missed delivery and completes an authorized return on mobi
   await page.getByLabel("Reason", { exact: true }).fill("Recipient could not be reached at the address");
   await page.getByLabel("Time spent waiting (minutes)").fill("5");
   await page.getByLabel("Private notes for dispatch").fill("Called twice using the verified delivery number");
+  await expectCurrentMobilePage(page, "rider missed-delivery report");
   await page.getByRole("button", { name: "Record attempt safely" }).click();
   await expect(page.getByRole("status")).toContainText("Delivery attempt recorded");
 
@@ -855,6 +867,7 @@ test("rider reports a missed delivery and completes an authorized return on mobi
   await page.goto("/admin/run-operations");
   const attemptCard = page.locator("details").filter({ hasText: `DOV-RIDER-${fixture.orderId.slice(0, 8).toUpperCase()}` }).last();
   await attemptCard.locator("summary").click();
+  await expectCurrentMobilePage(page, "admin failed-delivery resolution");
   await attemptCard.getByLabel("What should happen next?").selectOption("return_to_sender");
   await attemptCard.getByLabel("Who caused the failed attempt?").selectOption("customer");
   await attemptCard.getByLabel("Decision reason and verification evidence").fill("Controlled return authorized after verified missed delivery");
@@ -868,6 +881,7 @@ test("rider reports a missed delivery and completes an authorized return on mobi
   await login(page, rider, /\/rider(?:\?|$)/);
   await page.goto(`/rider/orders/${fixture.orderId}`);
   await expect(page.getByText("Return authorized by dispatch", { exact: false })).toBeVisible();
+  await expectCurrentMobilePage(page, "rider authorized return");
   await page.getByLabel("Return notes (optional)").fill("Sender checked the parcel condition");
   await page.getByRole("button", { name: "Confirm parcel returned" }).click();
   await expect.poll(async () => {

@@ -44,7 +44,7 @@ export function ReturnToSenderForm({ orderId, expectedSenderName }: { orderId: s
   }
 
   return <section className="mt-5 rounded-3xl border border-orange/25 bg-orange/5 p-4 sm:p-6" aria-labelledby="return-to-sender-title">
-    <h3 id="return-to-sender-title" className="font-extrabold text-navy">Complete the return to sender</h3>
+    <h2 id="return-to-sender-title" className="font-extrabold text-navy">Complete the return to sender</h2>
     <p className="mt-2 text-sm leading-6 text-slate">Dispatch has authorized this return. Hand the parcel back only to the confirmed sender or their authorized representative, then record who accepted it.</p>
     <form action={completeReturn} className="mt-4 grid gap-4">
       <label className="grid gap-2 text-sm font-bold text-navy">
