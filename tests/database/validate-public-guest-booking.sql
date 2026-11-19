@@ -1,6 +1,7 @@
 \set ON_ERROR_STOP on
 
-set role service_role;
+begin;
+set local role service_role;
 
 insert into public.quotes(
   id,request_payload,distance_meters,amount_minor,currency,expires_at,status,
@@ -67,5 +68,5 @@ begin
   end if;
 end $$;
 
-reset role;
+rollback;
 

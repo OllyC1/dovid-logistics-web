@@ -7,6 +7,37 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
 const guestQuoteFixtures = new Set<string>();
 
+async function expectGuestMobilePage(page: import("@playwright/test").Page) {
+  const audit = await page.evaluate(() => {
+    const ids = [...document.querySelectorAll<HTMLElement>("[id]")].map((element) => element.id).filter(Boolean);
+    const duplicateIds = [...new Set(ids.filter((id, index) => ids.indexOf(id) !== index))];
+    const undersizedInteractiveControls = [...document.querySelectorAll<HTMLElement>("button, input, select, textarea, [role='button'], summary, a[href]")]
+      .filter((element) => {
+        const target = element instanceof HTMLInputElement && ["checkbox", "radio"].includes(element.type)
+          ? element.closest<HTMLElement>("label") ?? element.labels?.item(0) ?? element
+          : element;
+        const style = getComputedStyle(target);
+        if (style.display === "none" || style.visibility === "hidden") return false;
+        if (target.classList.contains("sr-only") && !target.matches(":focus")) return false;
+        const box = target.getBoundingClientRect();
+        if (!box.width || !box.height) return false;
+        return box.width < 40 || box.height < 40;
+      })
+      .map((element) => {
+        const target = element instanceof HTMLInputElement && ["checkbox", "radio"].includes(element.type)
+          ? element.closest<HTMLElement>("label") ?? element.labels?.item(0) ?? element
+          : element;
+        const box = target.getBoundingClientRect();
+        return { tag: element.tagName, text: element.getAttribute("aria-label") ?? target.textContent?.trim().slice(0, 50) ?? "", width: Math.round(box.width), height: Math.round(box.height) };
+      });
+    return { viewport: innerWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth, duplicateIds, undersizedInteractiveControls };
+  });
+  expect(audit.document).toBeLessThanOrEqual(audit.viewport);
+  expect(audit.body).toBeLessThanOrEqual(audit.viewport);
+  expect(audit.duplicateIds).toEqual([]);
+  expect(audit.undersizedInteractiveControls).toEqual([]);
+}
+
 async function cleanGuestQuoteFixture(quoteId: string) {
   const admin = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
   const { data: orders, error: orderReadError } = await admin.from("delivery_orders").select("id").eq("quote_id", quoteId);
@@ -122,8 +153,6 @@ test.describe("real guest booking API", () => {
     await expect(page.getByRole("heading", { name: "Your delivery" })).toBeVisible();
     await expect(page.getByText("No account is needed.", { exact: false })).toBeVisible();
     await expect(page.getByLabel("Email address for the payment receipt")).toBeVisible();
-    const overflow = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth }));
-    expect(overflow.document).toBeLessThanOrEqual(overflow.viewport);
-    expect(overflow.body).toBeLessThanOrEqual(overflow.viewport);
+    await expectGuestMobilePage(page);
   });
 });

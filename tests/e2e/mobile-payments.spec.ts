@@ -12,6 +12,50 @@ async function mockAddresses(page: Page) {
   });
 }
 
+async function expectMobileJourneyPage(page: Page, label: string) {
+  await expect(page.locator("main")).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  const audit = await page.evaluate(() => {
+    const ids = [...document.querySelectorAll<HTMLElement>("[id]")].map((element) => element.id).filter(Boolean);
+    const duplicateIds = [...new Set(ids.filter((id, index) => ids.indexOf(id) !== index))];
+    const undersizedInteractiveControls = [...document.querySelectorAll<HTMLElement>("button, input, select, textarea, [role='button'], summary, a[href]")]
+      .filter((element) => {
+        const target = element instanceof HTMLInputElement && ["checkbox", "radio"].includes(element.type)
+          ? element.closest<HTMLElement>("label") ?? element.labels?.item(0) ?? element
+          : element;
+        const style = getComputedStyle(target);
+        if (style.display === "none" || style.visibility === "hidden") return false;
+        if (target.classList.contains("sr-only") && !target.matches(":focus")) return false;
+        const box = target.getBoundingClientRect();
+        if (!box.width || !box.height) return false;
+        return box.width < 40 || box.height < 40;
+      })
+      .map((element) => {
+        const target = element instanceof HTMLInputElement && ["checkbox", "radio"].includes(element.type)
+          ? element.closest<HTMLElement>("label") ?? element.labels?.item(0) ?? element
+          : element;
+        const box = target.getBoundingClientRect();
+        return {
+          tag: element.tagName,
+          text: element.getAttribute("aria-label") ?? target.textContent?.trim().slice(0, 50) ?? "",
+          width: Math.round(box.width),
+          height: Math.round(box.height),
+        };
+      });
+    return {
+      viewportWidth: window.innerWidth,
+      documentWidth: document.documentElement.scrollWidth,
+      bodyWidth: document.body.scrollWidth,
+      duplicateIds,
+      undersizedInteractiveControls,
+    };
+  });
+  expect(audit.documentWidth, `${label} document overflow`).toBeLessThanOrEqual(audit.viewportWidth);
+  expect(audit.bodyWidth, `${label} body overflow`).toBeLessThanOrEqual(audit.viewportWidth);
+  expect(audit.duplicateIds, `${label} should not expose duplicate element IDs`).toEqual([]);
+  expect(audit.undersizedInteractiveControls, `${label} controls should provide at least a 40px touch target`).toEqual([]);
+}
+
 test.beforeEach(async ({ page }, testInfo) => {
   test.skip(!testInfo.project.name.startsWith("mobile"), "Mobile payment coverage");
   const expectedWidth = testInfo.project.name === "mobile-375" ? 375 : 390;
@@ -33,7 +77,7 @@ test("registration is usable and validates safely", async ({ page }) => {
   await page.getByRole("button", { name: "Create account" }).click();
   expect(await password.evaluate(input => (input as HTMLInputElement).checkValidity())).toBe(false);
   expect(await password.evaluate(input => (input as HTMLInputElement).validationMessage)).not.toBe("");
-  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(await page.evaluate(() => window.innerWidth));
+  await expectMobileJourneyPage(page, "customer registration");
 });
 
 test("login password visibility works", async ({ page }) => {
@@ -44,6 +88,7 @@ test("login password visibility works", async ({ page }) => {
   await expect(password).toHaveAttribute("type", "text");
   await page.getByRole("button", { name: "Hide password" }).click();
   await expect(password).toHaveAttribute("type", "password");
+  await expectMobileJourneyPage(page, "customer login");
 });
 
 test("mobile menu login responds to one tap and closes the drawer", async ({ page }) => {
@@ -95,29 +140,35 @@ test("sender can book with address search, enter test checkout, verify, track an
   await page.getByRole("button", { name: /Bodija/ }).click();
   await page.getByLabel("Where should we deliver it?").fill("Ring Road");
   await page.getByRole("button", { name: /Ring Road/ }).click();
-  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(await page.evaluate(() => window.innerWidth));
+  await expectMobileJourneyPage(page, "booking addresses");
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(progress).toHaveAttribute("aria-valuenow", "2");
+  await expectMobileJourneyPage(page, "booking parcel details");
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(progress).toHaveAttribute("aria-valuenow", "3");
   await page.getByLabel("Your name").fill("Mobile Sender");
   await page.getByLabel("Your phone number").fill("08000000000");
   await page.getByLabel("Receiver's name").fill("Mobile Receiver");
   await page.getByLabel("Receiver's phone number").fill("08000000001");
+  await expectMobileJourneyPage(page, "booking contact details");
   await page.getByRole("button", { name: "See my price" }).click();
   await expect(progress).toHaveAttribute("aria-valuenow", "4");
+  await expectMobileJourneyPage(page, "booking quote review");
   await page.getByRole("button", { name: "Continue to payment" }).click();
   await expect(progress).toHaveAttribute("aria-valuenow", "5");
+  await expectMobileJourneyPage(page, "booking payment choice");
   await page.getByRole("button", { name: "Create delivery and pay" }).click();
   await expect(page.getByRole("heading", { name: "Paystack test checkout" })).toBeVisible();
 
   await page.route("**/api/payments/verify?reference=DOV-MOBILE-PAY", route => route.fulfill({ contentType: "application/json", body: JSON.stringify({ status: "paid", verified: true }) }));
   await page.goto("/pay/callback?reference=DOV-MOBILE-PAY");
   await expect(page.getByText("Payment confirmed. Your delivery can continue.")).toBeVisible();
+  await expectMobileJourneyPage(page, "payment confirmation");
 
   await page.route("**/track/TRK-MOBILE", route => route.fulfill({ contentType: "text/html", body: "<main><h1>DOV-MOBILE</h1><p>Delivered</p><p>Delivery confirmed</p></main>" }));
   await page.goto("/track");
   await page.getByLabel("Tracking reference").fill("TRK-MOBILE");
+  await expectMobileJourneyPage(page, "delivery tracking search");
   await page.getByRole("button", { name: "Check delivery status" }).click();
   await expect(page.getByText("Delivered")).toBeVisible();
   await expect(page.getByText("Delivery confirmed")).toBeVisible();
@@ -129,6 +180,7 @@ test("receiver can use a secure payment link without an account", async ({ page 
   await page.route("**/mock-receiver-checkout", route => route.fulfill({ contentType: "text/html", body: "<main><h1>Receiver test checkout</h1></main>" }));
   await page.goto(`/pay/receiver/${token}`);
   await page.getByLabel("Where should we send the receipt?").fill("receiver@example.com");
+  await expectMobileJourneyPage(page, "receiver payment link");
   await page.getByRole("button", { name: "Continue to payment" }).click();
   await expect(page.getByRole("heading", { name: "Receiver test checkout" })).toBeVisible();
 });
