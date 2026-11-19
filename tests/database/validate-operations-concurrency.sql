@@ -2,6 +2,8 @@
 
 begin;
 
+\ir fixtures/operational-base.sql
+
 update public.fleet_vehicles
 set registration_number='IBD 901 WF', assigned_rider_id='33333333-3333-3333-3333-333333333333',
     safety_status='cleared', max_payload_weight_grams=18000,

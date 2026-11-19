@@ -2,6 +2,8 @@
 
 begin;
 
+\ir fixtures/operational-base.sql
+
 insert into auth.users(id,email,email_confirmed_at,raw_user_meta_data)
 values('55555555-5555-4555-8555-555555555555','verified-rider@example.test',now(),'{"full_name":"Verified Rider"}');
 
