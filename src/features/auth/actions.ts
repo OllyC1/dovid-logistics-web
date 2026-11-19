@@ -12,6 +12,13 @@ export type AuthState = { error?: string; success?: string };
 const credentialsSchema = z.object({ email: z.email(), password: z.string().min(8) });
 const newPasswordSchema = z.string().min(NEW_PASSWORD_MIN_LENGTH).max(NEW_PASSWORD_MAX_LENGTH).refine(isStrongNewPassword);
 
+function describeAuthFailure(error: unknown) {
+  if (!(error instanceof Error)) return "unknown error";
+  if (error.message.includes("not configured")) return error.message;
+  if (error instanceof TypeError) return error.message.slice(0,200);
+  return error.name;
+}
+
 export async function loginAction(_: AuthState, formData: FormData): Promise<AuthState> {
   const parsed = credentialsSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: "Enter a valid email and password of at least 8 characters." };
@@ -33,7 +40,10 @@ export async function loginAction(_: AuthState, formData: FormData): Promise<Aut
       staffStatus,
       assurance?.currentLevel === "aal2" ? "aal2" : "aal1",
     );
-  } catch { return { error: "Authentication is not configured yet." }; }
+  } catch (error) {
+    console.error(`[auth.login] ${describeAuthFailure(error)}`);
+    return { error: "We couldn’t log you in right now. Please try again." };
+  }
   redirect(destination);
 }
 
