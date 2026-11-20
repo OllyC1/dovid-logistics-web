@@ -123,16 +123,22 @@ export function CoverageEditor({ initialZones, settings: initialSettings, mapsKe
     };
     const existing = document.querySelector<HTMLScriptElement>("script[data-dovid-maps]");
     const loaded = async () => {
-      try {
-        if (!window.google?.maps) throw new Error("Google Maps did not load.");
-        if (!window.google.maps.Map && window.google.maps.importLibrary) await window.google.maps.importLibrary("maps");
-        if (!window.google.maps.Map) throw new Error("Google Maps library is unavailable.");
-        setMapsReady(true);
-        setMapsError(null);
-      } catch {
-        setMapsReady(false);
-        setMapsError("network");
+      for (let attempt = 0; attempt < 10; attempt += 1) {
+        try {
+          if (!window.google?.maps) throw new Error("Google Maps did not load.");
+          if (!window.google.maps.Map && window.google.maps.importLibrary) await window.google.maps.importLibrary("maps");
+          if (window.google.maps.Map) {
+            setMapsReady(true);
+            setMapsError(null);
+            return;
+          }
+        } catch {
+          // The asynchronous bootstrap can expose importLibrary before the maps library is ready.
+        }
+        await new Promise((resolve) => setTimeout(resolve, 500));
       }
+      setMapsReady(false);
+      setMapsError("network");
     };
     const failed = () => { setMapsReady(false); setMapsError("network"); };
     const handleLoad = () => { void loaded(); };
