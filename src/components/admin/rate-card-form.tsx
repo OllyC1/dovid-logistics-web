@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
@@ -8,6 +8,7 @@ import { formatMoney } from "@/lib/utils";
 
 type Band = { minimumDistanceMeters: number; maximumDistanceMeters: number | null; priceKobo: number; additionalPerKilometerKobo: number | null };
 type Option = { id: string; label: string };
+const subscribeToHydration = () => () => {};
 
 const fallbackBands: Band[] = [
   { minimumDistanceMeters: 0, maximumDistanceMeters: 3000, priceKobo: 180000, additionalPerKilometerKobo: null },
@@ -24,6 +25,7 @@ export function RateCardForm({ versions, serviceAreas, initialBands, initialName
   const [bands, setBands] = useState(initialBands?.length ? initialBands : fallbackBands);
   const [distanceKm, setDistanceKm] = useState(8);
   const [state, setState] = useState({ pending: false, message: "", ok: false });
+  const hydrated = useSyncExternalStore(subscribeToHydration, () => true, () => false);
   const preview = useMemo(() => {
     const meters = Math.round(distanceKm * 1000);
     const band = bands.find(item => meters >= item.minimumDistanceMeters && (item.maximumDistanceMeters === null || meters <= item.maximumDistanceMeters));
@@ -67,6 +69,6 @@ export function RateCardForm({ versions, serviceAreas, initialBands, initialName
     <div className="hidden overflow-x-auto sm:block"><table className="w-full min-w-[720px] text-left text-sm"><thead><tr className="text-slate"><th className="pb-3">Minimum km</th><th>Maximum km</th><th>Base price NGN</th><th>Extra NGN/km</th></tr></thead><tbody>{bands.map((band,index)=><tr key={index} className="border-t border-navy/8"><td className="py-2"><input aria-label={`Band ${index+1} minimum km`} className="w-32 rounded-xl border p-2" type="number" min="0" step="0.001" value={band.minimumDistanceMeters/1000} onChange={event=>updateBand(index,"minimumDistanceMeters",event.target.value)}/></td><td><input aria-label={`Band ${index+1} maximum km`} className="w-32 rounded-xl border p-2" type="number" min="0" step="0.001" value={band.maximumDistanceMeters===null?"":band.maximumDistanceMeters/1000} placeholder="Open" onChange={event=>updateBand(index,"maximumDistanceMeters",event.target.value)}/></td><td><input aria-label={`Band ${index+1} price`} className="w-36 rounded-xl border p-2" type="number" min="0" step="1" value={band.priceKobo/100} onChange={event=>updateBand(index,"priceKobo",event.target.value)}/></td><td><input aria-label={`Band ${index+1} extra rate`} className="w-36 rounded-xl border p-2" type="number" min="0" step="1" value={band.additionalPerKilometerKobo===null?"":band.additionalPerKilometerKobo/100} placeholder="None" onChange={event=>updateBand(index,"additionalPerKilometerKobo",event.target.value)}/></td></tr>)}</tbody></table></div>
     <div className="grid gap-4 rounded-2xl bg-cloud p-5 sm:grid-cols-2 sm:items-end"><Field label="Preview route distance (km)" type="number" min="0" step="0.1" value={distanceKm} onChange={event=>setDistanceKm(Number(event.target.value))}/><div><p className="text-sm text-slate">Published rate-card preview</p><p className="text-2xl font-extrabold text-navy">{preview===null?"No matching band":formatMoney(preview)}</p><p className="text-xs text-slate">Profitability protection is applied separately by the quote engine.</p></div></div>
     {state.message ? <p role="status" className={`rounded-2xl p-4 text-sm ${state.ok ? "bg-emerald-50 text-emerald-800" : "bg-red-50 text-red-800"}`}>{state.message}</p> : null}
-    <Button type="submit" disabled={state.pending || versions.length===0}>{state.pending ? "Creating…" : editing ? "Create corrected inactive version" : "Create inactive version"}</Button>
+    <Button type="submit" disabled={!hydrated || state.pending || versions.length===0}>{state.pending ? "Creating…" : editing ? "Create corrected inactive version" : "Create inactive version"}</Button>
   </form>;
 }
