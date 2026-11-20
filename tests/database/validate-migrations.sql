@@ -753,6 +753,31 @@ end;
 $$;
 reset role;
 
+set role service_role;
+do $$
+declare request_id uuid;
+declare reference text;
+begin
+  insert into public.delivery_availability_requests(
+    service_area_id,pickup_zone_id,delivery_zone_id,request_payload,
+    road_distance_meters,estimated_duration_seconds,decision,reason_code,status
+  ) values (
+    '10000000-0000-4000-8000-000000000001',
+    '10000000-0000-4000-8000-00000000000b',
+    '10000000-0000-4000-8000-00000000000f',
+    '{"pickupAddress":"Validation pickup","deliveryAddress":"Validation outskirts"}'::jsonb,
+    13000,1800,'manual_approval','operational_review_required','pending'
+  ) returning id,reference_code into request_id,reference;
+  if reference !~ '^DOV-APR-[0-9]{6}-[A-F0-9]{8}$' then raise exception 'readable approval reference was not generated'; end if;
+  if not exists(
+    select 1 from public.notifications
+    where event_type='dispatch.approval_requested'
+      and metadata->>'availabilityRequestId'=request_id::text
+  ) then raise exception 'dispatch approval notification was not queued'; end if;
+end;
+$$;
+reset role;
+
 select 'migration and RLS validation passed' as result;
 
 rollback;

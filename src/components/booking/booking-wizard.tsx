@@ -24,6 +24,7 @@ type ManualAssistance = {
   emailUrl: string;
   phoneUrl: string;
   whatsappUrl: string;
+  state?: "pending" | "rejected";
 };
 
 const steps = ["Addresses", "Parcel", "Contact details", "Review", "Payment"];
@@ -65,7 +66,7 @@ export function BookingWizard() {
 
   const set = (key: string, invalidatesQuote = true) => (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     setDraft(current => ({ ...current, [key]: event.target.value }));
-    if (invalidatesQuote) setQuote(null);
+    if (invalidatesQuote) { setQuote(null); setManualAssistance(null); }
   };
   const updateAddress = (prefix: "pickup" | "delivery", value: AddressValue) => {
     setDraft(current => ({
@@ -75,6 +76,7 @@ export function BookingWizard() {
       [`${prefix}Longitude`]: value.longitude
     }));
     setQuote(null);
+    setManualAssistance(null);
   };
   const pickupAddress = { address: draft.pickupAddress, latitude: draft.pickupLatitude, longitude: draft.pickupLongitude };
   const deliveryAddress = { address: draft.deliveryAddress, latitude: draft.deliveryLatitude, longitude: draft.deliveryLongitude };
@@ -110,14 +112,16 @@ export function BookingWizard() {
           scheduledAt: draft.scheduledAt ? new Date(draft.scheduledAt).toISOString() : undefined,
           additionalStops: serializedStops,
           oversized: draft.oversized === "true"
-          ,promotionCode: draft.promotionCode.trim() || undefined
+          ,promotionCode: draft.promotionCode.trim() || undefined,
+          approvalReference: manualAssistance?.reference
         })
       });
       const body = await response.json().catch(() => ({}));
+      if (body.manualAssistance) setManualAssistance(body.manualAssistance);
       if (!response.ok) return setMessage(body.error ?? "We could not calculate a price right now. Please try again.");
       if (body.eligibility && body.eligibility !== "standard_eligible") {
         setQuote(null);
-        setManualAssistance(body.manualAssistance ?? null);
+        setManualAssistance(body.manualAssistance ? { ...body.manualAssistance, state: body.approvalState === "rejected" ? "rejected" : "pending" } : null);
         setMessage(body.message ?? "This route needs confirmation from our dispatch team.");
         return;
       }
@@ -226,12 +230,13 @@ export function BookingWizard() {
         {step === 4 ? <><label className="grid gap-2 text-sm font-semibold text-navy">Who will pay?<select className="min-h-12 rounded-2xl border border-slate/25 px-4" value={draft.payer} onChange={set("payer")}><option value="sender">I will pay</option><option value="receiver_before_delivery">The receiver will pay before delivery</option><option value="receiver_at_delivery">The receiver will pay when it arrives</option></select></label><label className="grid gap-2 text-sm font-semibold text-navy">How would you like to pay?<select className="min-h-12 rounded-2xl border border-slate/25 px-4" value={draft.paymentMethod} onChange={set("paymentMethod")}><option value="online">Pay online</option><option value="bank_transfer">Pay by bank transfer</option></select></label><p className="rounded-2xl bg-cloud p-4 text-sm leading-6 text-slate">Payments are completed through Dovid checkout or the Dovid company account. Your rider will not ask you to pay them directly.</p>{!quote ? <Button type="button" disabled={pending} onClick={() => requestQuote(4)}>{pending ? "Updating price…" : "Update price"}</Button> : null}</> : null}
         {message ? <p role={manualAssistance ? "status" : "alert"} className="rounded-2xl bg-amber-50 p-4 text-sm text-amber-900">{message}</p> : null}
         {manualAssistance ? <section className="grid gap-3 rounded-2xl border border-orange/30 bg-orange/5 p-4" aria-label="Contact dispatch">
-          <div><p className="font-extrabold text-navy">Contact dispatch to continue</p><p className="mt-1 text-sm leading-6 text-slate">Send us the request reference <strong className="text-navy">{manualAssistance.reference}</strong>. We will review the route and contact you.</p></div>
+          <div><p className="font-extrabold text-navy">{manualAssistance.state === "rejected" ? "Dispatch could not approve this route" : "Contact dispatch to continue"}</p><p className="mt-1 text-sm leading-6 text-slate">Request <strong className="text-navy">{manualAssistance.reference}</strong>. {manualAssistance.state === "rejected" ? "Contact us if the route, pickup time or parcel details have changed." : "Dispatch can review it while you keep this page open."}</p></div>
           <div className="grid gap-2 sm:grid-cols-3">
             <a className="inline-flex min-h-12 items-center justify-center rounded-full bg-navy px-4 text-center text-sm font-bold text-white" href={manualAssistance.emailUrl}>Email dispatch</a>
             <a className="inline-flex min-h-12 items-center justify-center rounded-full border border-navy/15 px-4 text-center text-sm font-bold text-navy" href={manualAssistance.phoneUrl}>Call {manualAssistance.phone}</a>
             <a className="inline-flex min-h-12 items-center justify-center rounded-full bg-[#25D366] px-4 text-center text-sm font-bold text-white" href={manualAssistance.whatsappUrl} target="_blank" rel="noreferrer">WhatsApp dispatch</a>
           </div>
+          {manualAssistance.state !== "rejected" ? <Button type="button" disabled={pending} onClick={() => requestQuote(3)}>{pending ? "Checking approval…" : "Check approval and continue"}</Button> : null}
         </section> : null}
       </div>
       <div className="mt-8 flex flex-wrap justify-between gap-3"><Button variant="ghost" disabled={step === 0 || pending} onClick={() => setStep(current => current - 1)}><ChevronLeft className="mr-2 size-4" />Back</Button>{step < 2 ? <Button disabled={pending || (step === 0 && !routeReady)} onClick={() => setStep(current => current + 1)}>Continue<ChevronRight className="ml-2 size-4" /></Button> : null}{step === 2 ? <Button disabled={pending || !allLocationsReady} onClick={() => requestQuote(3)}>{pending ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}See my price</Button> : null}{step === 3 ? <Button disabled={!quote} onClick={() => setStep(4)}>Continue to payment<ChevronRight className="ml-2 size-4" /></Button> : null}{step === 4 && quote ? <Button disabled={pending} onClick={confirmOrder}>{pending ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}{draft.payer === "sender" ? "Create delivery and pay" : "Confirm delivery"}</Button> : null}</div>

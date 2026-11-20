@@ -61,6 +61,9 @@ describe("direct public guest booking", () => {
     expect(booking).toContain("Contact dispatch to continue");
     expect(booking).toContain("Email dispatch");
     expect(booking).toContain("WhatsApp dispatch");
+    expect(booking).toContain("Check approval and continue");
+    expect(quoteRoute).toContain('operational_approval_status: approvedRequest ? "approved" : "not_required"');
+    expect(quoteRoute).toContain("reference_code");
   });
 });
 

@@ -74,7 +74,15 @@ test("manual routes show email, call and WhatsApp dispatch options on mobile",as
     const pickup=url.pathname.endsWith("manual-pickup");
     return route.fulfill({contentType:"application/json",body:JSON.stringify({address:pickup?"Bodija, Ibadan, Nigeria":"Ajadi Crescent, Ibadan, Nigeria",coordinates:pickup?{latitude:7.435,longitude:3.91}:{latitude:7.4314,longitude:3.9359}})});
   });
-  await page.route("**/api/delivery/quotes",route=>route.fulfill({status:202,contentType:"application/json",body:JSON.stringify({message:"This route needs confirmation from our dispatch team.",eligibility:"manual_approval",availabilityRequestId:"request-1",manualAssistance:{reference:"request-1",email:"hello@dovidlogistics.com",phone:"+2347072232323",emailUrl:"mailto:hello@dovidlogistics.com?subject=request-1",phoneUrl:"tel:+2347072232323",whatsappUrl:"https://wa.me/2347072232323?text=request-1"}})}));
+  let approvalChecks=0;
+  await page.route("**/api/delivery/quotes",route=>{
+    const payload=route.request().postDataJSON() as { approvalReference?: string };
+    if(payload.approvalReference==="DOV-APR-261120-00000001") {
+      approvalChecks+=1;
+      return route.fulfill({contentType:"application/json",body:JSON.stringify({quoteId:"approved-quote",distanceMeters:12100,customerTotalKobo:150000,currency:"NGN",includedCharges:[{label:"Approved delivery",amountKobo:150000}],expiresAt:new Date(Date.now()+600000).toISOString(),eligibility:"standard_eligible"})});
+    }
+    return route.fulfill({status:202,contentType:"application/json",body:JSON.stringify({message:"This route needs confirmation from our dispatch team.",eligibility:"manual_approval",approvalState:"pending",availabilityRequestId:"request-1",manualAssistance:{reference:"DOV-APR-261120-00000001",email:"hello@dovidlogistics.com",phone:"+2347072232323",emailUrl:"mailto:hello@dovidlogistics.com?subject=DOV-APR-261120-00000001",phoneUrl:"tel:+2347072232323",whatsappUrl:"https://wa.me/2347072232323?text=DOV-APR-261120-00000001"}})});
+  });
   await page.goto("/book");
   await page.getByLabel("Where should we collect the parcel?").fill("Bodija");
   await page.getByRole("button",{name:/Bodija/}).click();
@@ -91,6 +99,9 @@ test("manual routes show email, call and WhatsApp dispatch options on mobile",as
   await expect(page.getByRole("link",{name:"Email dispatch"})).toHaveAttribute("href",/mailto:hello@dovidlogistics\.com/);
   await expect(page.getByRole("link",{name:/Call \+2347072232323/})).toHaveAttribute("href","tel:+2347072232323");
   await expect(page.getByRole("link",{name:"WhatsApp dispatch"})).toHaveAttribute("href",/wa\.me\/2347072232323/);
+  await page.getByRole("button",{name:"Check approval and continue"}).click();
+  await expect(page.getByText(/1,500/).first()).toBeVisible();
+  expect(approvalChecks).toBe(1);
 });
 
 test("receiver payment opens only the checkout returned by the server",async({page},testInfo)=>{

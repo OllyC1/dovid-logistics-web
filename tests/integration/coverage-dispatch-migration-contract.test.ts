@@ -17,6 +17,13 @@ describe("Ibadan coverage and dispatch migration", () => {
     expect(citywide).toContain("100");
     expect(readFileSync("supabase/migrations/20261120221500_enforce_outskirts_manual_approval.sql", "utf8")).toContain("dispatch_approval_required=true");
   });
+  it("creates resumable request references and alerts dispatch managers", () => {
+    const requests = readFileSync("supabase/migrations/20261120224500_resumable_availability_requests.sql", "utf8");
+    expect(requests).toContain("reference_code");
+    expect(requests).toContain("notify_dispatch_of_availability_request");
+    expect(requests).toContain("dispatch.approval_requested");
+    expect(requests).toContain("actionPath','/admin/dispatch");
+  });
   it("requires review, approval and unchanged geometry before activation", () => {
     expect(sql).toContain("zone must be in review before approval");
     expect(sql).toContain("explicit zone approval required");

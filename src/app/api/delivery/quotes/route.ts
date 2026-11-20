@@ -68,6 +68,61 @@ export async function POST(request: NextRequest) {
     ]);
     if (!settings) throw new Error("Operational eligibility settings are unavailable");
 
+    let approvedRequest: { id: string; reference_code: string; status: string; review_reason: string | null } | null = null;
+    if (parsed.data.approvalReference) {
+      const { data: request, error: requestError } = await admin.from("delivery_availability_requests")
+        .select("id,reference_code,status,review_reason,request_payload")
+        .eq("reference_code", parsed.data.approvalReference)
+        .maybeSingle();
+      if (requestError) throw requestError;
+      const previousPayload = (request?.request_payload ?? {}) as Record<string, unknown>;
+      const matchesRoute = request &&
+        previousPayload.pickupAddress === parsed.data.pickupAddress &&
+        previousPayload.deliveryAddress === parsed.data.deliveryAddress &&
+        previousPayload.packageCategory === parsed.data.packageCategory &&
+        previousPayload.packageSize === parsed.data.packageSize;
+      if (!request || !matchesRoute) {
+        return NextResponse.json({ error: "That approval reference does not match this route.", code: "APPROVAL_REFERENCE_MISMATCH" }, { status: 404 });
+      }
+      if (request.status === "rejected") {
+        return NextResponse.json({
+          error: request.review_reason || "Dispatch could not approve this route.",
+          message: request.review_reason || "Dispatch could not approve this route.",
+          eligibility: "rejected",
+          approvalState: "rejected",
+          availabilityRequestId: request.id,
+          manualAssistance: {
+            reference: request.reference_code,
+            email: siteConfig.support.email,
+            phone: siteConfig.support.phone,
+            emailUrl: `mailto:${siteConfig.support.email}?subject=${encodeURIComponent(`Delivery request ${request.reference_code}`)}`,
+            phoneUrl: `tel:${siteConfig.support.phone}`,
+            whatsappUrl: `https://wa.me/${siteConfig.support.whatsapp}?text=${encodeURIComponent(`Hello Dovid Logistics, I need help with delivery request ${request.reference_code}.`)}`,
+          },
+        }, { status: 409 });
+      }
+      if (request.status === "pending") {
+        return NextResponse.json({
+          message: "Dispatch is still reviewing this route. Check again shortly or contact us using the reference below.",
+          eligibility: "manual_approval",
+          approvalState: "pending",
+          availabilityRequestId: request.id,
+          manualAssistance: {
+            reference: request.reference_code,
+            email: siteConfig.support.email,
+            phone: siteConfig.support.phone,
+            emailUrl: `mailto:${siteConfig.support.email}?subject=${encodeURIComponent(`Delivery approval ${request.reference_code}`)}`,
+            phoneUrl: `tel:${siteConfig.support.phone}`,
+            whatsappUrl: `https://wa.me/${siteConfig.support.whatsapp}?text=${encodeURIComponent(`Hello Dovid Logistics, please review delivery request ${request.reference_code}.`)}`,
+          },
+        }, { status: 202 });
+      }
+      if (request.status !== "approved") {
+        return NextResponse.json({ error: "This approval reference is no longer active.", code: "APPROVAL_REFERENCE_INACTIVE" }, { status: 409 });
+      }
+      approvedRequest = request;
+    }
+
     const context = await loadActivePricingContext(pickupZone.service_area_id, parsed.data.serviceLevel);
     const [competitorQuotes, promotions, fleetResult, assignmentResult] = await Promise.all([
       loadComparableCompetitorQuotes({ serviceAreaId: pickupZone.service_area_id, serviceLevel: parsed.data.serviceLevel, packageCategory: parsed.data.packageCategory, roadDistanceMeters: route.distanceMeters, config: context.config }),
@@ -83,16 +138,16 @@ export async function POST(request: NextRequest) {
       deliveryCovered: true,
       allStopsCovered: true,
       zonesAllowBooking: pickupZone.booking_eligibility !== "unavailable" && deliveryZone.booking_eligibility !== "unavailable",
-      zoneRequiresApproval: pickupZone.dispatch_approval_required || deliveryZone.dispatch_approval_required || pickupZone.booking_eligibility === "manual_approval" || deliveryZone.booking_eligibility === "manual_approval",
+      zoneRequiresApproval: !approvedRequest && (pickupZone.dispatch_approval_required || deliveryZone.dispatch_approval_required || pickupZone.booking_eligibility === "manual_approval" || deliveryZone.booking_eligibility === "manual_approval"),
       roadDistanceMeters: route.distanceMeters,
-      standardMaxDistanceMeters: settings.standard_max_distance_meters,
-      manualMaxDistanceMeters: settings.manual_max_distance_meters,
-      withinServiceHours: isWithinServiceHours(now, settings.service_hours),
+      standardMaxDistanceMeters: approvedRequest ? Math.max(settings.standard_max_distance_meters, route.distanceMeters) : settings.standard_max_distance_meters,
+      manualMaxDistanceMeters: approvedRequest ? Math.max(settings.manual_max_distance_meters, route.distanceMeters) : settings.manual_max_distance_meters,
+      withinServiceHours: approvedRequest ? true : isWithinServiceHours(now, settings.service_hours),
       availableFleetSlots,
       packageSize: parsed.data.packageSize,
-      standardPackageSizes: settings.standard_package_sizes as string[],
+      standardPackageSizes: approvedRequest ? [...settings.standard_package_sizes as string[], parsed.data.packageSize] : settings.standard_package_sizes as string[],
       oversized: parsed.data.oversized,
-      oversizedRequiresApproval: settings.oversized_requires_manual_approval,
+      oversizedRequiresApproval: approvedRequest ? false : settings.oversized_requires_manual_approval,
       estimatedProfitKobo: result.internal.estimatedProfitKobo,
       allowBelowProfitabilityFloor: promotions.some((promotion) => promotion.allowBelowProfitabilityFloor)
     });
@@ -104,7 +159,8 @@ export async function POST(request: NextRequest) {
       deliveryZoneCode: deliveryZone.code,
       eligibilityDecision: decision.decision,
       eligibilityReasonCode: decision.reasonCode,
-      routeDurationSeconds: durationSeconds(route.duration)
+      routeDurationSeconds: durationSeconds(route.duration),
+      approvalReference: approvedRequest?.reference_code
     };
 
     if (decision.decision !== "standard_eligible") {
@@ -120,10 +176,10 @@ export async function POST(request: NextRequest) {
         reason_code: decision.reasonCode,
         status,
         pricing_snapshot: { customerTotalKobo: result.customerTotalKobo, currency: result.currency, internal: result.internal, includedCharges: result.includedCharges }
-      }).select("id").single();
+      }).select("id,reference_code").single();
       if (availabilityError) throw availabilityError;
       const responseStatus = decision.decision === "capacity_unavailable" ? 409 : decision.decision === "unsupported" ? 422 : 202;
-      const manualMessage = `Hello Dovid Logistics, please review this delivery: ${parsed.data.pickupAddress} to ${parsed.data.deliveryAddress}. Request reference: ${availability.id}.`;
+      const manualMessage = `Hello Dovid Logistics, please review this delivery: ${parsed.data.pickupAddress} to ${parsed.data.deliveryAddress}. Request reference: ${availability.reference_code}.`;
       return NextResponse.json({
         ...(responseStatus >= 400 ? { error: decision.message } : {}),
         message: decision.message,
@@ -134,10 +190,10 @@ export async function POST(request: NextRequest) {
         duration: route.duration,
         ...(responseStatus < 400 ? {
           manualAssistance: {
-            reference: availability.id,
+            reference: availability.reference_code,
             email: siteConfig.support.email,
             phone: siteConfig.support.phone,
-            emailUrl: `mailto:${siteConfig.support.email}?subject=${encodeURIComponent(`Delivery approval ${availability.id}`)}&body=${encodeURIComponent(manualMessage)}`,
+            emailUrl: `mailto:${siteConfig.support.email}?subject=${encodeURIComponent(`Delivery approval ${availability.reference_code}`)}&body=${encodeURIComponent(manualMessage)}`,
             phoneUrl: `tel:${siteConfig.support.phone}`,
             whatsappUrl: `https://wa.me/${siteConfig.support.whatsapp}?text=${encodeURIComponent(manualMessage)}`,
           },
@@ -149,7 +205,7 @@ export async function POST(request: NextRequest) {
     const supabase = await createSupabaseServerClient();
     const { data: { user } } = await supabase.auth.getUser();
     const guestQuoteToken = user ? null : randomBytes(32).toString("base64url");
-    const { error: quoteError } = await admin.from("quotes").insert({ id: quoteId, customer_id: user?.id ?? null, pricing_rule_id: null, pricing_configuration_version_id: context.configurationVersionId, rate_card_id: context.rateCardId, request_payload: enrichedPayload, distance_meters: route.distanceMeters, amount_minor: result.customerTotalKobo, currency: result.currency, expires_at: result.expiresAt, status: "created", service_level: parsed.data.serviceLevel, payment_method: parsed.data.paymentMethod, duration_seconds: durationSeconds(route.duration), customer_breakdown: result.includedCharges, internal_breakdown: result.internal, pricing_flags: result.internal.flags, operational_approval_status: "not_required" });
+    const { error: quoteError } = await admin.from("quotes").insert({ id: quoteId, customer_id: user?.id ?? null, pricing_rule_id: null, pricing_configuration_version_id: context.configurationVersionId, rate_card_id: context.rateCardId, request_payload: enrichedPayload, distance_meters: route.distanceMeters, amount_minor: result.customerTotalKobo, currency: result.currency, expires_at: result.expiresAt, status: "created", service_level: parsed.data.serviceLevel, payment_method: parsed.data.paymentMethod, duration_seconds: durationSeconds(route.duration), customer_breakdown: result.includedCharges, internal_breakdown: result.internal, pricing_flags: result.internal.flags, operational_approval_status: approvedRequest ? "approved" : "not_required" });
     if (quoteError) throw quoteError;
     const { error: costError } = await admin.from("quote_cost_estimates").insert({ quote_id: quoteId, estimated_operational_cost_kobo: result.internal.operationalCostKobo, minimum_profitable_price_kobo: result.internal.minimumProfitableCustomerTotalKobo, estimated_payment_fee_kobo: result.internal.paymentProcessingFeeKobo, estimated_tax_kobo: result.internal.taxKobo, estimated_profit_kobo: result.internal.estimatedProfitKobo, estimated_operating_margin_bps: result.internal.estimatedOperatingMarginBps, assumptions_snapshot: context.config });
     if (costError) { await admin.from("quotes").delete().eq("id", quoteId); throw costError; }

@@ -14,6 +14,7 @@ export const deliveryQuoteRequestSchema = z.object({
   additionalStops: z.array(additionalStop).max(5).default([]),
   oversized: z.boolean().default(false),
   promotionCode: z.string().trim().max(40).optional(),
+  approvalReference: z.string().trim().regex(/^DOV-APR-\d{6}-[A-F0-9]{8}$/).optional(),
   declaredValueMinor: z.number().int().nonnegative().max(100_000_000).optional(),
   payer: z.enum(["sender", "receiver_before_delivery", "receiver_at_delivery"]).default("sender"),
   scheduledAt: z.iso.datetime().optional()
