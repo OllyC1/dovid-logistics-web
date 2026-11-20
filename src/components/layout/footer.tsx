@@ -21,7 +21,7 @@ export function Footer() {
       <div className="max-w-sm">
         <Image className="h-[58px] w-[190px]" src="/brand/dovid-reverse.svg" alt="Dovid Logistics" width={195} height={60} />
         <p className="mt-5 text-sm leading-7 text-white/70">Simple, dependable delivery for people and businesses.</p>
-        <p className="mt-6 text-sm font-bold text-orange-light">Now serving selected areas of Ibadan.</p>
+        <p className="mt-6 text-sm font-bold text-orange-light">Now serving Ibadan.</p>
       </div>
       <div className="grid grid-cols-2 gap-8 md:grid-cols-4">
         {groups.map((group) => <div key={group.title}>

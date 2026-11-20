@@ -812,7 +812,10 @@ test("staff invitation, identity approval and trusted role routing complete on m
   await expect(page).toHaveURL(/\/staff\/setup(?:\?|$)/);
   await expect(page.getByRole("heading", { name: "Secure your Dovid account" })).toBeVisible();
   await expectCurrentMobilePage(page, `${intendedRole} invitation setup`, false);
+  await expect(page.getByLabel("Current password")).toHaveCount(0);
+  await expect(page.getByLabel("Staff onboarding progress")).toBeVisible();
   await page.getByLabel("New password").fill(password);
+  await page.getByLabel("Confirm new password").fill(password);
   await page.getByRole("button", { name: "Update password" }).click();
   await expect(page.getByRole("status")).toContainText("Password updated securely");
   await page.getByLabel("First name").fill("Mobile");

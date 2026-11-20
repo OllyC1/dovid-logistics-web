@@ -55,7 +55,7 @@ export async function registerAction(_: AuthState, formData: FormData): Promise<
     const supabase = await createSupabaseServerClient();
     const { error } = await supabase.auth.signUp({ email: parsed.data.email, password: parsed.data.password, options: { emailRedirectTo: `${publicEnv.NEXT_PUBLIC_APP_URL}/auth/callback`, data: { full_name: parsed.data.fullName, phone: parsed.data.phone } } });
     if (error) return { error: "We could not create the account. Please try again." };
-    return { success: "Check your email to verify your account." };
+    return { success: "Check your inbox to verify your account. If it is not there, check your Spam or Junk folder." };
   } catch { return { error: "Authentication is not configured yet." }; }
 }
 
@@ -63,7 +63,7 @@ export async function recoverAction(_: AuthState, formData: FormData): Promise<A
   const parsed = z.object({ email: z.email() }).safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: "Enter a valid email address." };
   try { const supabase = await createSupabaseServerClient(); await supabase.auth.resetPasswordForEmail(parsed.data.email, { redirectTo: `${publicEnv.NEXT_PUBLIC_APP_URL}/auth/callback?next=/reset-password` }); } catch {}
-  return { success: "If an account exists for that email, recovery instructions are on the way." };
+  return { success: "If an account exists for that email, recovery instructions are on the way. Check Spam or Junk too." };
 }
 
 export async function logoutAction() {
