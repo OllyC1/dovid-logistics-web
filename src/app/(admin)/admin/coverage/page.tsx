@@ -14,7 +14,7 @@ export default async function CoveragePage() {
   await requireStaffPermission("zones.manage");
   const admin = createSupabaseAdminClient();
   const [{ data: zones }, { data: settings }, { data: orders }, { data: history }] = await Promise.all([
-    admin.from("service_zones").select("id,name,code,boundary_geojson,operational_status,booking_eligibility,dispatch_approval_required,priority,effective_from,effective_until,boundary_source,review_notes").order("priority"),
+    admin.from("service_zones").select("id,name,code,boundary_geojson,operational_status,booking_eligibility,dispatch_approval_required,priority,effective_from,effective_until,boundary_source,review_notes,is_citywide").order("priority"),
     admin.from("service_area_operational_settings").select("*").eq("service_area_id", "10000000-0000-4000-8000-000000000001").single(),
     admin.from("delivery_orders").select("pickup_zone_id,delivery_zone_id"),
     admin.from("service_zone_change_history").select("id,zone_id,action,change_reason,created_at,service_zones(name)").order("created_at", { ascending: false }).limit(20),

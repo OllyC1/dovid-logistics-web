@@ -27,6 +27,7 @@ export async function createAssistedQuote(draftId: string, input: AssistedBookin
   const { data: zoneRows, error: zoneError } = await admin.from("service_zones")
     .select("id,service_area_id,code,boundary_geojson,booking_eligibility,dispatch_approval_required")
     .eq("active", true).eq("operational_status", "active").neq("booking_eligibility", "unavailable")
+    .order("priority", { ascending: true })
     .lte("effective_from", nowIso).or(`effective_until.is.null,effective_until.gt.${nowIso}`);
   if (zoneError) throw zoneError;
   const zones = (zoneRows ?? []).filter((zone) => zone.boundary_geojson) as ActiveZone[];

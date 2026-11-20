@@ -10,6 +10,7 @@ import { publicBookingsEnabled } from "@/lib/launch-controls";
 import { getRouteDistance } from "@/lib/maps/routes";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { siteConfig } from "@/config/site";
 
 const attempts = new Map<string, { count: number; resetAt: number }>();
 function rateLimited(ip: string) { const now = Date.now(); const current = attempts.get(ip); if (!current || current.resetAt < now) { attempts.set(ip, { count: 1, resetAt: now + 60_000 }); return false; } current.count += 1; return current.count > 12; }
@@ -39,6 +40,7 @@ export async function POST(request: NextRequest) {
     const { data: zoneRows, error: zoneError } = await admin.from("service_zones")
       .select("id,service_area_id,code,boundary_geojson,booking_eligibility,dispatch_approval_required")
       .eq("active", true).eq("operational_status", "active").neq("booking_eligibility", "unavailable")
+      .order("priority", { ascending: true })
       .lte("effective_from", nowIso).or(`effective_until.is.null,effective_until.gt.${nowIso}`);
     if (zoneError) throw zoneError;
     const zones = (zoneRows ?? []).filter((zone) => zone.boundary_geojson) as ActiveZone[];
@@ -121,6 +123,7 @@ export async function POST(request: NextRequest) {
       }).select("id").single();
       if (availabilityError) throw availabilityError;
       const responseStatus = decision.decision === "capacity_unavailable" ? 409 : decision.decision === "unsupported" ? 422 : 202;
+      const manualMessage = `Hello Dovid Logistics, please review this delivery: ${parsed.data.pickupAddress} to ${parsed.data.deliveryAddress}. Request reference: ${availability.id}.`;
       return NextResponse.json({
         ...(responseStatus >= 400 ? { error: decision.message } : {}),
         message: decision.message,
@@ -128,7 +131,17 @@ export async function POST(request: NextRequest) {
         reasonCode: decision.reasonCode,
         availabilityRequestId: availability.id,
         distanceMeters: route.distanceMeters,
-        duration: route.duration
+        duration: route.duration,
+        ...(responseStatus < 400 ? {
+          manualAssistance: {
+            reference: availability.id,
+            email: siteConfig.support.email,
+            phone: siteConfig.support.phone,
+            emailUrl: `mailto:${siteConfig.support.email}?subject=${encodeURIComponent(`Delivery approval ${availability.id}`)}&body=${encodeURIComponent(manualMessage)}`,
+            phoneUrl: `tel:${siteConfig.support.phone}`,
+            whatsappUrl: `https://wa.me/${siteConfig.support.whatsapp}?text=${encodeURIComponent(manualMessage)}`,
+          },
+        } : {}),
       }, { status: responseStatus });
     }
 

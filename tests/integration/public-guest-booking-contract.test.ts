@@ -54,5 +54,13 @@ describe("direct public guest booking", () => {
     expect(migration).toContain("issue_guest_receiver_payment_token");
     expect(migration).toContain("respond_to_guest_surcharge");
   });
+
+  it("offers email, call and WhatsApp assistance for manual routes", () => {
+    expect(quoteRoute).toContain("manualAssistance");
+    expect(quoteRoute).toContain("whatsappUrl");
+    expect(booking).toContain("Contact dispatch to continue");
+    expect(booking).toContain("Email dispatch");
+    expect(booking).toContain("WhatsApp dispatch");
+  });
 });
 

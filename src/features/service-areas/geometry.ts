@@ -32,6 +32,14 @@ function segmentsIntersect(a: number[], b: number[], c: number[], d: number[]) {
   return (first === 0 && onSegment(a, c, b)) || (second === 0 && onSegment(a, d, b)) || (third === 0 && onSegment(c, a, d)) || (fourth === 0 && onSegment(c, b, d));
 }
 
+function segmentsProperlyIntersect(a: number[], b: number[], c: number[], d: number[]) {
+  const first = orientation(a, b, c);
+  const second = orientation(a, b, d);
+  const third = orientation(c, d, a);
+  const fourth = orientation(c, d, b);
+  return first !== 0 && second !== 0 && third !== 0 && fourth !== 0 && first !== second && third !== fourth;
+}
+
 function ringArea(ring: number[][]) {
   let area = 0;
   for (let index = 0; index < ring.length - 1; index += 1) area += ring[index][0] * ring[index + 1][1] - ring[index + 1][0] * ring[index][1];
@@ -91,6 +99,22 @@ function inPolygon(point: Coordinates, polygon: PolygonCoordinates) {
   return !polygon.slice(1).some((ring) => inRing(point, ring));
 }
 
+function isPointOnRing(point: Coordinates, ring: number[][]) {
+  const position = [point.longitude, point.latitude];
+  return ring.some((current, index) => index < ring.length - 1 && orientation(current, ring[index + 1], position) === 0 && onSegment(current, position, ring[index + 1]));
+}
+
+function isPointStrictlyInPolygon(point: Coordinates, polygon: PolygonCoordinates) {
+  if (!polygon[0] || isPointOnRing(point, polygon[0]) || !inRing(point, polygon[0])) return false;
+  return !polygon.slice(1).some((ring) => isPointOnRing(point, ring) || inRing(point, ring));
+}
+
+function isPointStrictlyInZone(point: Coordinates, input: ZoneGeoJson) {
+  const geometry = asGeometry(input);
+  if (geometry.type === "Polygon") return isPointStrictlyInPolygon(point, geometry.coordinates);
+  return geometry.coordinates.some((polygon) => isPointStrictlyInPolygon(point, polygon));
+}
+
 export function isPointInZoneGeoJson(point: Coordinates, input: ZoneGeoJson) {
   const geometry = asGeometry(input);
   if (geometry.type === "Polygon") return inPolygon(point, geometry.coordinates);
@@ -108,12 +132,23 @@ export function zoneBoundariesOverlap(left: ZoneGeoJson, right: ZoneGeoJson) {
   for (const leftRing of leftRings) for (const rightRing of rightRings) {
     for (let leftIndex = 0; leftIndex < leftRing.length - 1; leftIndex += 1) {
       for (let rightIndex = 0; rightIndex < rightRing.length - 1; rightIndex += 1) {
-        if (segmentsIntersect(leftRing[leftIndex], leftRing[leftIndex + 1], rightRing[rightIndex], rightRing[rightIndex + 1])) return true;
+        if (segmentsProperlyIntersect(leftRing[leftIndex], leftRing[leftIndex + 1], rightRing[rightIndex], rightRing[rightIndex + 1])) return true;
       }
     }
-    const leftPoint = { longitude: leftRing[0][0], latitude: leftRing[0][1] };
-    const rightPoint = { longitude: rightRing[0][0], latitude: rightRing[0][1] };
-    if (isPointInZoneGeoJson(leftPoint, right) || isPointInZoneGeoJson(rightPoint, left)) return true;
+    for (let index = 0; index < leftRing.length - 1; index += 1) {
+      const current = leftRing[index];
+      const next = leftRing[index + 1];
+      const vertex = { longitude: current[0], latitude: current[1] };
+      const midpoint = { longitude: (current[0] + next[0]) / 2, latitude: (current[1] + next[1]) / 2 };
+      if (isPointStrictlyInZone(vertex, right) || isPointStrictlyInZone(midpoint, right)) return true;
+    }
+    for (let index = 0; index < rightRing.length - 1; index += 1) {
+      const current = rightRing[index];
+      const next = rightRing[index + 1];
+      const vertex = { longitude: current[0], latitude: current[1] };
+      const midpoint = { longitude: (current[0] + next[0]) / 2, latitude: (current[1] + next[1]) / 2 };
+      if (isPointStrictlyInZone(vertex, left) || isPointStrictlyInZone(midpoint, left)) return true;
+    }
   }
   return false;
 }

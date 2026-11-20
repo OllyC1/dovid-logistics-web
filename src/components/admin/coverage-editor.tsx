@@ -20,6 +20,7 @@ export type CoverageZone = {
   effective_until: string | null;
   boundary_source: string | null;
   review_notes: string | null;
+  is_citywide: boolean;
   affectedOrders: number;
 };
 
@@ -203,7 +204,7 @@ export function CoverageEditor({ initialZones, settings: initialSettings, mapsKe
   }, [drawing, previewMode, boundary]);
 
   const validation = useMemo(() => boundary ? validateZoneGeoJson(boundary) : { valid: false, issues: ["Draw or import a reviewed polygon before requesting approval."] }, [boundary]);
-  const overlaps = useMemo(() => boundary ? zones.filter((zone) => zone.id !== selectedId && zone.boundary_geojson && zoneBoundariesOverlap(boundary, zone.boundary_geojson)).map((zone) => zone.name) : [], [boundary, zones, selectedId]);
+  const overlaps = useMemo(() => boundary && !draft?.is_citywide ? zones.filter((zone) => zone.id !== selectedId && !zone.is_citywide && zone.boundary_geojson && zoneBoundariesOverlap(boundary, zone.boundary_geojson)).map((zone) => zone.name) : [], [boundary, draft?.is_citywide, zones, selectedId]);
   const previewMessage = useMemo(() => {
     if (!preview.pickup || !preview.delivery || !boundary) return "Click the map to set both preview points.";
     const covered = isPointInZoneGeoJson(preview.pickup, boundary) && isPointInZoneGeoJson(preview.delivery, boundary);

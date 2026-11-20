@@ -14,13 +14,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!parsed.success) return NextResponse.json({ error: "Choose an action and provide a clear reason." }, { status: 400 });
   const { id } = await params;
   const admin = createSupabaseAdminClient();
-  const { data: zone } = await admin.from("service_zones").select("id,service_area_id,boundary_geojson").eq("id", id).maybeSingle();
+  const { data: zone } = await admin.from("service_zones").select("id,service_area_id,boundary_geojson,is_citywide").eq("id", id).maybeSingle();
   if (!zone) return NextResponse.json({ error: "Zone not found" }, { status: 404 });
   if (parsed.data.action !== "suspend") {
     const validation = validateZoneGeoJson(zone.boundary_geojson);
     if (!validation.valid) return NextResponse.json({ error: "Fix the boundary before continuing.", issues: validation.issues }, { status: 409 });
-    const { data: others } = await admin.from("service_zones").select("id,name,boundary_geojson").eq("service_area_id", zone.service_area_id).neq("id", id).not("boundary_geojson", "is", null).neq("operational_status", "draft");
-    const overlaps = (others ?? []).filter((candidate) => candidate.boundary_geojson && zoneBoundariesOverlap(zone.boundary_geojson as ZoneGeoJson, candidate.boundary_geojson as ZoneGeoJson));
+    const { data: others } = await admin.from("service_zones").select("id,name,boundary_geojson,is_citywide").eq("service_area_id", zone.service_area_id).neq("id", id).not("boundary_geojson", "is", null).neq("operational_status", "draft");
+    const overlaps = zone.is_citywide ? [] : (others ?? []).filter((candidate) => !candidate.is_citywide && candidate.boundary_geojson && zoneBoundariesOverlap(zone.boundary_geojson as ZoneGeoJson, candidate.boundary_geojson as ZoneGeoJson));
     if (overlaps.length) return NextResponse.json({ error: `Resolve the overlap with ${overlaps.map((candidate) => candidate.name).join(", ")} before continuing.` }, { status: 409 });
   }
   const { error } = await admin.rpc(functions[parsed.data.action], { target_zone_id: id, actor_id: auth.user.id, reason: parsed.data.reason });

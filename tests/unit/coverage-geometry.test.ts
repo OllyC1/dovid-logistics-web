@@ -13,6 +13,7 @@ describe("coverage geometry", () => {
     expect(zoneBoundariesOverlap(square(3.8, 7.2, 4, 7.4), square(3.9, 7.3, 4.1, 7.5))).toBe(true);
     expect(zoneBoundariesOverlap(square(3.8, 7.2, 4.2, 7.6), square(3.9, 7.3, 4, 7.4))).toBe(true);
     expect(zoneBoundariesOverlap(square(3.8, 7.2, 4, 7.4), square(4.1, 7.5, 4.2, 7.6))).toBe(false);
+    expect(zoneBoundariesOverlap(square(3.8, 7.2, 4, 7.4), square(4, 7.2, 4.2, 7.4))).toBe(false);
   });
   it("handles edge-adjacent geographic points consistently", () => {
     const polygon = square(3.8, 7.2, 4, 7.4);

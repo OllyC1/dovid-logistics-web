@@ -9,6 +9,13 @@ describe("Ibadan coverage and dispatch migration", () => {
     expect(sql.match(/null,false,'draft'/g)).toHaveLength(6);
     expect(sql).toContain("Zone F — Outskirts");
   });
+  it("adds an overlapping whole-Ibadan fallback without treating adjacent edges as overlap", () => {
+    const citywide = readFileSync("supabase/migrations/20261120220000_ibadan_citywide_fallback_zone.sql", "utf8");
+    expect(citywide).toContain("is_citywide");
+    expect(citywide).toContain("'Ibadan'");
+    expect(citywide).toContain("'manual_approval'");
+    expect(citywide).toContain("100");
+  });
   it("requires review, approval and unchanged geometry before activation", () => {
     expect(sql).toContain("zone must be in review before approval");
     expect(sql).toContain("explicit zone approval required");

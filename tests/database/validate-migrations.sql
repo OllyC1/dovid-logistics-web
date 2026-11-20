@@ -115,10 +115,10 @@ begin
   if not has_function_privilege('service_role','public.activate_service_zone(uuid,uuid,text)','execute') then
     raise exception 'service role cannot activate reviewed service zones';
   end if;
-  if (select count(*) from public.service_zones where service_area_id='10000000-0000-4000-8000-000000000001') <> 6 then
-    raise exception 'six Ibadan planning zones were not created';
+  if (select count(*) from public.service_zones where service_area_id='10000000-0000-4000-8000-000000000001') <> 7 then
+    raise exception 'six priority zones and one Ibadan fallback were not created';
   end if;
-  if (select count(*) from public.service_zones where service_area_id='10000000-0000-4000-8000-000000000001' and active and operational_status='active' and boundary_geojson is not null) <> 6 then
+  if (select count(*) from public.service_zones where service_area_id='10000000-0000-4000-8000-000000000001' and active and operational_status='active' and boundary_geojson is not null) <> 7 then
     raise exception 'the reviewed Ibadan operating polygons were not activated';
   end if;
   if (select count(*) from public.service_zones where code between 'A' and 'E' and booking_eligibility='standard' and not dispatch_approval_required) <> 5 then
@@ -126,6 +126,9 @@ begin
   end if;
   if not exists(select 1 from public.service_zones where code='F' and booking_eligibility='manual_approval' and dispatch_approval_required) then
     raise exception 'the outskirts zone does not require dispatch approval';
+  end if;
+  if not exists(select 1 from public.service_zones where code='IBD' and is_citywide and booking_eligibility='manual_approval' and dispatch_approval_required and priority>60) then
+    raise exception 'the whole-Ibadan fallback is missing or incorrectly prioritized';
   end if;
   if (select count(*) from public.fleet_vehicles) <> 2 or exists(select 1 from public.fleet_vehicles where max_payload_weight_grams is null or capacity_verified_at is null) then
     raise exception 'two-bike standard-capacity configuration is missing';

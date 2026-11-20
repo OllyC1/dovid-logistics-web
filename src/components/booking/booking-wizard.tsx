@@ -17,6 +17,14 @@ type CustomerQuote = {
   includedCharges: Array<{ label: string; amountKobo: number }>;
   expiresAt: string;
 };
+type ManualAssistance = {
+  reference: string;
+  email: string;
+  phone: string;
+  emailUrl: string;
+  phoneUrl: string;
+  whatsappUrl: string;
+};
 
 const steps = ["Addresses", "Parcel", "Contact details", "Review", "Payment"];
 const emptyDraft: Draft = {
@@ -34,6 +42,7 @@ export function BookingWizard() {
   const [additionalStops, setAdditionalStops] = useState<AddressValue[]>([]);
   const [quote, setQuote] = useState<CustomerQuote | null>(null);
   const [message, setMessage] = useState("");
+  const [manualAssistance, setManualAssistance] = useState<ManualAssistance | null>(null);
   const [pending, setPending] = useState(false);
   const [hydrated, setHydrated] = useState(false);
 
@@ -83,6 +92,7 @@ export function BookingWizard() {
   async function requestQuote(nextStep = 3) {
     setPending(true);
     setMessage("");
+    setManualAssistance(null);
     try {
       const response = await fetch("/api/delivery/quotes", {
         method: "POST",
@@ -107,6 +117,7 @@ export function BookingWizard() {
       if (!response.ok) return setMessage(body.error ?? "We could not calculate a price right now. Please try again.");
       if (body.eligibility && body.eligibility !== "standard_eligible") {
         setQuote(null);
+        setManualAssistance(body.manualAssistance ?? null);
         setMessage(body.message ?? "This route needs confirmation from our dispatch team.");
         return;
       }
@@ -213,7 +224,15 @@ export function BookingWizard() {
         {step === 2 ? <><div className="grid gap-4 sm:grid-cols-2"><Field label="Your name" value={draft.senderName} onChange={set("senderName", false)} /><Field label="Your phone number" value={draft.senderPhone} onChange={set("senderPhone", false)} /></div><div className="grid gap-4 sm:grid-cols-2"><Field label="Receiver's name" value={draft.recipientName} onChange={set("recipientName", false)} /><Field label="Receiver's phone number" value={draft.recipientPhone} onChange={set("recipientPhone", false)} /></div><Field label="Discount code (optional)" value={draft.promotionCode} onChange={set("promotionCode")} autoCapitalize="characters" placeholder="Enter your code" /></> : null}
         {step === 3 ? quote ? <div className="grid gap-4"><div className="rounded-3xl bg-cloud p-6"><p className="text-sm text-slate">Journey</p><p className="mt-1 font-bold text-navy">{draft.pickupAddress} → {draft.deliveryAddress}</p><p className="mt-4 text-sm text-slate">Distance</p><p className="font-bold text-navy">{(quote.distanceMeters / 1000).toFixed(1)} km</p><p className="mt-4 text-sm text-slate">Your delivery price</p><p className="text-3xl font-extrabold text-orange">{formatMoney(quote.customerTotalKobo, quote.currency)}</p>{quote.includedCharges.map(charge => <div key={charge.label} className="mt-2 flex justify-between text-sm text-slate"><span>{charge.label}</span><span>{formatMoney(charge.amountKobo, quote.currency)}</span></div>)}</div><p className="text-sm leading-6 text-slate">This price includes the route and delivery option you chose. It is held until {new Date(quote.expiresAt).toLocaleTimeString("en-NG", { hour: "2-digit", minute: "2-digit" })}.</p></div> : <p className="text-slate">Complete the previous steps to see your price.</p> : null}
         {step === 4 ? <><label className="grid gap-2 text-sm font-semibold text-navy">Who will pay?<select className="min-h-12 rounded-2xl border border-slate/25 px-4" value={draft.payer} onChange={set("payer")}><option value="sender">I will pay</option><option value="receiver_before_delivery">The receiver will pay before delivery</option><option value="receiver_at_delivery">The receiver will pay when it arrives</option></select></label><label className="grid gap-2 text-sm font-semibold text-navy">How would you like to pay?<select className="min-h-12 rounded-2xl border border-slate/25 px-4" value={draft.paymentMethod} onChange={set("paymentMethod")}><option value="online">Pay online</option><option value="bank_transfer">Pay by bank transfer</option></select></label><p className="rounded-2xl bg-cloud p-4 text-sm leading-6 text-slate">Payments are completed through Dovid checkout or the Dovid company account. Your rider will not ask you to pay them directly.</p>{!quote ? <Button type="button" disabled={pending} onClick={() => requestQuote(4)}>{pending ? "Updating price…" : "Update price"}</Button> : null}</> : null}
-        {message ? <p role="alert" className="rounded-2xl bg-amber-50 p-4 text-sm text-amber-900">{message}</p> : null}
+        {message ? <p role={manualAssistance ? "status" : "alert"} className="rounded-2xl bg-amber-50 p-4 text-sm text-amber-900">{message}</p> : null}
+        {manualAssistance ? <section className="grid gap-3 rounded-2xl border border-orange/30 bg-orange/5 p-4" aria-label="Contact dispatch">
+          <div><p className="font-extrabold text-navy">Contact dispatch to continue</p><p className="mt-1 text-sm leading-6 text-slate">Send us the request reference <strong className="text-navy">{manualAssistance.reference}</strong>. We will review the route and contact you.</p></div>
+          <div className="grid gap-2 sm:grid-cols-3">
+            <a className="inline-flex min-h-12 items-center justify-center rounded-full bg-navy px-4 text-center text-sm font-bold text-white" href={manualAssistance.emailUrl}>Email dispatch</a>
+            <a className="inline-flex min-h-12 items-center justify-center rounded-full border border-navy/15 px-4 text-center text-sm font-bold text-navy" href={manualAssistance.phoneUrl}>Call {manualAssistance.phone}</a>
+            <a className="inline-flex min-h-12 items-center justify-center rounded-full bg-[#25D366] px-4 text-center text-sm font-bold text-white" href={manualAssistance.whatsappUrl} target="_blank" rel="noreferrer">WhatsApp dispatch</a>
+          </div>
+        </section> : null}
       </div>
       <div className="mt-8 flex flex-wrap justify-between gap-3"><Button variant="ghost" disabled={step === 0 || pending} onClick={() => setStep(current => current - 1)}><ChevronLeft className="mr-2 size-4" />Back</Button>{step < 2 ? <Button disabled={pending || (step === 0 && !routeReady)} onClick={() => setStep(current => current + 1)}>Continue<ChevronRight className="ml-2 size-4" /></Button> : null}{step === 2 ? <Button disabled={pending || !allLocationsReady} onClick={() => requestQuote(3)}>{pending ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}See my price</Button> : null}{step === 3 ? <Button disabled={!quote} onClick={() => setStep(4)}>Continue to payment<ChevronRight className="ml-2 size-4" /></Button> : null}{step === 4 && quote ? <Button disabled={pending} onClick={confirmOrder}>{pending ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}{draft.payer === "sender" ? "Create delivery and pay" : "Confirm delivery"}</Button> : null}</div>
     </section>
