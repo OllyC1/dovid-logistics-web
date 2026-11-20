@@ -55,27 +55,40 @@ function nullableNumber(value: string) {
 type MapListener = { remove(): void };
 type MapLatLng = { lat(): number; lng(): number };
 type MapPath = { getArray(): MapLatLng[]; addListener(event: string, handler: () => void): MapListener };
-type MapInstance = { addListener(event: string, handler: (event: { latLng?: MapLatLng }) => void): MapListener; panTo(position: { lat: number; lng: number }): void; setZoom(zoom: number): void };
+type MapBounds = { extend(position: { lat: number; lng: number }): void; isEmpty(): boolean };
+type MapInstance = { addListener(event: string, handler: (event: { latLng?: MapLatLng }) => void): MapListener; panTo(position: { lat: number; lng: number }): void; setZoom(zoom: number): void; fitBounds(bounds: MapBounds, padding?: number): void };
 type PolygonInstance = { setMap(map: MapInstance | null): void; setPath(path: Array<{ lat: number; lng: number }>): void; getPath(): MapPath };
 type MapsApi = {
   Map: new(element: HTMLElement, options: Record<string, unknown>) => MapInstance;
+  LatLngBounds: new() => MapBounds;
   Polygon: new(options: Record<string, unknown>) => PolygonInstance;
 };
 
 declare global { interface Window { google?: { maps: MapsApi }; gm_authFailure?: () => void } }
 
-function polygonPath(boundary: ZoneGeoJson | null) {
+function polygonPaths(boundary: ZoneGeoJson | null) {
   if (!boundary) return [];
   const geometry = boundary.type === "Feature" ? boundary.geometry : boundary;
-  const ring = geometry.type === "Polygon" ? geometry.coordinates[0] : geometry.coordinates[0]?.[0];
-  return (ring ?? []).slice(0, -1).map(([longitude, latitude]) => ({ lat: latitude, lng: longitude }));
+  const polygons = geometry.type === "Polygon" ? [geometry.coordinates] : geometry.coordinates;
+  return polygons.map((polygon) => polygon[0].slice(0, -1).map(([longitude, latitude]) => ({ lat: latitude, lng: longitude })));
+}
+
+function polygonPath(boundary: ZoneGeoJson | null) {
+  return polygonPaths(boundary)[0] ?? [];
+}
+
+function pathsToGeoJson(paths: MapLatLng[][]): ZoneGeoJson | null {
+  if (paths.some((path) => path.length < 3)) return null;
+  const polygons = paths.map((path) => {
+    const ring = path.map((point) => [point.lng(), point.lat()]);
+    ring.push([...ring[0]]);
+    return [ring];
+  });
+  return { type: "Feature", properties: {}, geometry: polygons.length === 1 ? { type: "Polygon", coordinates: polygons[0] } : { type: "MultiPolygon", coordinates: polygons } };
 }
 
 function pathToGeoJson(path: MapLatLng[]): ZoneGeoJson | null {
-  if (path.length < 3) return null;
-  const ring = path.map((point) => [point.lng(), point.lat()]);
-  ring.push([...ring[0]]);
-  return { type: "Feature", properties: {}, geometry: { type: "Polygon", coordinates: [ring] } };
+  return pathsToGeoJson([path]);
 }
 
 export function CoverageEditor({ initialZones, settings: initialSettings, mapsKey }: { initialZones: CoverageZone[]; settings: OperationalSettings; mapsKey?: string }) {
@@ -95,7 +108,8 @@ export function CoverageEditor({ initialZones, settings: initialSettings, mapsKe
   const [mapSearch, setMapSearch] = useState<AddressValue>({ address: "", latitude: "", longitude: "" });
   const mapElement = useRef<HTMLDivElement>(null);
   const map = useRef<MapInstance | null>(null);
-  const polygon = useRef<PolygonInstance | null>(null);
+  const polygons = useRef<PolygonInstance[]>([]);
+  const fitBoundary = useRef(true);
   const [mapsReady, setMapsReady] = useState(typeof window !== "undefined" && Boolean(window.google?.maps));
   const [mapsError, setMapsError] = useState<"missing_key" | "authentication" | "network" | null>(mapsKey ? null : "missing_key");
 
@@ -134,13 +148,23 @@ export function CoverageEditor({ initialZones, settings: initialSettings, mapsKe
 
   useEffect(() => {
     if (!map.current || !window.google?.maps) return;
-    polygon.current?.setMap(null);
-    const path = polygonPath(boundary);
-    if (!path.length) { polygon.current = null; return; }
-    const nextPolygon = new window.google.maps.Polygon({ map: map.current, paths: path, editable: true, draggable: false, strokeColor: "#F36C21", strokeOpacity: 1, strokeWeight: 3, fillColor: "#F36C21", fillOpacity: 0.2 });
-    polygon.current = nextPolygon;
-    const sync = () => setBoundary(pathToGeoJson(nextPolygon.getPath().getArray()));
-    const listeners = [nextPolygon.getPath().addListener("insert_at", sync), nextPolygon.getPath().addListener("set_at", sync), nextPolygon.getPath().addListener("remove_at", sync)];
+    polygons.current.forEach((polygon) => polygon.setMap(null));
+    const paths = polygonPaths(boundary);
+    if (!paths.length) { polygons.current = []; return; }
+    const nextPolygons = paths.map((path, index) => new window.google!.maps.Polygon({ map: map.current!, paths: path, editable: paths.length === 1, draggable: false, strokeColor: index === 0 ? "#F36C21" : "#F39A21", strokeOpacity: 1, strokeWeight: 3, fillColor: "#F36C21", fillOpacity: 0.2 }));
+    polygons.current = nextPolygons;
+    if (fitBoundary.current) {
+      const bounds = new window.google.maps.LatLngBounds();
+      paths.flat().forEach((position) => bounds.extend(position));
+      if (!bounds.isEmpty()) map.current.fitBounds(bounds, 48);
+      fitBoundary.current = false;
+    }
+    const sync = () => setBoundary(pathsToGeoJson(nextPolygons.map((polygon) => polygon.getPath().getArray())));
+    const listeners = nextPolygons.flatMap((polygon) => [
+      polygon.getPath().addListener("insert_at", sync),
+      polygon.getPath().addListener("set_at", sync),
+      polygon.getPath().addListener("remove_at", sync),
+    ]);
     return () => listeners.forEach((listener) => listener.remove());
   }, [boundary, selectedId, mapsReady]);
 
@@ -197,10 +221,11 @@ export function CoverageEditor({ initialZones, settings: initialSettings, mapsKe
 
   function importGeoJson(file: File | undefined) {
     if (!file) return;
-    void file.text().then((text) => { try { const parsed = JSON.parse(text) as unknown; const check = validateZoneGeoJson(parsed); if (!check.valid) return setMessage(check.issues.join(" ")); const importedBoundary = parsed as ZoneGeoJson; setBoundary(importedBoundary); drawingPoints.current = polygonPath(importedBoundary).map((position) => ({ lat: () => position.lat, lng: () => position.lng })); setMessage("GeoJSON imported into the draft. Save it before review."); } catch { setMessage("That file is not valid JSON."); } });
+    void file.text().then((text) => { try { const parsed = JSON.parse(text) as unknown; const check = validateZoneGeoJson(parsed); if (!check.valid) return setMessage(check.issues.join(" ")); const importedBoundary = parsed as ZoneGeoJson; fitBoundary.current = true; setBoundary(importedBoundary); drawingPoints.current = polygonPath(importedBoundary).map((position) => ({ lat: () => position.lat, lng: () => position.lng })); setMessage("GeoJSON imported into the draft. Save it before review."); } catch { setMessage("That file is not valid JSON."); } });
   }
 
   function selectZone(zone: CoverageZone) {
+    fitBoundary.current = true;
     setSelectedId(zone.id);
     setDraft(zone);
     setBoundary(zone.boundary_geojson);

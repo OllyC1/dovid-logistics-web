@@ -97,15 +97,18 @@ export function calculateDeliveryQuote(input: QuoteEngineInput, config: Financia
   const candidatePriceKobo = competitorTargetKobo ?? rateCardTotalKobo;
   const discountKobo = promotionDiscount(candidatePriceKobo, input.promotions ?? []);
   const discountedCandidateKobo = Math.max(0, candidatePriceKobo - discountKobo);
-  const preRoundedKobo = Math.max(discountedCandidateKobo, profitableFloorKobo, config.minimumCustomerFareKobo);
+  const approvedFloorOverride = Boolean(input.promotions?.some((promotion) => promotion.allowBelowProfitabilityFloor));
+  const preRoundedKobo = approvedFloorOverride ? discountedCandidateKobo : Math.max(discountedCandidateKobo, profitableFloorKobo, config.minimumCustomerFareKobo);
   const customerBaseKobo = roundUpToIncrement(preRoundedKobo, config.roundingIncrementKobo);
   const economics = priceEconomics(customerBaseKobo, operationalCostKobo, config, input.paymentMethod);
   const flags: string[] = [];
   if (competitorTargetKobo !== null && customerBaseKobo > competitorTargetKobo) flags.push("MARKET_TARGET_NOT_MET");
-  if (discountKobo > 0 && customerBaseKobo > discountedCandidateKobo) flags.push("DISCOUNT_LIMITED_BY_MARGIN_FLOOR");
-  const pricingReason: InternalQuoteBreakdown["pricingReason"] = customerBaseKobo >= profitableFloorKobo && profitableFloorKobo > discountedCandidateKobo ? "PROFITABILITY_FLOOR" : competitorTargetKobo !== null ? "VERIFIED_MARKET_TARGET" : "RATE_CARD";
+  if (approvedFloorOverride && discountKobo > 0 && discountedCandidateKobo < Math.max(profitableFloorKobo, config.minimumCustomerFareKobo)) flags.push("APPROVED_PROMOTION_BELOW_MARGIN_FLOOR");
+  if (!approvedFloorOverride && discountKobo > 0 && customerBaseKobo > discountedCandidateKobo) flags.push("DISCOUNT_LIMITED_BY_MARGIN_FLOOR");
+  const pricingReason: InternalQuoteBreakdown["pricingReason"] = approvedFloorOverride ? "APPROVED_PROMOTION" : customerBaseKobo >= profitableFloorKobo && profitableFloorKobo > discountedCandidateKobo ? "PROFITABILITY_FLOOR" : competitorTargetKobo !== null ? "VERIFIED_MARKET_TARGET" : "RATE_CARD";
   const includedCharges = [{ label: "Delivery service", amountKobo: baseRateKobo }];
   if (surchargeTotalKobo) includedCharges.push({ label: "Selected service additions", amountKobo: surchargeTotalKobo });
+  if (discountKobo > 0) includedCharges.push({ label: "Promotion", amountKobo: -Math.min(discountKobo, candidatePriceKobo) });
   if (config.taxTreatment === "exclusive" && economics.taxKobo) includedCharges.push({ label: "Applicable tax", amountKobo: economics.taxKobo });
   return {
     currency: "NGN",

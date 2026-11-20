@@ -118,11 +118,17 @@ begin
   if (select count(*) from public.service_zones where service_area_id='10000000-0000-4000-8000-000000000001') <> 6 then
     raise exception 'six Ibadan planning zones were not created';
   end if;
-  if exists(select 1 from public.service_zones where service_area_id='10000000-0000-4000-8000-000000000001' and (active or operational_status<>'draft' or boundary_geojson is not null)) then
-    raise exception 'an Ibadan planning zone was activated or given fabricated geometry';
+  if (select count(*) from public.service_zones where service_area_id='10000000-0000-4000-8000-000000000001' and active and operational_status='active' and boundary_geojson is not null) <> 6 then
+    raise exception 'the reviewed Ibadan operating polygons were not activated';
   end if;
-  if (select count(*) from public.fleet_vehicles where operational_status='offline') <> 2 then
-    raise exception 'two-bike offline fleet configuration is missing';
+  if (select count(*) from public.service_zones where code between 'A' and 'E' and booking_eligibility='standard' and not dispatch_approval_required) <> 5 then
+    raise exception 'core Ibadan zones do not permit standard booking';
+  end if;
+  if not exists(select 1 from public.service_zones where code='F' and booking_eligibility='manual_approval' and dispatch_approval_required) then
+    raise exception 'the outskirts zone does not require dispatch approval';
+  end if;
+  if (select count(*) from public.fleet_vehicles) <> 2 or exists(select 1 from public.fleet_vehicles where max_payload_weight_grams is null or capacity_verified_at is null) then
+    raise exception 'two-bike standard-capacity configuration is missing';
   end if;
   if (select standard_max_distance_meters from public.service_area_operational_settings where service_area_id='10000000-0000-4000-8000-000000000001') <> 12000 then
     raise exception 'standard distance threshold is incorrect';
@@ -385,7 +391,7 @@ reset role;
 insert into public.pricing_configuration_versions(
   pricing_configuration_id, version, assumptions, status, effective_at, change_reason
 )
-select pricing_configuration_id, 2, assumptions, 'draft', now(), 'Validation version'
+select pricing_configuration_id, 3, assumptions, 'draft', now(), 'Validation version'
 from public.pricing_configuration_versions where status='active';
 
 set role authenticated;
@@ -393,7 +399,7 @@ select set_config('request.jwt.claim.sub','44444444-4444-4444-4444-444444444444'
 select set_config('request.jwt.claims','{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated","aal":"aal2"}',false);
 do $$ begin
   if (select count(*) from public.pricing_configurations) <> 1 then raise exception 'admin pricing RLS failed'; end if;
-  if (select count(*) from public.promotions) <> 1 then raise exception 'admin promotion RLS failed'; end if;
+  if (select count(*) from public.promotions) <> 3 then raise exception 'admin promotion RLS failed'; end if;
   if has_function_privilege('authenticated','public.activate_pricing_configuration_version(uuid,text)','execute') then raise exception 'authenticated client can activate pricing directly'; end if;
 end $$;
 reset role;
@@ -402,11 +408,11 @@ set role service_role;
 select set_config('request.jwt.claim.sub','44444444-4444-4444-4444-444444444444',false);
 do $$ begin
   perform public.activate_pricing_configuration_version(
-    (select id from public.pricing_configuration_versions where version=2),
+    (select id from public.pricing_configuration_versions where version=3),
     'Validated activation path',
     '44444444-4444-4444-4444-444444444444'
   );
-  if (select count(*) from public.pricing_configuration_versions where status='active' and version=2) <> 1 then
+  if (select count(*) from public.pricing_configuration_versions where status='active' and version=3) <> 1 then
     raise exception 'pricing version activation failed';
   end if;
 end $$;
@@ -530,10 +536,10 @@ end $$;
 reset role;
 
 do $$ begin
-  if (select service_hours->'sunday' from public.service_area_operational_settings where service_area_id='10000000-0000-4000-8000-000000000001') <> '["07:00", "22:00"]'::jsonb then
-    raise exception 'daily 07:00-22:00 schedule was not configured';
+  if (select service_hours->'sunday' from public.service_area_operational_settings where service_area_id='10000000-0000-4000-8000-000000000001') <> '["08:00", "22:00"]'::jsonb then
+    raise exception 'daily 08:00-22:00 schedule was not configured';
   end if;
-  if (select same_day_booking_cutoff from public.service_area_operational_settings where service_area_id='10000000-0000-4000-8000-000000000001') <> '20:30'::time then
+  if (select same_day_booking_cutoff from public.service_area_operational_settings where service_area_id='10000000-0000-4000-8000-000000000001') <> '20:00'::time then
     raise exception 'same-day cutoff was not configured';
   end if;
   if has_function_privilege('authenticated','public.accept_assisted_quote(text,text,uuid,public.payer_type,uuid,jsonb)','execute') then
@@ -711,6 +717,37 @@ do $$ begin
   exception when insufficient_privilege then null;
   end;
 end $$;
+reset role;
+
+set role service_role;
+do $$
+declare zero_order_id uuid := '71717171-7171-4717-8717-717171717171';
+declare zero_quote_id uuid := '72727272-7272-4727-8727-727272727272';
+begin
+  insert into public.quotes(id,pricing_rule_id,customer_id,request_payload,distance_meters,amount_minor,expires_at,status,service_level,payment_method)
+  values(zero_quote_id,'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','11111111-1111-1111-1111-111111111111','{}'::jsonb,5000,0,now()+interval '1 hour','confirmed','standard','online');
+  insert into public.delivery_orders(
+    id,customer_id,quote_id,order_reference,tracking_reference,idempotency_key,
+    pickup_address,pickup_latitude,pickup_longitude,delivery_address,delivery_latitude,delivery_longitude,
+    sender_name,sender_phone,recipient_name,recipient_phone,payer,payment_method,delivery_status,
+    payment_status,distance_meters,quoted_amount_minor
+  ) values (
+    zero_order_id,'11111111-1111-1111-1111-111111111111',zero_quote_id,'DOV-FREE-VALIDATION','TRK-FREE-VALIDATION',gen_random_uuid(),
+    'Pickup',7.3,3.9,'Delivery',7.4,3.8,'Sender','08000000000','Recipient','08000000001','sender','online','confirmed',
+    'unpaid',5000,0
+  );
+  perform public.settle_complimentary_payment(zero_order_id);
+  if (select payment_status from public.delivery_orders where id=zero_order_id) <> 'paid' then
+    raise exception 'zero-price promotion did not mark the order paid';
+  end if;
+  if not exists(select 1 from public.payment_transactions t join public.payment_intents i on i.id=t.payment_intent_id where i.order_id=zero_order_id and i.amount_minor=0 and i.status='paid' and t.amount_minor=0 and t.status='paid') then
+    raise exception 'zero-price promotion did not create immutable complimentary settlement evidence';
+  end if;
+  if not public.order_has_verified_payment_clearance(zero_order_id) then
+    raise exception 'zero-price promotion did not clear handover';
+  end if;
+end;
+$$;
 reset role;
 
 select 'migration and RLS validation passed' as result;

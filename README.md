@@ -93,10 +93,12 @@ The additive operations migration includes versioned pricing, rate cards, compet
 Pricing tests cover every supplied band boundary, the open-ended rate, invalid input, high fuel, low volume, stale/insufficient competitor evidence, margin floors, fee/tax combinations, promotion stacking, expiry and version attribution.
 
 The operating model, launch controls and unresolved integrations are documented in `docs/operations-expansion.md`.
+Production release gates, recovery requirements, incident handling and cutover order are documented in `docs/production-readiness.md`.
 
 ## Security notes
 
 - Never expose `SUPABASE_SERVICE_ROLE_KEY`, `PAYSTACK_SECRET_KEY` or `GOOGLE_MAPS_API_KEY` to browser code.
+- Require passwords of at least 12 characters with upper/lowercase letters, digits and symbols; require recent authentication and the current password for changes.
 - Configure a private Storage bucket before enabling proof-of-delivery uploads.
 - Keep payment and delivery transitions behind database functions and server routes.
 - Review provisional assumptions, tax treatment, payment fees and market evidence with finance and operations before launch.

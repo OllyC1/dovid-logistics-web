@@ -69,6 +69,8 @@ export type PromotionInput = {
   value: number;
   maximumDiscountKobo?: MoneyKobo | null;
   stackable: boolean;
+  autoApply?: boolean;
+  allowBelowProfitabilityFloor?: boolean;
 };
 
 export type QuoteEngineInput = {
@@ -104,7 +106,7 @@ export type InternalQuoteBreakdown = {
   estimatedProfitKobo: MoneyKobo;
   estimatedOperatingMarginBps: number;
   totalOperationalDistanceMeters: number;
-  pricingReason: "RATE_CARD" | "VERIFIED_MARKET_TARGET" | "PROFITABILITY_FLOOR";
+  pricingReason: "RATE_CARD" | "VERIFIED_MARKET_TARGET" | "PROFITABILITY_FLOOR" | "APPROVED_PROMOTION";
   flags: string[];
 };
 

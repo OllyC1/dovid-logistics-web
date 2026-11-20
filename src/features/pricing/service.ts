@@ -31,11 +31,12 @@ export async function loadComparableCompetitorQuotes(input: { serviceAreaId: str
 }
 
 export async function loadPromotion(code?: string | null) {
-  if (!code) return [];
   const admin = createSupabaseAdminClient();
   const now = new Date().toISOString();
-  const { data } = await admin.from("promotions").select("code,kind,value,maximum_discount_kobo,stackable").eq("code", code.toUpperCase()).eq("active", true).lte("starts_at", now).or(`ends_at.is.null,ends_at.gt.${now}`).maybeSingle();
-  return data ? [{ code: data.code, kind: data.kind, value: data.value, maximumDiscountKobo: data.maximum_discount_kobo, stackable: data.stackable } as PromotionInput] : [];
+  let query = admin.from("promotions").select("code,kind,value,maximum_discount_kobo,stackable,auto_apply,allow_below_profitability_floor").eq("active", true).lte("starts_at", now).or(`ends_at.is.null,ends_at.gt.${now}`);
+  query = code ? query.eq("code", code.toUpperCase()) : query.eq("auto_apply", true);
+  const { data } = await query.order("created_at", { ascending: true }).limit(1).maybeSingle();
+  return data ? [{ code: data.code, kind: data.kind, value: data.value, maximumDiscountKobo: data.maximum_discount_kobo, stackable: data.stackable, autoApply: data.auto_apply, allowBelowProfitabilityFloor: data.allow_below_profitability_floor } as PromotionInput] : [];
 }
 
 export function createQuoteFromContext(input: QuoteEngineInput, context: PricingContext) {

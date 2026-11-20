@@ -40,6 +40,11 @@ export async function POST(request: NextRequest) {
   if (order.currency !== "NGN") return NextResponse.json({ error: "This currency is not supported." }, { status: 400 });
 
   try {
+    if (order.quoted_amount_minor === 0) {
+      const { error } = await admin.rpc("settle_complimentary_payment", { target_order_id: order.id });
+      if (error) throw error;
+      return NextResponse.json({ checkoutUrl: null, confirmed: true }, { headers: { "Cache-Control": "no-store" } });
+    }
     const intent = await getOrCreateMainPaymentIntent(admin, {
       orderId: order.id,
       orderReference: order.order_reference,

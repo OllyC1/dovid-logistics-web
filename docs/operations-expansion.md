@@ -5,8 +5,11 @@ Migrations `202611140006_operations_expansion.sql` through `202611140008_deliver
 ## Operating schedule
 
 - Timezone: `Africa/Lagos`
-- Published hours: `07:00–22:00` daily
-- Normal same-day cutoff: `20:30`
+- Published hours: `08:00–22:00` daily
+- Normal same-day cutoff: `20:00`
+- Waiting allowance: 10 minutes, then `NGN 50` per started minute
+- Launch promotion: `DOVID1500` automatically prices every order at `NGN 1,500` for seven days from activation
+- Optional complimentary campaign: `DOVIDFREE` is inactive and can be activated only by the Super Admin
 - Handover, safe-completion, waiting-charge, fatigue and break values remain administrator-configurable. Values that were not supplied are deliberately left unconfigured rather than fabricated.
 - Published hours never imply rider availability. Route duration, fleet capacity, package suitability, payment policy and profitability checks still apply.
 
@@ -35,7 +38,7 @@ One rider may have one active run containing multiple distinct orders. Each orde
 - verified vehicle payload capacity and package weight for multi-parcel loads;
 - administrator justification for deadline conflicts.
 
-Vehicle payload values are intentionally blank until measured and approved. Bikes remain offline.
+Both motorcycles use the approved standard 45 L dispatch-box capacity of 470 × 410 × 390 mm and a 25 kg payload limit. Real plate details can be completed later without deleting this capacity evidence. One verified rider and one motorcycle are available for controlled opening; the second motorcycle remains offline until an active rider is assigned.
 
 ## Expenses and supplemental charges
 
@@ -57,9 +60,10 @@ Riders record an attempt and may leave an unsafe location immediately. Dispatch 
 
 ## Activation checklist
 
-- Keep `ENABLE_PUBLIC_BOOKINGS=false`, `ENABLE_ASSISTED_BOOKINGS=false` and `ENABLE_LIVE_PAYMENTS=false`.
-- Import and approve real service-zone polygons.
-- Measure each motorcycle payload and cargo dimensions; record capacity verification.
+- Keep `ENABLE_ASSISTED_BOOKINGS=false` and `ENABLE_LIVE_PAYMENTS=false`.
+- Public booking may be enabled only after the controlled hosted journey passes.
+- Zones A-E are standard-eligible and Zone F requires manual dispatch approval; their attributed polygons are active.
+- Keep both motorcycle capacity records; onboard and assign the second rider before making the second bike available.
 - Assign approved rider profiles and complete vehicle safety checks.
 - Configure handover, safe-completion, waiting, break and fatigue rules.
 - Confirm applicable motorcycle operating restrictions and record compliance evidence.
@@ -72,8 +76,7 @@ Riders record an attempt and may leave an unsafe location immediately. Dispatch 
 ## Unresolved integrations
 
 - Official WhatsApp Business Platform credentials and approved templates are absent. The current reviewed workflow uses a manual `wa.me` handoff and does not claim to send automated WhatsApp messages.
-- Motorcycle capacity measurements and local restriction confirmation are absent.
-- Service-zone polygons remain draft and inactive.
-- The two-bike fleet remains offline.
-- Public booking, assisted-order confirmation and live Paystack remain disabled.
+- A second active rider still needs onboarding before the second bike can be available.
+- Public booking is enabled only after final hosted TEST acceptance.
+- Live Paystack and assisted-order confirmation remain disabled.
 
