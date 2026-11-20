@@ -1,7 +1,7 @@
 import { ChevronDown } from "lucide-react";
 
 export const faqItems = [
-  ["Where does Dovid currently deliver?", "We are starting in selected parts of Ibadan. Enter the pickup and delivery addresses when booking and we will confirm availability straight away."],
+  ["Where does Dovid currently deliver?", "We serve Ibadan. Enter the pickup and delivery addresses when booking; outskirts are confirmed by dispatch before acceptance."],
   ["How can I pay?", "You can pay online or by transfer to the Dovid company account. The sender can pay, or you can send the receiver a payment request."],
   ["How do I track a delivery?", "Enter the tracking reference from your booking confirmation, or sign in to see all your deliveries."],
   ["What happens if the receiver is paying?", "We send the receiver a payment link. If they choose to pay when the parcel arrives, the rider hands it over after Dovid confirms the payment."],
