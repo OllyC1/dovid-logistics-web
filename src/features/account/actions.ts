@@ -156,3 +156,23 @@ export async function updatePasswordAction(_: AccountState, formData: FormData):
     return { error: "We could not update your password. Please log in again and retry." };
   }
 }
+
+export async function updateRecoveryPasswordAction(_: AccountState, formData: FormData): Promise<AccountState> {
+  const parsed = z.object({
+    password: z.string().min(NEW_PASSWORD_MIN_LENGTH).max(NEW_PASSWORD_MAX_LENGTH).refine(isStrongNewPassword),
+    passwordConfirmation: z.string(),
+  }).safeParse(Object.fromEntries(formData));
+  if (!parsed.success || parsed.data.password !== parsed.data.passwordConfirmation) {
+    return { error: parsed.success ? "Enter the same new password in both fields." : NEW_PASSWORD_HINT };
+  }
+
+  try {
+    const { supabase, user } = await authenticatedCustomer();
+    if (!user) return { error: "Open the secure recovery link in your email, then try again." };
+    const { error } = await supabase.auth.updateUser({ password: parsed.data.password });
+    if (error) throw error;
+    return { success: "Password updated securely. You can continue to your Dovid account." };
+  } catch {
+    return { error: "This recovery session could not update the password. Request a fresh recovery email and try again." };
+  }
+}

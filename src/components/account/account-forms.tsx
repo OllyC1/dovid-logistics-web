@@ -4,7 +4,7 @@ import { useActionState, useState } from "react";
 import { AddressAutocomplete, type AddressValue } from "@/components/maps/address-autocomplete";
 import { Button } from "@/components/ui/button";
 import { Field, PasswordField, TextareaField } from "@/components/ui/field";
-import { addAddressAction, deleteAddressAction, updateAddressAction, updatePasswordAction, updateProfileAction, type AccountState } from "@/features/account/actions";
+import { addAddressAction, deleteAddressAction, updateAddressAction, updatePasswordAction, updateProfileAction, updateRecoveryPasswordAction, type AccountState } from "@/features/account/actions";
 import { NEW_PASSWORD_HINT, NEW_PASSWORD_MAX_LENGTH, NEW_PASSWORD_MIN_LENGTH } from "@/lib/auth/password-policy";
 
 function Feedback({ state }: { state: AccountState }) {
@@ -89,4 +89,14 @@ export function SavedAddressCard({ address: saved }: { address: SavedAddress }) 
 export function PasswordForm() {
   const [state, action, pending] = useActionState(updatePasswordAction, {});
   return <form action={action} className="grid gap-4"><PasswordField name="currentPassword" label="Current password" autoComplete="current-password" required /><PasswordField name="password" label="New password" minLength={NEW_PASSWORD_MIN_LENGTH} maxLength={NEW_PASSWORD_MAX_LENGTH} hint={NEW_PASSWORD_HINT} autoComplete="new-password" required /><Feedback state={state} /><Button type="submit" disabled={pending}>{pending ? "Updating…" : "Update password"}</Button></form>;
+}
+
+export function RecoveryPasswordForm() {
+  const [state, action, pending] = useActionState(updateRecoveryPasswordAction, {});
+  return <form action={action} className="grid gap-4">
+    <PasswordField name="password" label="New password" minLength={NEW_PASSWORD_MIN_LENGTH} maxLength={NEW_PASSWORD_MAX_LENGTH} hint={NEW_PASSWORD_HINT} autoComplete="new-password" required />
+    <PasswordField name="passwordConfirmation" label="Confirm new password" autoComplete="new-password" required />
+    <Feedback state={state} />
+    <Button type="submit" disabled={pending}>{pending ? "Updating…" : "Set new password"}</Button>
+  </form>;
 }
