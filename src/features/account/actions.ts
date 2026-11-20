@@ -146,7 +146,10 @@ export async function updatePasswordAction(_: AccountState, formData: FormData):
       password: parsed.data.currentPassword,
     });
     if (reauthenticationError) return { error: "Your current password was not correct." };
-    const { error } = await supabase.auth.updateUser({ password: parsed.data.password });
+    const { error } = await supabase.auth.updateUser({
+      password: parsed.data.password,
+      current_password: parsed.data.currentPassword,
+    });
     if (error) throw error;
     return { success: "Password updated securely." };
   } catch {
