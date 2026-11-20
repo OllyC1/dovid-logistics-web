@@ -63,6 +63,36 @@ test("tracking form resolves a public status without exposing private details",a
   await expect(page.getByText(/phone|address/i)).toHaveCount(0);
 });
 
+test("manual routes show email, call and WhatsApp dispatch options on mobile",async({page},testInfo)=>{
+  test.skip(!testInfo.project.name.startsWith("mobile"),"Manual approval assistance is mobile-first");
+  await page.route("**/api/maps/places**",route=>{
+    const url=new URL(route.request().url());
+    if(url.pathname==="/api/maps/places"){
+      const pickup=url.searchParams.get("input")?.toLowerCase().includes("bodija");
+      return route.fulfill({contentType:"application/json",body:JSON.stringify({suggestions:[{placeId:pickup?"manual-pickup":"manual-delivery",description:pickup?"Bodija, Ibadan":"Ajadi Crescent, Ibadan",mainText:pickup?"Bodija":"Ajadi Crescent",secondaryText:"Ibadan, Oyo, Nigeria"}]})});
+    }
+    const pickup=url.pathname.endsWith("manual-pickup");
+    return route.fulfill({contentType:"application/json",body:JSON.stringify({address:pickup?"Bodija, Ibadan, Nigeria":"Ajadi Crescent, Ibadan, Nigeria",coordinates:pickup?{latitude:7.435,longitude:3.91}:{latitude:7.4314,longitude:3.9359}})});
+  });
+  await page.route("**/api/delivery/quotes",route=>route.fulfill({status:202,contentType:"application/json",body:JSON.stringify({message:"This route needs confirmation from our dispatch team.",eligibility:"manual_approval",availabilityRequestId:"request-1",manualAssistance:{reference:"request-1",email:"hello@dovidlogistics.com",phone:"+2347072232323",emailUrl:"mailto:hello@dovidlogistics.com?subject=request-1",phoneUrl:"tel:+2347072232323",whatsappUrl:"https://wa.me/2347072232323?text=request-1"}})}));
+  await page.goto("/book");
+  await page.getByLabel("Where should we collect the parcel?").fill("Bodija");
+  await page.getByRole("button",{name:/Bodija/}).click();
+  await page.getByLabel("Where should we deliver it?").fill("Ajadi");
+  await page.getByRole("button",{name:/Ajadi/}).click();
+  await page.getByRole("button",{name:"Continue"}).click();
+  await page.getByRole("button",{name:"Continue"}).click();
+  await page.getByLabel("Your name").fill("Manual Sender");
+  await page.getByLabel("Your phone number").fill("08000000000");
+  await page.getByLabel("Receiver's name").fill("Manual Receiver");
+  await page.getByLabel("Receiver's phone number").fill("08000000001");
+  await page.getByRole("button",{name:"See my price"}).click();
+  await expect(page.getByText("Contact dispatch to continue")).toBeVisible();
+  await expect(page.getByRole("link",{name:"Email dispatch"})).toHaveAttribute("href",/mailto:hello@dovidlogistics\.com/);
+  await expect(page.getByRole("link",{name:/Call \+2347072232323/})).toHaveAttribute("href","tel:+2347072232323");
+  await expect(page.getByRole("link",{name:"WhatsApp dispatch"})).toHaveAttribute("href",/wa\.me\/2347072232323/);
+});
+
 test("receiver payment opens only the checkout returned by the server",async({page},testInfo)=>{
   test.skip(testInfo.project.name.startsWith("mobile"),"Covered once in desktop Chrome");
   await page.route("**/api/payments/receiver",route=>route.fulfill({contentType:"application/json",body:JSON.stringify({checkoutUrl:"http://127.0.0.1:3000/mock-checkout"})}));

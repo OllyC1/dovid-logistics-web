@@ -27,10 +27,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   if (!geometryCheck.valid) return NextResponse.json({ error: "The boundary is not valid.", issues: geometryCheck.issues }, { status: 400 });
   const { id } = await params;
   const admin = createSupabaseAdminClient();
-  const { data: current } = await admin.from("service_zones").select("id,service_area_id").eq("id", id).maybeSingle();
+  const { data: current } = await admin.from("service_zones").select("id,service_area_id,is_citywide").eq("id", id).maybeSingle();
   if (!current) return NextResponse.json({ error: "Zone not found" }, { status: 404 });
-  const { data: otherZones } = await admin.from("service_zones").select("id,name,boundary_geojson").eq("service_area_id", current.service_area_id).neq("id", id).not("boundary_geojson", "is", null);
-  const overlaps = parsed.data.boundaryGeoJson ? (otherZones ?? []).filter((zone) => zone.boundary_geojson && zoneBoundariesOverlap(parsed.data.boundaryGeoJson as ZoneGeoJson, zone.boundary_geojson as ZoneGeoJson)).map((zone) => ({ id: zone.id, name: zone.name })) : [];
+  const { data: otherZones } = await admin.from("service_zones").select("id,name,boundary_geojson,is_citywide").eq("service_area_id", current.service_area_id).neq("id", id).not("boundary_geojson", "is", null);
+  const overlaps = parsed.data.boundaryGeoJson && !current.is_citywide ? (otherZones ?? []).filter((zone) => !zone.is_citywide && zone.boundary_geojson && zoneBoundariesOverlap(parsed.data.boundaryGeoJson as ZoneGeoJson, zone.boundary_geojson as ZoneGeoJson)).map((zone) => ({ id: zone.id, name: zone.name })) : [];
   const { error } = await admin.from("service_zones").update({
     name: parsed.data.name,
     code: parsed.data.code,
