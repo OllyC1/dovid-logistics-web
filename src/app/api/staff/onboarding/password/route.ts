@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
     admin.from("staff_memberships").select("status").eq("user_id", user.id).maybeSingle(),
   ]);
   if (invitationError || membershipError) return NextResponse.json({ error: "Your invitation could not be verified. Try the email link again." }, { status: 503 });
-  if (!invitation || membership?.status !== "pending") {
+  if (!invitation || (membership && membership.status !== "pending")) {
     return NextResponse.json({ error: "This invitation is no longer waiting for password setup." }, { status: 409 });
   }
 

@@ -12,6 +12,7 @@ describe("staff invitation onboarding contract", () => {
     expect(setup).not.toContain("PasswordForm");
     expect(wizard).toContain("You will not be asked for a current password.");
     expect(passwordRoute).toContain("updateUserById");
+    expect(passwordRoute).toContain("(membership && membership.status !== \"pending\")");
     expect(resetPage).toContain('redirect("/staff/setup")');
     expect(resetPage).toContain("RecoveryPasswordForm");
     expect(resetPage).not.toContain("<PasswordForm");
