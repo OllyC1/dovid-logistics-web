@@ -50,7 +50,7 @@ function ringSelfIntersects(ring: number[][]) {
   for (let first = 0; first < ring.length - 1; first += 1) {
     for (let second = first + 1; second < ring.length - 1; second += 1) {
       if (Math.abs(first - second) <= 1 || (first === 0 && second === ring.length - 2)) continue;
-      if (segmentsIntersect(ring[first], ring[first + 1], ring[second], ring[second + 1])) return true;
+      if (segmentsProperlyIntersect(ring[first], ring[first + 1], ring[second], ring[second + 1])) return true;
     }
   }
   return false;
