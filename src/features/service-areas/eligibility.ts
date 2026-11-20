@@ -16,6 +16,7 @@ export type EligibilityInput = {
   oversized: boolean;
   oversizedRequiresApproval: boolean;
   estimatedProfitKobo: number;
+  allowBelowProfitabilityFloor?: boolean;
 };
 
 const messages: Record<EligibilityDecision, string> = {
@@ -29,7 +30,7 @@ const messages: Record<EligibilityDecision, string> = {
 export function evaluateBookingEligibility(input: EligibilityInput) {
   if (!input.pickupCovered || !input.deliveryCovered || !input.allStopsCovered || !input.zonesAllowBooking) return { decision: "unsupported" as const, reasonCode: "outside_approved_coverage", message: messages.unsupported };
   if (!Number.isFinite(input.roadDistanceMeters) || input.roadDistanceMeters <= 0) return { decision: "unsupported" as const, reasonCode: "invalid_route_distance", message: messages.unsupported };
-  if (input.estimatedProfitKobo < 0) return { decision: "unsupported" as const, reasonCode: "profitability_floor_not_met", message: messages.unsupported };
+  if (input.estimatedProfitKobo < 0 && !input.allowBelowProfitabilityFloor) return { decision: "unsupported" as const, reasonCode: "profitability_floor_not_met", message: messages.unsupported };
   if (!input.withinServiceHours) return { decision: "manual_approval" as const, reasonCode: "outside_service_hours", message: messages.manual_approval };
   if (input.roadDistanceMeters > input.manualMaxDistanceMeters) return { decision: "manual_quote" as const, reasonCode: "distance_above_manual_threshold", message: messages.manual_quote };
   if (input.availableFleetSlots <= 0) return { decision: "capacity_unavailable" as const, reasonCode: "fleet_at_capacity", message: messages.capacity_unavailable };

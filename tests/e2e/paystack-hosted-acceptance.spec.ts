@@ -17,8 +17,9 @@ test.describe("Paystack hosted TEST acceptance", () => {
     }
     await expect(page.getByRole("heading", { name: "Your delivery" })).toBeVisible();
     await expect(page.getByText("DOV-E2E-PAY-", { exact: false })).toBeVisible();
-    await page.getByLabel("Email address for the payment receipt").fill(receiptEmail!);
-    await page.getByRole("button", { name: "Pay securely" }).click();
+    const mainPayment = page.getByRole("article").filter({ has: page.getByRole("heading", { name: "Payment", exact: true }) });
+    await mainPayment.getByLabel("Email address for the payment receipt").fill(receiptEmail!);
+    await mainPayment.getByRole("button", { name: "Pay securely" }).click();
     await page.waitForURL((url) => url.hostname.endsWith("paystack.com"), { timeout: 30_000 });
     expect(new URL(page.url()).protocol).toBe("https:");
     await page.waitForFunction(() => !document.body.innerText.includes("Performing security verification"), undefined, { timeout: 45_000 });

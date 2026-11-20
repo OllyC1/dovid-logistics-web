@@ -16,8 +16,9 @@ test.describe("Paystack supplemental TEST acceptance", () => {
       throw new Error(message);
     }
     await expect(page.getByText("Controlled TEST mandatory waiting charge")).toBeVisible();
-    await page.getByLabel("Email address for the payment receipt").fill(receiptEmail!);
-    await page.getByRole("button", { name: "Pay this charge" }).click();
+    const supplementalPayment = page.getByRole("article").filter({ hasText: "Additional delivery charges" });
+    await supplementalPayment.getByLabel("Email address for the payment receipt").fill(receiptEmail!);
+    await supplementalPayment.getByRole("button", { name: "Pay this charge" }).click();
     await page.waitForURL((url) => url.hostname.endsWith("paystack.com"), { timeout: 30_000 });
     await page.waitForFunction(() => !document.body.innerText.includes("Performing security verification"), undefined, { timeout: 45_000 });
     await expect(page.getByText("Use any of the options below to test the payment flow")).toBeVisible({ timeout: 60_000 });

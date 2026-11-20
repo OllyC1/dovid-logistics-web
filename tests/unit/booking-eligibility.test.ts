@@ -15,6 +15,9 @@ describe("booking eligibility", () => {
     expect(evaluateBookingEligibility(input({ availableFleetSlots: 0 }))).toMatchObject({ decision: "capacity_unavailable", message: "All riders are currently busy. Please try another time." });
     expect(evaluateBookingEligibility(input({ estimatedProfitKobo: -1 })).reasonCode).toBe("profitability_floor_not_met");
   });
+  it("honors only an explicit approved promotion floor override", () => {
+    expect(evaluateBookingEligibility(input({ estimatedProfitKobo: -1, allowBelowProfitabilityFloor: true })).decision).toBe("standard_eligible");
+  });
   it("sends large or oversized motorcycle work for review", () => {
     expect(evaluateBookingEligibility(input({ packageSize: "large" })).decision).toBe("manual_approval");
     expect(evaluateBookingEligibility(input({ oversized: true })).decision).toBe("manual_approval");

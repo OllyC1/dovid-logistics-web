@@ -87,6 +87,7 @@ export async function createAssistedQuote(draftId: string, input: AssistedBookin
     oversized: input.oversized,
     oversizedRequiresApproval: settings.oversized_requires_manual_approval,
     estimatedProfitKobo: result.internal.estimatedProfitKobo,
+    allowBelowProfitabilityFloor: promotions.some((promotion) => promotion.allowBelowProfitabilityFloor),
   });
   const requestPayload = {
     ...input,

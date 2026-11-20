@@ -91,7 +91,8 @@ export async function POST(request: NextRequest) {
       standardPackageSizes: settings.standard_package_sizes as string[],
       oversized: parsed.data.oversized,
       oversizedRequiresApproval: settings.oversized_requires_manual_approval,
-      estimatedProfitKobo: result.internal.estimatedProfitKobo
+      estimatedProfitKobo: result.internal.estimatedProfitKobo,
+      allowBelowProfitabilityFloor: promotions.some((promotion) => promotion.allowBelowProfitabilityFloor)
     });
     const enrichedPayload = {
       ...requestPayload,
