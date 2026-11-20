@@ -10,7 +10,7 @@ for (const line of readFileSync(".env.local", "utf8").split(/\r?\n/)) {
 const key = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 if (!key) throw new Error("NEXT_PUBLIC_GOOGLE_MAPS_API_KEY is required");
 
-const checkUrl = "https://dovid-logistics-prelaunch.netlify.app/__maps-browser-key-check";
+const checkUrl = "https://dovidlogistics.com/__maps-browser-key-check";
 const knownErrors = ["RefererNotAllowedMapError", "ApiNotActivatedMapError", "BillingNotEnabledMapError", "InvalidKeyMapError", "ExpiredKeyMapError", "OverQuotaMapError"];
 const detectedErrors = new Set();
 const requestFailures = [];

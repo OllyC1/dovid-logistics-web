@@ -59,7 +59,7 @@ When the founder authorizes `dovidlogistics.com`:
 
 1. Connect the domain in Netlify and create the exact DNS records shown there.
 2. Confirm Netlify issues certificates and HTTPS redirects without loops.
-3. Change the Supabase Site URL and redirect allowlist from the prelaunch host to the approved final origin, retaining only required exact development URLs.
+3. Verify the Supabase Site URL and redirect allowlist use `https://dovidlogistics.com`, retaining only required development URLs and the prelaunch hostname during transition.
 4. Change the Paystack TEST webhook and callback URLs, ping the webhook, and repeat the full TEST journey before considering live mode.
 5. Restrict Google browser referrers to the final origin and verify both Places and Maps JavaScript from that origin.
 6. Update application base URL and Resend links, then repeat verification and recovery email delivery.

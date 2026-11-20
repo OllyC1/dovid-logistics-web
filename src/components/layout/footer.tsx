@@ -19,7 +19,7 @@ export function Footer() {
   return <footer className="bg-navy text-white">
     <div className="container grid gap-12 py-16 lg:grid-cols-[1.2fr_2fr]">
       <div className="max-w-sm">
-        <Image className="h-auto w-[190px]" src="/brand/dovid-reverse.svg" alt="Dovid Logistics" width={195} height={60} />
+        <Image className="h-[58px] w-[190px]" src="/brand/dovid-reverse.svg" alt="Dovid Logistics" width={195} height={60} />
         <p className="mt-5 text-sm leading-7 text-white/70">Simple, dependable delivery for people and businesses.</p>
         <p className="mt-6 text-sm font-bold text-orange-light">Now serving selected areas of Ibadan.</p>
       </div>

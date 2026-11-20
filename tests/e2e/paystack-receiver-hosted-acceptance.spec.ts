@@ -23,7 +23,7 @@ test.describe("Paystack receiver TEST acceptance", () => {
     await expect(page.getByText("Use any of the options below to test the payment flow")).toBeVisible({ timeout: 60_000 });
     await page.getByText("Success", { exact: true }).click();
     await page.getByRole("button", { name: /Pay NGN/ }).click();
-    await page.waitForURL((url) => url.hostname === "dovid-logistics-prelaunch.netlify.app" && url.pathname === "/pay/callback", { timeout: 60_000 });
+    await page.waitForURL((url) => ["dovidlogistics.com", "www.dovidlogistics.com"].includes(url.hostname) && url.pathname === "/pay/callback", { timeout: 60_000 });
     await expect(page.getByText("Payment confirmed. Your delivery can continue.")).toBeVisible({ timeout: 30_000 });
     await page.screenshot({ path: ".tmp/paystack-receiver-test-payment-confirmed.png", fullPage: true });
   });

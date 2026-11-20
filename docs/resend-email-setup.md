@@ -6,7 +6,7 @@ The application code supports Resend API delivery, signed Resend webhooks and a 
 
 - The Resend sending domain `dovidlogistics.com` is verified.
 - Supabase Auth uses the configured Resend SMTP provider.
-- The hosted Site URL and every Auth redirect must remain on `https://dovid-logistics-prelaunch.netlify.app` until the website domain is intentionally connected.
+- The hosted Site URL and Auth redirects must use `https://dovidlogistics.com`; retain the prelaunch hostname only during transition.
 - `RESEND_FROM_EMAIL` is configured for the Netlify production context.
 - `RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET` and `EMAIL_WORKER_SECRET` are configured as secret Netlify production variables.
 - The scheduled application queue and signed webhook were verified with real Resend test delivery on 16 November 2026.
@@ -31,7 +31,7 @@ Prefer the Resend integration in the Supabase Integrations catalog. Otherwise co
 - Sender email: `notifications@dovidlogistics.com`
 - Sender name: `Dovid Logistics`
 
-Keep email confirmation enabled. Set the hosted Site URL to `https://dovid-logistics-prelaunch.netlify.app` and allow `https://dovid-logistics-prelaunch.netlify.app/auth/callback`. Copy the HTML files in `supabase/templates/` into the matching hosted Auth templates; `supabase/config.toml` applies to local development only.
+Keep email confirmation enabled. Set the hosted Site URL to `https://dovidlogistics.com` and allow `https://dovidlogistics.com/**`, `https://www.dovidlogistics.com/**`, and the required development redirects. The versioned `supabase/config.toml` is managed with `supabase config push`.
 
 ## Netlify variables
 
@@ -45,7 +45,7 @@ Configure these as secret, server-only variables except the sender strings:
 
 The API key cannot be recovered from Supabase SMTP after it has been saved. Create or select a server-side Resend API key in the Resend dashboard and add it directly to Netlify; never copy it into source control, support messages or terminal output. Generate `EMAIL_WORKER_SECRET` independently and store it only in Netlify. Copy the endpoint-specific signing secret from the Resend webhook details page into `RESEND_WEBHOOK_SECRET`.
 
-Register `https://dovid-logistics-prelaunch.netlify.app/api/webhooks/resend` for `email.sent`, `email.delivered`, `email.delivery_delayed`, `email.bounced`, `email.complained`, and `email.failed` events. Store its `whsec_...` signing secret only in Netlify.
+Register `https://dovidlogistics.com/api/webhooks/resend` for `email.sent`, `email.delivered`, `email.delivery_delayed`, `email.bounced`, `email.complained`, and `email.failed` events. Store its `whsec_...` signing secret only in Netlify.
 
 ## Capacity
 
