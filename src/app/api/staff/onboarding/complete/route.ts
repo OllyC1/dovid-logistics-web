@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { z } from "zod";
+import { getVerifiedAuthenticatorAssuranceLevel } from "@/lib/auth/assurance";
 
 const staffProfileSchema = z.object({
   firstName: z.string().trim().min(2).max(60),
@@ -12,9 +13,9 @@ const staffProfileSchema = z.object({
 
 export async function POST(request: Request) {
   const supabase = await createSupabaseServerClient();
-  const [{ data: { user } }, { data: assurance }] = await Promise.all([
+  const [{ data: { user } }, assurance] = await Promise.all([
     supabase.auth.getUser(),
-    supabase.auth.mfa.getAuthenticatorAssuranceLevel()
+    getVerifiedAuthenticatorAssuranceLevel(supabase),
   ]);
   if (!user?.email || !user.email_confirmed_at) return NextResponse.json({ error: "Open the verified invitation link before continuing." }, { status: 401 });
   const admin = createSupabaseAdminClient();

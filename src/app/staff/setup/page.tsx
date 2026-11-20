@@ -5,6 +5,7 @@ import { MfaPanel, StaffInvitationAcceptance } from "@/components/staff/mfa-pane
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { CheckCircle2, Clock3 } from "lucide-react";
+import { getVerifiedAuthenticatorAssuranceLevel } from "@/lib/auth/assurance";
 
 export const metadata: Metadata = { title: "Secure staff setup", robots: { index: false, follow: false } };
 export const dynamic = "force-dynamic";
@@ -21,9 +22,9 @@ export default async function StaffSetupPage() {
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  const [{ data: membership }, { data: assurance }] = await Promise.all([
+  const [{ data: membership }, assurance] = await Promise.all([
     admin.from("staff_memberships").select("staff_role,status").eq("user_id", user.id).maybeSingle(),
-    supabase.auth.mfa.getAuthenticatorAssuranceLevel(),
+    getVerifiedAuthenticatorAssuranceLevel(supabase),
   ]);
   if (membership?.status === "active") {
     if (membership.staff_role === "rider") redirect("/rider");

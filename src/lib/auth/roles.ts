@@ -8,6 +8,7 @@ import {
   type StaffRole,
   type StaffStatus,
 } from "@/lib/auth/role-resolution";
+import { getVerifiedAuthenticatorAssuranceLevel } from "@/lib/auth/assurance";
 
 export type { AppRole, StaffRole, StaffStatus } from "@/lib/auth/role-resolution";
 
@@ -15,10 +16,10 @@ export async function getAuthenticatedRole() {
   const supabase = await createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
-  const [{ data: profile }, { data: membership }, { data: assurance }] = await Promise.all([
+  const [{ data: profile }, { data: membership }, assurance] = await Promise.all([
     supabase.from("profiles").select("full_name").eq("id", user.id).single(),
     supabase.from("staff_memberships").select("staff_role,status").eq("user_id", user.id).maybeSingle(),
-    supabase.auth.mfa.getAuthenticatorAssuranceLevel()
+    getVerifiedAuthenticatorAssuranceLevel(supabase),
   ]);
   if (!profile) return null;
   const staffRole = membership?.staff_role as StaffRole | undefined;

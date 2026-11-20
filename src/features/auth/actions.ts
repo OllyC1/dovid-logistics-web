@@ -7,6 +7,7 @@ import { publicEnv } from "@/lib/env";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { postLoginDestination, type StaffRole, type StaffStatus } from "@/lib/auth/role-resolution";
 import { isStrongNewPassword, NEW_PASSWORD_HINT, NEW_PASSWORD_MAX_LENGTH, NEW_PASSWORD_MIN_LENGTH } from "@/lib/auth/password-policy";
+import { getVerifiedAuthenticatorAssuranceLevel } from "@/lib/auth/assurance";
 
 export type AuthState = { error?: string; success?: string };
 const credentialsSchema = z.object({ email: z.email(), password: z.string().min(8) });
@@ -28,9 +29,9 @@ export async function loginAction(_: AuthState, formData: FormData): Promise<Aut
     const { data: signIn, error } = await supabase.auth.signInWithPassword(parsed.data);
     if (error || !signIn.user) return { error: "The email or password is incorrect." };
     const admin = createSupabaseAdminClient();
-    const [{ data: membership }, { data: assurance }, { data: invitation }] = await Promise.all([
+    const [{ data: membership }, assurance, { data: invitation }] = await Promise.all([
       supabase.from("staff_memberships").select("staff_role,status").eq("user_id", signIn.user.id).maybeSingle(),
-      supabase.auth.mfa.getAuthenticatorAssuranceLevel(),
+      getVerifiedAuthenticatorAssuranceLevel(supabase, signIn.session?.access_token),
       admin.from("staff_invitations").select("id").eq("auth_user_id", signIn.user.id).in("status", ["pending", "sent", "accepted"]).gt("expires_at", new Date().toISOString()).limit(1).maybeSingle(),
     ]);
     const staffRole = (membership?.staff_role as StaffRole | undefined) ?? null;
