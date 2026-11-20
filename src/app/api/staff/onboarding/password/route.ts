@@ -37,6 +37,9 @@ export async function POST(request: NextRequest) {
 
   const { error } = await admin.auth.admin.updateUserById(user.id, { password: parsed.data.password });
   if (error) return NextResponse.json({ error: "Your password could not be saved. Refresh the verified invitation link and try again." }, { status: 400 });
-  await supabase.auth.refreshSession();
+  const refreshed = await supabase.auth.signInWithPassword({ email: user.email, password: parsed.data.password });
+  if (refreshed.error || !refreshed.data.session) {
+    return NextResponse.json({ error: "Your password was saved. Sign in again on this same setup page to finish." }, { status: 409 });
+  }
   return NextResponse.json({ saved: true, next: "/staff/setup" });
 }
