@@ -62,6 +62,7 @@ type MapsApi = {
   Map: new(element: HTMLElement, options: Record<string, unknown>) => MapInstance;
   LatLngBounds: new() => MapBounds;
   Polygon: new(options: Record<string, unknown>) => PolygonInstance;
+  importLibrary?: (name: string) => Promise<Record<string, unknown>>;
 };
 
 declare global { interface Window { google?: { maps: MapsApi }; gm_authFailure?: () => void } }
@@ -110,35 +111,48 @@ export function CoverageEditor({ initialZones, settings: initialSettings, mapsKe
   const map = useRef<MapInstance | null>(null);
   const polygons = useRef<PolygonInstance[]>([]);
   const fitBoundary = useRef(true);
-  const [mapsReady, setMapsReady] = useState(typeof window !== "undefined" && Boolean(window.google?.maps));
+  const [mapsReady, setMapsReady] = useState(typeof window !== "undefined" && Boolean(window.google?.maps?.Map));
   const [mapsError, setMapsError] = useState<"missing_key" | "authentication" | "network" | null>(mapsKey ? null : "missing_key");
 
   useEffect(() => {
-    if (!mapsKey || window.google?.maps) return;
+    if (!mapsKey) return;
     const previousAuthFailure = window.gm_authFailure;
     window.gm_authFailure = () => {
       setMapsReady(false);
       setMapsError("authentication");
     };
     const existing = document.querySelector<HTMLScriptElement>("script[data-dovid-maps]");
-    const loaded = () => {
-      if (window.google?.maps) { setMapsReady(true); setMapsError(null); }
-      else setMapsError("network");
+    const loaded = async () => {
+      try {
+        if (!window.google?.maps) throw new Error("Google Maps did not load.");
+        if (!window.google.maps.Map && window.google.maps.importLibrary) await window.google.maps.importLibrary("maps");
+        if (!window.google.maps.Map) throw new Error("Google Maps library is unavailable.");
+        setMapsReady(true);
+        setMapsError(null);
+      } catch {
+        setMapsReady(false);
+        setMapsError("network");
+      }
     };
     const failed = () => { setMapsReady(false); setMapsError("network"); };
+    const handleLoad = () => { void loaded(); };
+    if (window.google?.maps) {
+      void loaded();
+      return () => { window.gm_authFailure = previousAuthFailure; };
+    }
     if (existing) {
-      existing.addEventListener("load", loaded, { once: true });
+      existing.addEventListener("load", handleLoad, { once: true });
       existing.addEventListener("error", failed, { once: true });
-      return () => { existing.removeEventListener("load", loaded); existing.removeEventListener("error", failed); window.gm_authFailure = previousAuthFailure; };
+      return () => { existing.removeEventListener("load", handleLoad); existing.removeEventListener("error", failed); window.gm_authFailure = previousAuthFailure; };
     }
     const script = document.createElement("script");
     script.dataset.dovidMaps = "true";
     script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(mapsKey)}&v=weekly&loading=async`;
     script.async = true;
-    script.addEventListener("load", loaded, { once: true });
+    script.addEventListener("load", handleLoad, { once: true });
     script.addEventListener("error", failed, { once: true });
     document.head.append(script);
-    return () => { script.removeEventListener("load", loaded); script.removeEventListener("error", failed); window.gm_authFailure = previousAuthFailure; };
+    return () => { script.removeEventListener("load", handleLoad); script.removeEventListener("error", failed); window.gm_authFailure = previousAuthFailure; };
   }, [mapsKey]);
 
   useEffect(() => {

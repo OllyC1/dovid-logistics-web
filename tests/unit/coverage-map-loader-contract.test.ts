@@ -5,6 +5,8 @@ describe("coverage map loader", () => {
   it("uses Google's asynchronous Maps JavaScript loading mode", () => {
     const source = readFileSync("src/components/admin/coverage-editor.tsx", "utf8");
     expect(source).toContain("&loading=async");
+    expect(source).toContain('importLibrary("maps")');
+    expect(source).toContain("window.google?.maps?.Map");
   });
   it("fits the selected saved boundary into the map viewport", () => {
     const source = readFileSync("src/components/admin/coverage-editor.tsx", "utf8");

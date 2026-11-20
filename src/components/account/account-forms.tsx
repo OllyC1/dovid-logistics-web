@@ -88,5 +88,5 @@ export function SavedAddressCard({ address: saved }: { address: SavedAddress }) 
 
 export function PasswordForm() {
   const [state, action, pending] = useActionState(updatePasswordAction, {});
-  return <form action={action} className="grid gap-4"><PasswordField name="password" label="New password" minLength={NEW_PASSWORD_MIN_LENGTH} maxLength={NEW_PASSWORD_MAX_LENGTH} hint={NEW_PASSWORD_HINT} autoComplete="new-password" required /><Feedback state={state} /><Button type="submit" disabled={pending}>{pending ? "Updating…" : "Update password"}</Button></form>;
+  return <form action={action} className="grid gap-4"><PasswordField name="currentPassword" label="Current password" autoComplete="current-password" required /><PasswordField name="password" label="New password" minLength={NEW_PASSWORD_MIN_LENGTH} maxLength={NEW_PASSWORD_MAX_LENGTH} hint={NEW_PASSWORD_HINT} autoComplete="new-password" required /><Feedback state={state} /><Button type="submit" disabled={pending}>{pending ? "Updating…" : "Update password"}</Button></form>;
 }

@@ -232,7 +232,10 @@ async function cleanupRiderFixture(fixture: RiderFixture) {
     if (result.error) throw result.error;
   };
   for (const table of ["payment_refunds", "payment_disputes", "payment_reconciliations"]) await deleteBy(table, "payment_intent_id", fixture.paymentIntentId);
-  for (const table of ["delivery_incidents", "redelivery_requests", "delivery_attempts", "delivery_waiting_sessions", "delivery_expense_reports", "parcel_custody_events", "delivery_proofs", "notifications", "payment_transactions"]) await deleteBy(table, "order_id", fixture.orderId);
+  for (const table of ["delivery_incidents", "redelivery_requests", "delivery_attempts", "delivery_waiting_sessions", "delivery_expense_reports", "parcel_custody_events", "delivery_proofs", "payment_transactions"]) await deleteBy(table, "order_id", fixture.orderId);
+  const notificationCleanup = await admin.from("notifications").delete().eq("order_id", fixture.orderId);
+  if (notificationCleanup.error?.code === "23503") return;
+  if (notificationCleanup.error) throw notificationCleanup.error;
   if (fixture.runId) {
     await deleteBy("delivery_run_stops", "run_id", fixture.runId);
     await deleteBy("run_assignments", "run_id", fixture.runId);
@@ -338,6 +341,11 @@ async function removeAccount(account: TestAccount) {
     return;
   }
   const deleted = await admin.auth.admin.deleteUser(account.id);
+  if (deleted.error?.message.includes("notification_delivery_attempts") || deleted.error?.message.includes("still referenced")) {
+    const disabled = await admin.auth.admin.updateUserById(account.id, { ban_duration: "876000h" });
+    if (disabled.error) throw disabled.error;
+    return;
+  }
   if (deleted.error) throw deleted.error;
 }
 
@@ -574,6 +582,7 @@ test("customer keeps a customer-only mobile workspace", async ({ page }) => {
   }
 
   await page.goto("/account/settings");
+  await page.getByLabel("Current password").fill(account.password);
   await page.getByLabel("New password").fill(`Updated-${randomBytes(18).toString("base64url")}!Aa1`);
   await page.getByRole("button", { name: "Update password" }).click();
   await expect(page.getByRole("status")).toContainText("Password updated securely");

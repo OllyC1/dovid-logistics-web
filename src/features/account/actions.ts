@@ -132,6 +132,7 @@ export async function markAllNotificationsReadAction(_: AccountState, formData: 
 
 export async function updatePasswordAction(_: AccountState, formData: FormData): Promise<AccountState> {
   const parsed = z.object({
+    currentPassword: z.string().min(1).max(256),
     password: z.string().min(NEW_PASSWORD_MIN_LENGTH).max(NEW_PASSWORD_MAX_LENGTH).refine(isStrongNewPassword),
   }).safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: NEW_PASSWORD_HINT };
@@ -139,6 +140,12 @@ export async function updatePasswordAction(_: AccountState, formData: FormData):
   try {
     const { supabase, user } = await authenticatedCustomer();
     if (!user) return { error: "Your session has expired. Please log in again." };
+    if (!user.email) return { error: "This account does not have an email password to verify." };
+    const { error: reauthenticationError } = await supabase.auth.signInWithPassword({
+      email: user.email,
+      password: parsed.data.currentPassword,
+    });
+    if (reauthenticationError) return { error: "Your current password was not correct." };
     const { error } = await supabase.auth.updateUser({ password: parsed.data.password });
     if (error) throw error;
     return { success: "Password updated securely." };
