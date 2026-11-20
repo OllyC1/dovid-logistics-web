@@ -15,6 +15,7 @@ describe("Ibadan coverage and dispatch migration", () => {
     expect(citywide).toContain("'Ibadan'");
     expect(citywide).toContain("'manual_approval'");
     expect(citywide).toContain("100");
+    expect(readFileSync("supabase/migrations/20261120221500_enforce_outskirts_manual_approval.sql", "utf8")).toContain("dispatch_approval_required=true");
   });
   it("requires review, approval and unchanged geometry before activation", () => {
     expect(sql).toContain("zone must be in review before approval");
