@@ -31,7 +31,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   if (!current) return NextResponse.json({ error: "Zone not found" }, { status: 404 });
   const { data: otherZones } = await admin.from("service_zones").select("id,name,boundary_geojson,is_citywide").eq("service_area_id", current.service_area_id).neq("id", id).not("boundary_geojson", "is", null);
   const overlaps = parsed.data.boundaryGeoJson && !current.is_citywide ? (otherZones ?? []).filter((zone) => !zone.is_citywide && zone.boundary_geojson && zoneBoundariesOverlap(parsed.data.boundaryGeoJson as ZoneGeoJson, zone.boundary_geojson as ZoneGeoJson)).map((zone) => ({ id: zone.id, name: zone.name })) : [];
-  const { error } = await admin.from("service_zones").update({
+  const { data: saved, error } = await admin.from("service_zones").update({
     name: parsed.data.name,
     code: parsed.data.code,
     boundary_geojson: parsed.data.boundaryGeoJson,
@@ -42,7 +42,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     effective_until: parsed.data.effectiveUntil,
     boundary_source: parsed.data.boundarySource,
     review_notes: parsed.data.reviewNotes
-  }).eq("id", id);
+  }).eq("id", id).select("operational_status,active").single();
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-  return NextResponse.json({ saved: true, overlaps });
+  return NextResponse.json({ saved: true, overlaps, operationalStatus: saved.operational_status, active: saved.active });
 }

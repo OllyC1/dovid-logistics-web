@@ -11,7 +11,7 @@ type ZoneHistoryRow = {
 };
 
 export default async function CoveragePage() {
-  await requireStaffPermission("zones.manage");
+  const auth = await requireStaffPermission("zones.manage");
   const admin = createSupabaseAdminClient();
   const [{ data: zones }, { data: settings }, { data: orders }, { data: history }] = await Promise.all([
     admin.from("service_zones").select("id,name,code,boundary_geojson,operational_status,booking_eligibility,dispatch_approval_required,priority,effective_from,effective_until,boundary_source,review_notes,is_citywide").order("priority"),
@@ -34,7 +34,7 @@ export default async function CoveragePage() {
       <h1 className="mt-2 text-3xl font-extrabold text-navy">Ibadan service zones</h1>
       <p className="mt-3 max-w-3xl text-sm leading-6 text-slate">Planning labels are not boundaries. Draw or import reviewed geographic polygons, resolve validation issues, then complete review and approval before activation.</p>
       <div className="mt-8">
-        <CoverageEditor initialZones={zonesWithCounts as CoverageZone[]} settings={settings as OperationalSettings} mapsKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY} />
+        <CoverageEditor initialZones={zonesWithCounts as CoverageZone[]} settings={settings as OperationalSettings} mapsKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY} canPublish={auth.staffRole === "super_admin"} />
       </div>
       <section className="mt-8 rounded-3xl bg-white p-6">
         <h2 className="text-xl font-extrabold text-navy">Recent zone history</h2>

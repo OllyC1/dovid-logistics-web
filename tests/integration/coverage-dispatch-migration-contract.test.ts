@@ -24,6 +24,12 @@ describe("Ibadan coverage and dispatch migration", () => {
     expect(requests).toContain("dispatch.approval_requested");
     expect(requests).toContain("actionPath','/admin/dispatch");
   });
+  it("provides an atomic Super Admin save-and-publish path", () => {
+    const publish = readFileSync("supabase/migrations/20261121071500_publish_service_zone.sql", "utf8");
+    expect(publish).toContain("publish_service_zone");
+    expect(publish).toContain("membership.staff_role='super_admin'");
+    expect(publish).toContain("service_zone.published");
+  });
   it("requires review, approval and unchanged geometry before activation", () => {
     expect(sql).toContain("zone must be in review before approval");
     expect(sql).toContain("explicit zone approval required");
