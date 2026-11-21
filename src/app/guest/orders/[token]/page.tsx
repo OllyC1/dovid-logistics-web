@@ -65,7 +65,7 @@ export default async function GuestOrderPage({ params }: { params: Promise<{ tok
           </span>
         </div>
         <p className="mt-5 rounded-2xl bg-cloud p-4 text-sm leading-6 text-slate">
-          Save this private page. You can return here to pay, share a receiver payment link and check delivery updates. No account is needed.
+          Save this private page. You can return here to pay, share a receiver payment link and check delivery updates. Email updates go to the email provided during booking or payment. No account is needed; riders may also call the sender or receiver directly.
         </p>
       </div>
 

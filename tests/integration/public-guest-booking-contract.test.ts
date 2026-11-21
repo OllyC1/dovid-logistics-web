@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 const migration = readFileSync("supabase/migrations/202611180001_public_guest_booking.sql", "utf8");
 const hardeningMigration = readFileSync("supabase/migrations/20261121100000_guest_booking_dispatch_hardening.sql", "utf8");
+const notificationEmailMigration = readFileSync("supabase/migrations/20261121103000_explicit_delivery_notification_email.sql", "utf8");
 const quoteRoute = readFileSync("src/app/api/delivery/quotes/route.ts", "utf8");
 const orderRoute = readFileSync("src/app/api/orders/route.ts", "utf8");
 const booking = readFileSync("src/components/booking/booking-wizard.tsx", "utf8");
@@ -46,7 +47,7 @@ describe("direct public guest booking", () => {
     expect(booking).toContain("guestQuoteToken");
     expect(booking).toContain("guestBooking: true");
     expect(booking).toContain("body.guest_order_url");
-    expect(guestPage).toContain("No account is needed.");
+    expect(guestPage).toContain("No account is needed");
     expect(guestPage).toContain("guest_booking");
   });
 
@@ -55,6 +56,13 @@ describe("direct public guest booking", () => {
     expect(hardeningMigration).not.toContain("request_payload->>'payer' is distinct");
     expect(guestPayment).toContain("receipt_email");
     expect(hardeningMigration).toContain("selected_order.receipt_email");
+  });
+
+  it("collects an explicit delivery-update email and explains direct rider contact", () => {
+    expect(booking).toContain("Email for delivery updates");
+    expect(booking).toContain("Riders may also call the sender or receiver directly");
+    expect(orderRoute).toContain("notification_email");
+    expect(notificationEmailMigration).toContain("selected_order.notification_email");
   });
 
   it("moves new orders into dispatch and notifies the assigned rider", () => {
