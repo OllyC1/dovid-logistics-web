@@ -18,11 +18,23 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     ]);
     if (!riderMembership || !riderProfile?.full_name?.trim()) return NextResponse.json({ error: "Choose an active rider whose name has been recorded." }, { status: 400 });
   }
-  const [{ count: assignmentCount }, { count: runCount }] = await Promise.all([
-    admin.from("delivery_assignments").select("id", { count: "exact", head: true }).eq("vehicle_id", id).is("released_at", null),
-    admin.from("delivery_runs").select("id", { count: "exact", head: true }).eq("vehicle_id", id).in("status", ["planned", "active", "paused"]),
+  const [{ data: activeAssignments }, { data: activeRuns }] = await Promise.all([
+    admin.from("delivery_assignments").select("id,order_id").eq("vehicle_id", id).is("released_at", null),
+    admin.from("delivery_runs").select("id,run_reference,status").eq("vehicle_id", id).in("status", ["planned", "active", "paused"]),
   ]);
-  if ((assignmentCount ?? 0) > 0 || (runCount ?? 0) > 0) return NextResponse.json({ error: "Complete the active assignments and delivery run before changing this bike." }, { status: 409 });
+  if ((activeAssignments?.length ?? 0) > 0 || (activeRuns?.length ?? 0) > 0) {
+    const orderIds = (activeAssignments ?? []).map((assignment) => assignment.order_id);
+    const { data: orders } = orderIds.length
+      ? await admin.from("delivery_orders").select("id,order_reference").in("id", orderIds)
+      : { data: [] as { id: string; order_reference: string }[] };
+    return NextResponse.json({
+      error: "This bike is still committed to an active delivery. Complete or cancel that delivery before changing its rider or availability.",
+      activeAssignments: (activeAssignments ?? []).map((assignment) => ({
+        orderReference: orders?.find((order) => order.id === assignment.order_id)?.order_reference ?? assignment.order_id,
+      })),
+      activeRuns: (activeRuns ?? []).map((run) => ({ reference: run.run_reference, status: run.status })),
+    }, { status: 409 });
+  }
   const { error } = await admin.from("fleet_vehicles").update({ registration_number: parsed.data.registrationNumber, manufacturer: parsed.data.manufacturer, model: parsed.data.model, model_year: parsed.data.modelYear, assigned_rider_id: parsed.data.assignedRiderId, operational_status: parsed.data.operationalStatus, safety_status: parsed.data.safetyStatus, max_active_assignments: parsed.data.maxActiveAssignments, max_payload_weight_grams: parsed.data.maxPayloadWeightGrams, cargo_length_mm: parsed.data.cargoLengthMm, cargo_width_mm: parsed.data.cargoWidthMm, cargo_height_mm: parsed.data.cargoHeightMm, capacity_verified_at: parsed.data.capacityVerified ? new Date().toISOString() : null, capacity_verified_by: parsed.data.capacityVerified ? auth.user.id : null, updated_at: new Date().toISOString() }).eq("id", id);
   if (error) {
     if (error.code === "23505") return NextResponse.json({ error: "That plate number or rider is already assigned to another bike." }, { status: 409 });

@@ -24,7 +24,7 @@ const messages: Record<EligibilityDecision, string> = {
   manual_approval: "This route needs confirmation from our dispatch team.",
   manual_quote: "This route needs confirmation from our dispatch team.",
   unsupported: "We're not delivering to this location just yet.",
-  capacity_unavailable: "All riders are currently busy. Please try another time."
+  capacity_unavailable: "We do not currently have an available rider and motorcycle for this delivery. Please try again later or contact Dovid Logistics."
 };
 
 export function evaluateBookingEligibility(input: EligibilityInput) {

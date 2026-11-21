@@ -76,7 +76,12 @@ export function DispatchConsole({ vehicles, riders, missingRiderNames, requests,
     try {
       const response = await fetch(`/api/admin/dispatch/fleet/${vehicle.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ registrationNumber: form.get("registrationNumber"), manufacturer: String(form.get("manufacturer") ?? "").trim() || null, model: String(form.get("model") ?? "").trim() || null, modelYear: form.get("modelYear") ? Number(form.get("modelYear")) : null, assignedRiderId: form.get("riderId") || null, operationalStatus: form.get("status"), safetyStatus: form.get("safetyStatus"), maxActiveAssignments: Number(form.get("maxActiveAssignments")), maxPayloadWeightGrams: form.get("maxPayloadWeightGrams") ? Number(form.get("maxPayloadWeightGrams")) : null, cargoLengthMm: form.get("cargoLengthMm") ? Number(form.get("cargoLengthMm")) : null, cargoWidthMm: form.get("cargoWidthMm") ? Number(form.get("cargoWidthMm")) : null, cargoHeightMm: form.get("cargoHeightMm") ? Number(form.get("cargoHeightMm")) : null, capacityVerified: form.get("capacityVerified") === "on", reason: form.get("reason") }) });
       const body = await response.json().catch(() => ({}));
-      if (!response.ok) return setFeedback({ text: body.error ?? "The bike configuration could not be updated.", ok: false });
+      if (!response.ok) {
+        const activeOrders = (body.activeAssignments ?? []).map((assignment: { orderReference: string }) => assignment.orderReference).join(", ");
+        const activeRuns = (body.activeRuns ?? []).map((run: { reference: string }) => run.reference).join(", ");
+        const details = [activeOrders && `Order: ${activeOrders}`, activeRuns && `Run: ${activeRuns}`].filter(Boolean).join(" · ");
+        return setFeedback({ text: [body.error ?? "The bike configuration could not be updated.", details].filter(Boolean).join(" "), ok: false });
+      }
       setFeedback({ text: "Bike configuration updated and recorded.", ok: true });
       router.refresh();
     } catch {

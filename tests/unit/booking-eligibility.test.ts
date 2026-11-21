@@ -12,7 +12,7 @@ describe("booking eligibility", () => {
   it("requires a manual quote above 22km", () => expect(evaluateBookingEligibility(input({ roadDistanceMeters: 22_001 })).decision).toBe("manual_quote"));
   it("blocks inactive coverage, unavailable capacity and unprofitable work", () => {
     expect(evaluateBookingEligibility(input({ zonesAllowBooking: false })).decision).toBe("unsupported");
-    expect(evaluateBookingEligibility(input({ availableFleetSlots: 0 }))).toMatchObject({ decision: "capacity_unavailable", message: "All riders are currently busy. Please try another time." });
+    expect(evaluateBookingEligibility(input({ availableFleetSlots: 0 }))).toMatchObject({ decision: "capacity_unavailable", message: "We do not currently have an available rider and motorcycle for this delivery. Please try again later or contact Dovid Logistics." });
     expect(evaluateBookingEligibility(input({ estimatedProfitKobo: -1 })).reasonCode).toBe("profitability_floor_not_met");
   });
   it("honors only an explicit approved promotion floor override", () => {
