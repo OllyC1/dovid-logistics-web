@@ -34,7 +34,7 @@ const emptyDraft: Draft = {
   packageCategory: "parcel", packageSize: "small", packageDescription: "",
   serviceLevel: "standard", scheduledAt: "", oversized: "false",
   senderName: "", senderPhone: "", recipientName: "", recipientPhone: "",
-  payer: "sender", paymentMethod: "online", promotionCode: ""
+  payer: "sender", paymentMethod: "online"
 };
 
 export function BookingWizard() {
@@ -109,10 +109,10 @@ export function BookingWizard() {
           serviceLevel: draft.serviceLevel,
           paymentMethod: draft.paymentMethod,
           payer: draft.payer,
+          guestBooking: true,
           scheduledAt: draft.scheduledAt ? new Date(draft.scheduledAt).toISOString() : undefined,
           additionalStops: serializedStops,
-          oversized: draft.oversized === "true"
-          ,promotionCode: draft.promotionCode.trim() || undefined,
+          oversized: draft.oversized === "true",
           approvalReference: manualAssistance?.reference
         })
       });
@@ -141,15 +141,6 @@ export function BookingWizard() {
     setMessage("");
     const idempotencyKey = crypto.randomUUID();
     try {
-      if (!quote.guestQuoteToken) {
-        const confirmation = await fetch(`/api/delivery/quotes/${quote.quoteId}/confirm`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ idempotencyKey })
-        });
-        const confirmationBody = await confirmation.json().catch(() => ({}));
-        if (!confirmation.ok) return setMessage(confirmationBody.error ?? "This price has expired. Please request a new one.");
-      }
       const response = await fetch("/api/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -171,6 +162,7 @@ export function BookingWizard() {
         recipientPhone: draft.recipientPhone,
         payer: draft.payer,
         paymentMethod: draft.paymentMethod,
+        guestBooking: true,
         quoteId: quote.quoteId,
         guestQuoteToken: quote.guestQuoteToken,
         idempotencyKey
@@ -225,9 +217,9 @@ export function BookingWizard() {
           <div className="rounded-2xl border border-navy/10 p-4"><div className="flex items-center justify-between gap-4"><div><p className="font-bold text-navy">Need another stop?</p><p className="text-xs text-slate">Add up to five stops. We will include them in your price.</p></div><button type="button" disabled={additionalStops.length >= 5} className="rounded-full border border-orange px-4 py-2 text-sm font-bold text-orange disabled:opacity-40" onClick={() => { setAdditionalStops(current => [...current, { address: "", latitude: "", longitude: "" }]); setQuote(null); }}>Add a stop</button></div><div className="mt-4 grid gap-4">{additionalStops.map((stop, index) => <div key={index} className="grid gap-3 rounded-2xl bg-cloud p-4"><div className="flex justify-between"><p className="text-sm font-bold text-navy">Stop {index + 1}</p><button type="button" className="text-xs font-bold text-red-700" onClick={() => { setAdditionalStops(current => current.filter((_, position) => position !== index)); setQuote(null); }}>Remove</button></div><AddressAutocomplete label="Stop address" value={stop} onChange={value => { setAdditionalStops(current => current.map((item, position) => position === index ? value : item)); setQuote(null); }} /></div>)}</div></div>
           <TextareaField label="Anything we should know about the parcel?" placeholder="For example: fragile, contains food, or call before pickup" value={draft.packageDescription} onChange={set("packageDescription")} />
         </> : null}
-        {step === 2 ? <><div className="grid gap-4 sm:grid-cols-2"><Field label="Your name" value={draft.senderName} onChange={set("senderName", false)} /><Field label="Your phone number" value={draft.senderPhone} onChange={set("senderPhone", false)} /></div><div className="grid gap-4 sm:grid-cols-2"><Field label="Receiver's name" value={draft.recipientName} onChange={set("recipientName", false)} /><Field label="Receiver's phone number" value={draft.recipientPhone} onChange={set("recipientPhone", false)} /></div><Field label="Discount code (optional)" value={draft.promotionCode} onChange={set("promotionCode")} autoCapitalize="characters" placeholder="Enter your code" /></> : null}
+        {step === 2 ? <><div className="grid gap-4 sm:grid-cols-2"><Field label="Your name" value={draft.senderName} onChange={set("senderName", false)} /><Field label="Your phone number" value={draft.senderPhone} onChange={set("senderPhone", false)} /></div><div className="grid gap-4 sm:grid-cols-2"><Field label="Receiver's name" value={draft.recipientName} onChange={set("recipientName", false)} /><Field label="Receiver's phone number" value={draft.recipientPhone} onChange={set("recipientPhone", false)} /></div><p className="rounded-2xl bg-cloud p-4 text-sm leading-6 text-slate">No account is needed. If you choose online payment, enter the receipt email on the secure payment page.</p></> : null}
         {step === 3 ? quote ? <div className="grid gap-4"><div className="rounded-3xl bg-cloud p-6"><p className="text-sm text-slate">Journey</p><p className="mt-1 font-bold text-navy">{draft.pickupAddress} → {draft.deliveryAddress}</p><p className="mt-4 text-sm text-slate">Distance</p><p className="font-bold text-navy">{(quote.distanceMeters / 1000).toFixed(1)} km</p><p className="mt-4 text-sm text-slate">Your delivery price</p><p className="text-3xl font-extrabold text-orange">{formatMoney(quote.customerTotalKobo, quote.currency)}</p>{quote.includedCharges.map(charge => <div key={charge.label} className="mt-2 flex justify-between text-sm text-slate"><span>{charge.label}</span><span>{formatMoney(charge.amountKobo, quote.currency)}</span></div>)}</div><p className="text-sm leading-6 text-slate">This price includes the route and delivery option you chose. It is held until {new Date(quote.expiresAt).toLocaleTimeString("en-NG", { hour: "2-digit", minute: "2-digit" })}.</p></div> : <p className="text-slate">Complete the previous steps to see your price.</p> : null}
-        {step === 4 ? <><label className="grid gap-2 text-sm font-semibold text-navy">Who will pay?<select className="min-h-12 rounded-2xl border border-slate/25 px-4" value={draft.payer} onChange={set("payer")}><option value="sender">I will pay</option><option value="receiver_before_delivery">The receiver will pay before delivery</option><option value="receiver_at_delivery">The receiver will pay when it arrives</option></select></label><label className="grid gap-2 text-sm font-semibold text-navy">How would you like to pay?<select className="min-h-12 rounded-2xl border border-slate/25 px-4" value={draft.paymentMethod} onChange={set("paymentMethod")}><option value="online">Pay online</option><option value="bank_transfer">Pay by bank transfer</option></select></label><p className="rounded-2xl bg-cloud p-4 text-sm leading-6 text-slate">Payments are completed through Dovid checkout or the Dovid company account. Your rider will not ask you to pay them directly.</p>{!quote ? <Button type="button" disabled={pending} onClick={() => requestQuote(4)}>{pending ? "Updating price…" : "Update price"}</Button> : null}</> : null}
+        {step === 4 ? <><label className="grid gap-2 text-sm font-semibold text-navy">Who will pay?<select className="min-h-12 rounded-2xl border border-slate/25 px-4" value={draft.payer} onChange={set("payer", false)}><option value="sender">I will pay</option><option value="receiver_before_delivery">The receiver will pay before delivery</option><option value="receiver_at_delivery">The receiver will pay when it arrives</option></select></label><label className="grid gap-2 text-sm font-semibold text-navy">How would you like to pay?<select className="min-h-12 rounded-2xl border border-slate/25 px-4" value={draft.paymentMethod} onChange={set("paymentMethod", false)}><option value="online">Pay online</option><option value="bank_transfer">Pay by bank transfer</option></select></label><p className="rounded-2xl bg-cloud p-4 text-sm leading-6 text-slate">Your quoted delivery price does not change when the payer changes. The payer receives a secure payment link; riders never collect cash directly.</p></> : null}
         {message ? <p role={manualAssistance ? "status" : "alert"} className="rounded-2xl bg-amber-50 p-4 text-sm text-amber-900">{message}</p> : null}
         {manualAssistance ? <section className="grid gap-3 rounded-2xl border border-orange/30 bg-orange/5 p-4" aria-label="Contact dispatch">
           <div><p className="font-extrabold text-navy">{manualAssistance.state === "rejected" ? "Dispatch could not approve this route" : "Contact dispatch to continue"}</p><p className="mt-1 text-sm leading-6 text-slate">Request <strong className="text-navy">{manualAssistance.reference}</strong>. {manualAssistance.state === "rejected" ? "Contact us if the route, pickup time or parcel details have changed." : "Dispatch can review it while you keep this page open."}</p></div>

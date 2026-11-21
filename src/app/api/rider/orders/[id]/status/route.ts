@@ -18,12 +18,15 @@ export async function POST(request:NextRequest,{params}:{params:Promise<{id:stri
     if(auth.role==="rider"&&!riderStatuses.has(parsed.data.status))return NextResponse.json({error:"Riders cannot apply that status"},{status:403});
 
     const {id}=await params;
-    const {data:order}=await auth.supabase.from("delivery_orders").select("id,rider_id,delivery_status,payment_status").eq("id",id).maybeSingle();
+    const {data:order}=await auth.supabase.from("delivery_orders").select("id,rider_id,delivery_status,payment_status,payer").eq("id",id).maybeSingle();
     if(!order)return NextResponse.json({error:"Assigned order not found"},{status:404});
     if(auth.role==="rider"&&order.rider_id!==auth.user.id)return NextResponse.json({error:"Order is not assigned to this rider"},{status:403});
 
     const currentStatus=order.delivery_status as DeliveryStatus;
     const nextStatus=parsed.data.status;
+    if (nextStatus === "picked_up" && order.payer === "sender" && order.payment_status !== "paid") {
+      return NextResponse.json({ error: "Sender payment must be verified before pickup." }, { status: 409 });
+    }
     if(!canTransition(currentStatus,nextStatus))return NextResponse.json({error:"Invalid status transition"},{status:409});
     const admin=createSupabaseAdminClient();
     if(nextStatus==="delivered"){

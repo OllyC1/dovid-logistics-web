@@ -17,6 +17,7 @@ export const deliveryQuoteRequestSchema = z.object({
   approvalReference: z.string().trim().regex(/^DOV-APR-\d{6}-[A-F0-9]{8}$/).optional(),
   declaredValueMinor: z.number().int().nonnegative().max(100_000_000).optional(),
   payer: z.enum(["sender", "receiver_before_delivery", "receiver_at_delivery"]).default("sender"),
+  guestBooking: z.boolean().default(true),
   scheduledAt: z.iso.datetime().optional()
 }).superRefine((value, context) => {
   if (value.serviceLevel === "scheduled" && !value.scheduledAt) context.addIssue({ code: "custom", path: ["scheduledAt"], message: "Choose a pickup time for scheduled delivery." });

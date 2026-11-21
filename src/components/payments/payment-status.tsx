@@ -18,6 +18,6 @@ export function PaymentStatus({ reference }: { reference: string }) {
   }, [reference]);
 
   if (state.pending) return <p className="mt-4 leading-7 text-slate">We are securely checking this payment with Paystack.</p>;
-  if (state.status === "paid") return <p role="status" className="mt-4 rounded-2xl bg-emerald-50 p-4 leading-7 text-emerald-900">Payment confirmed. Your delivery can continue.</p>;
+  if (state.status === "paid") return <p role="status" className="mt-4 rounded-2xl bg-emerald-50 p-4 leading-7 text-emerald-900">Payment confirmed. We have notified the delivery team and will send future updates to the receipt email. Return to your delivery page to follow pickup and delivery.</p>;
   return <p role="alert" className="mt-4 rounded-2xl bg-amber-50 p-4 leading-7 text-amber-900">{state.error || "Payment is still pending. We will update the delivery when Paystack confirms it."}</p>;
 }

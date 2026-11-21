@@ -14,9 +14,14 @@ export async function POST(request: NextRequest) {
   try {
     const supabase = await createSupabaseServerClient();
     const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
+    if (user && !parsed.data.guestBooking) {
       const { data, error } = await supabase.rpc("create_delivery_order", { booking_payload: parsed.data });
       if (error) throw error;
+      const orderId = (data as Record<string, unknown> | null)?.order_id;
+      if (typeof orderId === "string") {
+        const { error: dispatchError } = await createSupabaseAdminClient().rpc("auto_assign_delivery_order", { target_order_id: orderId });
+        if (dispatchError) throw dispatchError;
+      }
       return NextResponse.json(data, { status: 201 });
     }
     const rateLimit = takeRateLimit(request, "guest-order-create", 8, 10 * 60_000);
@@ -32,6 +37,11 @@ export async function POST(request: NextRequest) {
       guest_access_expires_at: guestAccessExpiresAt,
     });
     if (error) throw error;
+    const orderId = (data as Record<string, unknown> | null)?.order_id;
+    if (typeof orderId === "string") {
+      const { error: dispatchError } = await admin.rpc("auto_assign_delivery_order", { target_order_id: orderId });
+      if (dispatchError) throw dispatchError;
+    }
     return NextResponse.json({
       ...(data as Record<string, unknown>),
       guest_access_token: guestAccessToken,

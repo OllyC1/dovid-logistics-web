@@ -41,6 +41,7 @@ export async function POST(request: NextRequest) {
 
   try {
     if (order.quoted_amount_minor === 0) {
+      await admin.from("delivery_orders").update({ receipt_email: parsed.data.email.toLowerCase(), updated_at: new Date().toISOString() }).eq("id", order.id);
       const { error } = await admin.rpc("settle_complimentary_payment", { target_order_id: order.id });
       if (error) throw error;
       return NextResponse.json({ checkoutUrl: null, confirmed: true }, { headers: { "Cache-Control": "no-store" } });
@@ -63,7 +64,7 @@ export async function POST(request: NextRequest) {
     }));
     const now = new Date().toISOString();
     await Promise.all([
-      admin.from("delivery_orders").update({ payment_status: "processing", updated_at: now }).eq("id", order.id).neq("payment_status", "paid"),
+      admin.from("delivery_orders").update({ receipt_email: parsed.data.email.toLowerCase(), payment_status: "processing", updated_at: now }).eq("id", order.id).neq("payment_status", "paid"),
       admin.from("guest_order_access_tokens").update({ last_used_at: now }).eq("id", access.id),
     ]);
     return NextResponse.json({ checkoutUrl: checkout.authorization_url }, { headers: { "Cache-Control": "no-store" } });

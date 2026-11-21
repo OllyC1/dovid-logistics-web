@@ -9,7 +9,6 @@ import type { ZoneGeoJson } from "@/features/service-areas/geometry";
 import { publicBookingsEnabled } from "@/lib/launch-controls";
 import { getRouteDistance } from "@/lib/maps/routes";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { siteConfig } from "@/config/site";
 
 const attempts = new Map<string, { count: number; resetAt: number }>();
@@ -202,10 +201,8 @@ export async function POST(request: NextRequest) {
     }
 
     const quoteId = crypto.randomUUID();
-    const supabase = await createSupabaseServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    const guestQuoteToken = user ? null : randomBytes(32).toString("base64url");
-    const { error: quoteError } = await admin.from("quotes").insert({ id: quoteId, customer_id: user?.id ?? null, pricing_rule_id: null, pricing_configuration_version_id: context.configurationVersionId, rate_card_id: context.rateCardId, request_payload: enrichedPayload, distance_meters: route.distanceMeters, amount_minor: result.customerTotalKobo, currency: result.currency, expires_at: result.expiresAt, status: "created", service_level: parsed.data.serviceLevel, payment_method: parsed.data.paymentMethod, duration_seconds: durationSeconds(route.duration), customer_breakdown: result.includedCharges, internal_breakdown: result.internal, pricing_flags: result.internal.flags, operational_approval_status: approvedRequest ? "approved" : "not_required" });
+    const guestQuoteToken = randomBytes(32).toString("base64url");
+    const { error: quoteError } = await admin.from("quotes").insert({ id: quoteId, customer_id: null, pricing_rule_id: null, pricing_configuration_version_id: context.configurationVersionId, rate_card_id: context.rateCardId, request_payload: enrichedPayload, distance_meters: route.distanceMeters, amount_minor: result.customerTotalKobo, currency: result.currency, expires_at: result.expiresAt, status: "created", service_level: parsed.data.serviceLevel, payment_method: parsed.data.paymentMethod, duration_seconds: durationSeconds(route.duration), customer_breakdown: result.includedCharges, internal_breakdown: result.internal, pricing_flags: result.internal.flags, operational_approval_status: approvedRequest ? "approved" : "not_required" });
     if (quoteError) throw quoteError;
     const { error: costError } = await admin.from("quote_cost_estimates").insert({ quote_id: quoteId, estimated_operational_cost_kobo: result.internal.operationalCostKobo, minimum_profitable_price_kobo: result.internal.minimumProfitableCustomerTotalKobo, estimated_payment_fee_kobo: result.internal.paymentProcessingFeeKobo, estimated_tax_kobo: result.internal.taxKobo, estimated_profit_kobo: result.internal.estimatedProfitKobo, estimated_operating_margin_bps: result.internal.estimatedOperatingMarginBps, assumptions_snapshot: context.config });
     if (costError) { await admin.from("quotes").delete().eq("id", quoteId); throw costError; }

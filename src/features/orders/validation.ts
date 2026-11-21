@@ -29,6 +29,7 @@ export const bookingSchema = quoteSchema.extend({
   scheduledAt: z.iso.datetime().optional(),
   quoteId: z.uuid(),
   guestQuoteToken: z.string().min(40).max(128).optional(),
+  guestBooking: z.boolean().default(true),
   idempotencyKey: z.uuid()
 }).superRefine((value, context) => {
   if (value.serviceLevel === "scheduled" && !value.scheduledAt) context.addIssue({ code: "custom", path: ["scheduledAt"], message: "Choose a pickup time for scheduled delivery." });

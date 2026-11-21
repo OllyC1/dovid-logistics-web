@@ -3,6 +3,7 @@ import { RiderStatusControls } from "@/components/rider/status-controls";
 import { DeliveryOperationsForms } from "@/components/rider/delivery-operations-forms";
 import { DeliveryProofForm } from "@/components/rider/delivery-proof-form";
 import { ReturnToSenderForm } from "@/components/rider/return-to-sender-form";
+import { ReceiverPaymentLink } from "@/components/rider/receiver-payment-link";
 import { requireRole } from "@/lib/auth/roles";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { DeliveryStatus, PaymentStatus } from "@/types/domain";
@@ -12,7 +13,7 @@ export default async function RiderOrderPage({ params }: { params: Promise<{ id:
   const { supabase } = await requireRole(["rider", "admin"]);
   const { data: order } = await supabase
     .from("delivery_orders")
-    .select("id,order_reference,pickup_address,delivery_address,sender_name,sender_phone,recipient_name,recipient_phone,additional_stops,delivery_status,payment_status,service_level,scheduled_at,delivery_status_events(id,new_status,created_at)")
+    .select("id,order_reference,pickup_address,delivery_address,sender_name,sender_phone,recipient_name,recipient_phone,additional_stops,delivery_status,payment_status,payer,service_level,scheduled_at,delivery_status_events(id,new_status,created_at)")
     .eq("id", id)
     .maybeSingle();
 
@@ -31,6 +32,7 @@ export default async function RiderOrderPage({ params }: { params: Promise<{ id:
       <span className="rounded-full bg-orange/10 px-4 py-2 text-sm font-bold capitalize text-orange">{order.delivery_status.replaceAll("_", " ")}</span>
     </div>
     {returningAssignment ? <div className="mt-7 rounded-2xl bg-amber-50 p-4 text-sm font-bold leading-6 text-amber-950">Return authorized by dispatch. Keep the parcel secure and hand it only to the confirmed sender or their authorized representative.</div> : <div className="mt-7 rounded-2xl bg-navy p-4 text-sm font-bold text-white">Release the parcel only when payment status is <span className="text-orange">paid</span>. Current status: <span className="capitalize">{order.payment_status}</span>.</div>}
+    {!returningAssignment && order.payer !== "sender" && order.payment_status !== "paid" ? <ReceiverPaymentLink orderId={order.id}/> : null}
     {!returningAssignment ? <RiderStatusControls orderId={order.id} currentStatus={order.delivery_status as DeliveryStatus} paymentStatus={order.payment_status as PaymentStatus}/> : null}
     {!returningAssignment ? <DeliveryProofForm orderId={order.id} expectedRecipientName={order.recipient_name} deliveryStatus={order.delivery_status as DeliveryStatus} paymentStatus={order.payment_status as PaymentStatus} existingProof={proof ? { completedAt: proof.completed_at, recipientName: proof.recipient_name } : null}/> : null}
     {returningAssignment ? <ReturnToSenderForm orderId={order.id} expectedSenderName={order.sender_name} /> : null}
