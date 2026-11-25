@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useState } from "react";
 import { CheckCircle2, Loader2, X, XCircle } from "lucide-react";
 
 type Feedback = { text: string; ok: boolean } | null;
@@ -23,7 +23,7 @@ export function ActionFeedback({ feedback, pending, pendingText = "Saving your c
     return () => window.removeEventListener(actionFeedbackEvent, hideWhenAnotherMessageOpens);
   }, [activationKey, instanceId]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!activationKey) return;
     window.dispatchEvent(new CustomEvent(actionFeedbackEvent, { detail: { sourceId: instanceId } }));
   }, [activationKey, instanceId]);

@@ -62,6 +62,8 @@ The browser key also loaded Maps JavaScript successfully from `http://localhost:
 
 On 18 November 2026, executable Chrome acceptance at `https://dovid-logistics-prelaunch.netlify.app/admin/coverage` initially found `RefererNotAllowedMapError`. Google Cloud was then updated to authorize both `https://dovid-logistics-prelaunch.netlify.app` and `https://dovid-logistics-prelaunch.netlify.app/*`. On 19 November the browser-origin validator loaded Maps JavaScript API with HTTP 200, no request failures and no key, referrer, activation, billing or quota error. A plain HTTP download of the Maps loader is not sufficient evidence because referrer authorization is completed while the script executes. `npm run validate:maps:browser` performs that real browser-origin check and must pass after any referrer change.
 
+On 25 November 2026, the same executable validator passed from the final `https://dovidlogistics.com` origin: Maps JavaScript and its runtime bundle returned HTTP 200 with no authentication, referrer, activation, billing, quota or request-failure signal. Places resolution and `TWO_WHEELER` Routes also passed with 11,664 m / 1,159 s short, 12,358 m / 1,257 s medium, 25,481 m / 2,706 s long and 27,195 m / 2,881 s optimized multi-stop results in provider order `[0, 1]`.
+
 ## Activation checklist
 
 - Confirm Places API (New), Routes API and Maps JavaScript API are enabled in the intended Google Cloud project.

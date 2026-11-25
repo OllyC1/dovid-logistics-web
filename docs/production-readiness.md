@@ -82,11 +82,11 @@ When the founder authorizes `dovidlogistics.com`:
 The remaining actions require provider-plan changes, real-world approval, controlled credentials or identity verification and therefore cannot be fabricated in source control:
 
 - leaked-password protection, intentionally deferred while Dovid Logistics remains on the Supabase Free plan;
-- disposable or authorized hosted role accounts for authenticated acceptance;
+- disposable or authorized final-domain role accounts for hosted authenticated acceptance; the current release passes the isolated local Customer, Admin, Super Admin and Rider matrix at 375px and 390px;
 - fresh authorized Paystack TEST payment tokens/orders;
-- real service polygons and founder approval;
+- field validation and final founder confirmation of the attributed active service polygons;
 - real fleet measurements, safety checks and rider verification;
 - approved commercial operating configuration;
 - a tested owner-held Free-plan database export and completed restore drill (PITR is deferred by founder approval);
-- authorization and DNS/provider cutover for the final domain;
+- final-domain Paystack and Resend acceptance; Google Maps JavaScript, Places and representative Routes passed on 25 November 2026;
 - final-domain accessibility, Core Web Vitals and low-end-device certification.
