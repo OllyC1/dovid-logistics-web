@@ -12,6 +12,7 @@ describe("guest booking validation", () => {
     packageSize: "small",
     senderName: "Guest Sender",
     senderPhone: "08000000000",
+    notificationEmail: "guest.sender@example.com",
     recipientName: "Guest Receiver",
     recipientPhone: "08000000001",
     payer: "sender",

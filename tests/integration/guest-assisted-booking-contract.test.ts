@@ -44,7 +44,7 @@ describe("guest assisted booking", () => {
     expect(review).toContain("min-h-12");
     expect(review).toContain("dovid-receiver-token-");
     expect(guestPage).toContain('robots: { index: false, follow: false, nocache: true }');
-    expect(guestPage).toContain("No account is needed.");
+    expect(guestPage).toContain("No account is needed");
   });
 
   it("preserves sender and receiver hosted payment paths", () => {

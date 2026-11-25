@@ -23,15 +23,6 @@ function onSegment(a: number[], b: number[], c: number[]) {
   return b[0] <= Math.max(a[0], c[0]) && b[0] >= Math.min(a[0], c[0]) && b[1] <= Math.max(a[1], c[1]) && b[1] >= Math.min(a[1], c[1]);
 }
 
-function segmentsIntersect(a: number[], b: number[], c: number[], d: number[]) {
-  const first = orientation(a, b, c);
-  const second = orientation(a, b, d);
-  const third = orientation(c, d, a);
-  const fourth = orientation(c, d, b);
-  if (first !== second && third !== fourth) return true;
-  return (first === 0 && onSegment(a, c, b)) || (second === 0 && onSegment(a, d, b)) || (third === 0 && onSegment(c, a, d)) || (fourth === 0 && onSegment(c, b, d));
-}
-
 function segmentsProperlyIntersect(a: number[], b: number[], c: number[], d: number[]) {
   const first = orientation(a, b, c);
   const second = orientation(a, b, d);

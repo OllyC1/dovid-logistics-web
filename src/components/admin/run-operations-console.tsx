@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { ActionFeedback } from "@/components/ui/action-feedback";
 import { ReasonDialog } from "@/components/ui/reason-dialog";
 import { AttemptResolutionCard, type AttemptForReview, type AttemptResolutionInput } from "@/components/admin/attempt-resolution-card";
+import { isRealVehicleRegistration } from "@/features/fleet/registration";
 
 type Vehicle = { id: string; code: string; registration_number: string | null; operational_status: string; assigned_rider_id: string | null; safety_status: string };
 type Rider = { id: string; full_name: string | null };
@@ -23,7 +24,7 @@ export function RunOperationsConsole({ vehicles, riders, runs, orders, expenses,
   const [selectedVehicleId, setSelectedVehicleId] = useState("");
   const [selectedRiderId, setSelectedRiderId] = useState("");
   const selectedVehicle = vehicles.find((vehicle) => vehicle.id === selectedVehicleId);
-  const canCreateRun = Boolean(selectedVehicle && selectedVehicle.registration_number && selectedVehicle.operational_status === "available" && selectedVehicle.safety_status === "cleared" && selectedVehicle.assigned_rider_id === selectedRiderId);
+  const canCreateRun = Boolean(selectedVehicle && isRealVehicleRegistration(selectedVehicle.registration_number) && selectedVehicle.operational_status === "available" && selectedVehicle.safety_status === "cleared" && selectedVehicle.assigned_rider_id === selectedRiderId);
 
   async function post(url: string, body: object, success: string) {
     setPending(true); setMessage("");
@@ -118,11 +119,11 @@ export function RunOperationsConsole({ vehicles, riders, runs, orders, expenses,
     <details className="group rounded-3xl bg-white p-4 shadow-sm sm:p-6">
       <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-4 text-xl font-extrabold text-navy"><span>Create a compliant delivery run</span><span aria-hidden="true" className="text-2xl text-orange transition group-open:rotate-45">+</span></summary>
       <form action={createRun} className="mt-5 grid gap-3 sm:grid-cols-2">
-        <label className="grid min-w-0 gap-2 text-sm font-bold text-navy">Bike<select required name="vehicleId" value={selectedVehicleId} onChange={(event) => { const vehicle = vehicles.find((item) => item.id === event.target.value); setSelectedVehicleId(event.target.value); setSelectedRiderId(vehicle?.assigned_rider_id ?? ""); }} className="min-h-12 min-w-0 rounded-xl border p-3 font-normal"><option value="">Choose an available bike</option>{vehicles.map((vehicle) => <option key={vehicle.id} value={vehicle.id} disabled={!vehicle.registration_number || vehicle.operational_status !== "available" || vehicle.safety_status !== "cleared" || !vehicle.assigned_rider_id}>{vehicle.registration_number || "Plate missing"} · {vehicle.code} · {vehicle.operational_status} · {vehicle.safety_status}</option>)}</select></label>
+        <label className="grid min-w-0 gap-2 text-sm font-bold text-navy">Bike<select required name="vehicleId" value={selectedVehicleId} onChange={(event) => { const vehicle = vehicles.find((item) => item.id === event.target.value); setSelectedVehicleId(event.target.value); setSelectedRiderId(vehicle?.assigned_rider_id ?? ""); }} className="min-h-12 min-w-0 rounded-xl border p-3 font-normal"><option value="">Choose an available bike</option>{vehicles.map((vehicle) => <option key={vehicle.id} value={vehicle.id} disabled={!isRealVehicleRegistration(vehicle.registration_number) || vehicle.operational_status !== "available" || vehicle.safety_status !== "cleared" || !vehicle.assigned_rider_id}>{isRealVehicleRegistration(vehicle.registration_number) ? vehicle.registration_number : "Real plate needed"} · {vehicle.code} · {vehicle.operational_status} · {vehicle.safety_status}</option>)}</select></label>
         <label className="grid min-w-0 gap-2 text-sm font-bold text-navy">Rider<select required name="riderId" value={selectedRiderId} onChange={(event) => setSelectedRiderId(event.target.value)} className="min-h-12 min-w-0 rounded-xl border p-3 font-normal"><option value="">Choose the bike&apos;s assigned rider</option>{riders.map((rider) => <option key={rider.id} value={rider.id} disabled={Boolean(selectedVehicle?.assigned_rider_id && selectedVehicle.assigned_rider_id !== rider.id)}>{rider.full_name}</option>)}</select></label>
         <label className="grid min-w-0 gap-2 text-sm font-bold text-navy sm:col-span-2">Safety and compliance confirmation<input required minLength={8} name="complianceReason" placeholder="Confirm motorcycle restrictions, rider hours and safety" className="min-h-12 min-w-0 rounded-xl border p-3 font-normal" /></label>
         <Button disabled={pending || !canCreateRun} type="submit" className="w-full sm:col-span-2">Create planned run</Button>
-        {!vehicles.some((vehicle) => vehicle.registration_number && vehicle.operational_status === "available" && vehicle.safety_status === "cleared" && vehicle.assigned_rider_id) ? <p className="rounded-2xl bg-cloud p-4 text-sm leading-6 text-slate sm:col-span-2">No bike is ready for a run. Register its plate, assign an active rider, verify capacity and safety, then make it available in Fleet and dispatch.</p> : null}
+        {!vehicles.some((vehicle) => isRealVehicleRegistration(vehicle.registration_number) && vehicle.operational_status === "available" && vehicle.safety_status === "cleared" && vehicle.assigned_rider_id) ? <p className="rounded-2xl bg-cloud p-4 text-sm leading-6 text-slate sm:col-span-2">No bike is ready for a run. Register its real plate, assign an active rider, verify capacity and safety, then make it available in Fleet and dispatch.</p> : null}
       </form>
     </details>
     <section>

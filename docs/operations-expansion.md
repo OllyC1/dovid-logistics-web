@@ -38,7 +38,7 @@ One rider may have one active run containing multiple distinct orders. Each orde
 - verified vehicle payload capacity and package weight for multi-parcel loads;
 - administrator justification for deadline conflicts.
 
-Both motorcycles use the approved standard 45 L dispatch-box capacity of 470 × 410 × 390 mm and a 25 kg payload limit. Real plate details can be completed later without deleting this capacity evidence. One verified rider and one motorcycle are available for controlled opening; the second motorcycle remains offline until an active rider is assigned.
+Both seeded motorcycles retain the provisional 45 L dispatch-box record of 470 × 410 × 390 mm and a 25 kg payload limit. That record does not replace a physical capacity or safety check. A `PENDING-BIKE-*` identifier is an administrative placeholder, not a plate: placeholder motorcycles are forced offline, cannot be assigned and never count as booking capacity. An administrator must record the real unique plate, verify the physical measurements and safety evidence, assign an active rider and then explicitly make the motorcycle available.
 
 ## Expenses and supplemental charges
 
@@ -63,8 +63,8 @@ Riders record an attempt and may leave an unsafe location immediately. Dispatch 
 - Keep `ENABLE_ASSISTED_BOOKINGS=false` and `ENABLE_LIVE_PAYMENTS=false`.
 - Public booking may be enabled only after the controlled hosted journey passes.
 - Zones A-E are standard-eligible and Zone F requires manual dispatch approval; their attributed polygons are active.
-- Keep both motorcycle capacity records; onboard and assign the second rider before making the second bike available.
-- Assign approved rider profiles and complete vehicle safety checks.
+- Keep both motorcycle records offline until their real unique plates, physical capacity measurements and safety checks are recorded.
+- Assign approved rider profiles only after the real plate has replaced the placeholder; onboard and verify the second rider before making the second bike available.
 - Configure handover, safe-completion, waiting, break and fatigue rules.
 - Confirm applicable motorcycle operating restrictions and record compliance evidence.
 - Configure Google Routes and test optimized stop sequencing on real roads.

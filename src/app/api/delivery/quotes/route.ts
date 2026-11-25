@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
 import { hashAssistedSecret } from "@/features/assisted-bookings/security";
+import { isRealVehicleRegistration } from "@/features/fleet/registration";
 import { deliveryQuoteRequestSchema } from "@/features/pricing/quote-request";
 import { createQuoteFromContext, loadActivePricingContext, loadComparableCompetitorQuotes, loadPromotion } from "@/features/pricing/service";
 import { evaluateBookingEligibility, isWithinServiceHours } from "@/features/service-areas/eligibility";
@@ -126,12 +127,12 @@ export async function POST(request: NextRequest) {
     const [competitorQuotes, promotions, fleetResult, assignmentResult] = await Promise.all([
       loadComparableCompetitorQuotes({ serviceAreaId: pickupZone.service_area_id, serviceLevel: parsed.data.serviceLevel, packageCategory: parsed.data.packageCategory, roadDistanceMeters: route.distanceMeters, config: context.config }),
       loadPromotion(parsed.data.promotionCode),
-      admin.from("fleet_vehicles").select("id,assigned_rider_id,max_active_assignments").eq("operational_status", "available").eq("safety_status", "cleared"),
+      admin.from("fleet_vehicles").select("id,registration_number,assigned_rider_id,max_active_assignments").eq("operational_status", "available").eq("safety_status", "cleared"),
       admin.from("delivery_assignments").select("vehicle_id,rider_id").is("released_at", null)
     ]);
     const result = createQuoteFromContext({ roadDistanceMeters: route.distanceMeters, serviceLevel: parsed.data.serviceLevel, paymentMethod: parsed.data.paymentMethod, additionalStops: parsed.data.additionalStops.length, oversized: parsed.data.oversized, promotions, competitorQuotes }, context);
     const activeVehicleIds = new Set((assignmentResult.data ?? []).map((assignment) => assignment.vehicle_id));
-    const availableFleetSlots = (fleetResult.data ?? []).filter((vehicle) => vehicle.assigned_rider_id && !activeVehicleIds.has(vehicle.id)).length;
+    const availableFleetSlots = (fleetResult.data ?? []).filter((vehicle) => isRealVehicleRegistration(vehicle.registration_number) && vehicle.assigned_rider_id && !activeVehicleIds.has(vehicle.id)).length;
     const decision = evaluateBookingEligibility({
       pickupCovered: true,
       deliveryCovered: true,

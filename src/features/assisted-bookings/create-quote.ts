@@ -1,4 +1,5 @@
 import { evaluateOperatingSchedule, type OperatingSchedule } from "@/features/operations/scheduling";
+import { isRealVehicleRegistration } from "@/features/fleet/registration";
 import { createQuoteFromContext, loadActivePricingContext, loadComparableCompetitorQuotes, loadPromotion } from "@/features/pricing/service";
 import { evaluateBookingEligibility, isWithinServiceHours } from "@/features/service-areas/eligibility";
 import { isPointInGeoJson } from "@/features/service-areas/contains";
@@ -42,14 +43,14 @@ export async function createAssistedQuote(draftId: string, input: AssistedBookin
   const [{ data: settings }, route, { data: fleet }, { data: assignments }] = await Promise.all([
     admin.from("service_area_operational_settings").select("standard_max_distance_meters,manual_max_distance_meters,service_hours,standard_package_sizes,oversized_requires_manual_approval,same_day_booking_cutoff,handover_buffer_minutes,safe_completion_buffer_minutes").eq("service_area_id", pickupZone.service_area_id).single(),
     getRouteDistance(input.pickupCoordinates, input.deliveryCoordinates, input.additionalStops.map((stop) => stop.coordinates)),
-    admin.from("fleet_vehicles").select("id,operational_status,safety_status,assigned_rider_id,max_active_assignments,capacity_verified_at").in("operational_status", ["available", "assigned"]).eq("safety_status", "cleared"),
+    admin.from("fleet_vehicles").select("id,registration_number,operational_status,safety_status,assigned_rider_id,max_active_assignments,capacity_verified_at").in("operational_status", ["available", "assigned"]).eq("safety_status", "cleared"),
     admin.from("delivery_assignments").select("vehicle_id").is("released_at", null),
   ]);
   if (!settings) throw new Error("Operational eligibility settings are unavailable");
   const assignmentCount = new Map<string, number>();
   for (const assignment of assignments ?? []) assignmentCount.set(assignment.vehicle_id, (assignmentCount.get(assignment.vehicle_id) ?? 0) + 1);
   const availableFleetSlots = (fleet ?? []).reduce((total, vehicle) => {
-    if (!vehicle.assigned_rider_id) return total;
+    if (!vehicle.assigned_rider_id || !isRealVehicleRegistration(vehicle.registration_number)) return total;
     const active = assignmentCount.get(vehicle.id) ?? 0;
     const capacity = active > 0 && !vehicle.capacity_verified_at ? active : vehicle.max_active_assignments;
     return total + Math.max(0, capacity - active);

@@ -70,5 +70,5 @@ On 18 November 2026, executable Chrome acceptance at `https://dovid-logistics-pr
 - Provision fixed backend egress before enabling IP restrictions, or route Maps web-service calls through controlled infrastructure.
 - Configure shared rate limiting, Google Cloud quotas, budget alerts and usage dashboards.
 - Run representative routes at operating times and compare estimates with observed journeys.
-- Draw, review and approve accurate service polygons; zones A–F must remain inactive until then.
+- Revalidate the attributed active polygons against actual roads and deliverable addresses before public launch. Zones A–E are standard-eligible; Zone F and the citywide fallback require manual dispatch approval.
 - Keep public booking, assisted booking confirmation and live Paystack disabled until operational sign-off.

@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { scoreDispatchCandidate } from "@/features/dispatch/scoring";
+import { isRealVehicleRegistration } from "@/features/fleet/registration";
 import { getDispatchManagerAuthorization as getAuthenticatedRole } from "@/lib/auth/staff";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
@@ -21,7 +22,7 @@ export async function POST(request: NextRequest) {
   ]);
   if (!order || !vehicle) return NextResponse.json({ error: "Order or bike not found." }, { status: 404 });
   if (!riderMembership) return NextResponse.json({ error: "Choose an active, identity-verified rider." }, { status: 409 });
-  if (!vehicle.registration_number || !vehicle.capacity_verified_at) return NextResponse.json({ error: "The bike plate and measured capacity must be verified before assignment." }, { status: 409 });
+  if (!isRealVehicleRegistration(vehicle.registration_number) || !vehicle.capacity_verified_at) return NextResponse.json({ error: "The bike needs its real plate and verified measured capacity before assignment." }, { status: 409 });
   const proximityMeters = vehicle.current_latitude === null || vehicle.current_longitude === null ? null : approximateDistanceMeters({ latitude: Number(vehicle.current_latitude), longitude: Number(vehicle.current_longitude) }, { latitude: Number(order.pickup_latitude), longitude: Number(order.pickup_longitude) });
   const quoteRelation = Array.isArray(order.quotes) ? order.quotes[0] : order.quotes;
   const score = scoreDispatchCandidate({ riderId: parsed.data.riderId, vehicleId: vehicle.id, proximityMeters, activeAssignments: workload ?? 0, capacity: vehicle.max_active_assignments, routeDurationSeconds: quoteRelation?.duration_seconds ?? 0, available: vehicle.operational_status === "available", safetyCleared: vehicle.safety_status === "cleared", homeTerritoryMatch: vehicle.assigned_rider_id === parsed.data.riderId });

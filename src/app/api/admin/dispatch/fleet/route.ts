@@ -1,9 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
+import { isRealVehicleRegistration } from "@/features/fleet/registration";
 import { getDispatchManagerAuthorization } from "@/lib/auth/staff";
 
 const schema = z.object({
-  registrationNumber: z.string().trim().min(3).max(20).regex(/^[a-zA-Z0-9 -]+$/),
+  registrationNumber: z.string().trim().min(3).max(20).regex(/^[a-zA-Z0-9 -]+$/).refine(isRealVehicleRegistration),
   internalCode: z.string().trim().min(2).max(30).regex(/^[a-zA-Z0-9 -]+$/).optional(),
   manufacturer: z.string().trim().min(2).max(60),
   model: z.string().trim().min(1).max(60),
