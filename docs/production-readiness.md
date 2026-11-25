@@ -1,6 +1,16 @@
 # Production readiness and recovery
 
-Public booking, assisted booking and live payments must remain disabled until every blocking gate in this runbook is complete and its evidence is retained. Test-mode provider journeys and controlled operational data do not authorize a live launch.
+The founder has authorized public booking to be visible for controlled pre-launch self-testing. That permission does not authorize real delivery obligations: verified coverage, profitable pricing, genuine fleet capacity and payment controls must still pass every request. Assisted-booking confirmation and live payments remain disabled until every blocking gate in this runbook is complete and its evidence is retained.
+
+## Verified release evidence — 25 November 2026
+
+- Migration `20261125221900_booking_continuation_capacity_waiting_enquiries.sql` replayed against a clean local database, passed the database contract suite, was the only pending remote migration, passed a remote dry-run, and was applied without seeds, reset or data deletion.
+- The remote database linter reported no schema errors. All public/private SECURITY DEFINER functions have a fixed search path; the new continuation-token and operational RPCs are unavailable to browser roles.
+- The remote pre-launch database contains three historical controlled orders and three Paystack transactions, all explicitly marked provider domain `test`; there were no orders or payment transactions in the preceding 24 hours.
+- Guest booking without an account, optional booking email, manual route approval continuation, customer/staff role routing, Super Admin MFA, rider added-cost reporting, failed delivery/return, waiting-time handling, payment confirmation, public-page metadata and mobile overflow checks passed in the isolated acceptance environment at 375px and 390px.
+- A real queued application email to the founder-authorized test mailbox was accepted by Resend and confirmed delivered exactly once; signed status processing and event deduplication passed.
+
+This evidence does not make the service production-ready. The physical fleet, final coverage, recovery drill, hosted TEST payment matrix and final-device certification below remain launch gates.
 
 ## Non-negotiable release gates
 
@@ -55,24 +65,21 @@ If payment state or delivery custody is uncertain, disable the relevant operatio
 
 ## Provider and domain cutover
 
-When the founder authorizes `dovidlogistics.com`:
+`dovidlogistics.com` is connected to Netlify with HTTPS. Supabase Auth, application URLs, Google Maps browser restrictions and Resend delivery have been exercised on the final origin. Before live activation:
 
-1. Connect the domain in Netlify and create the exact DNS records shown there.
-2. Confirm Netlify issues certificates and HTTPS redirects without loops.
-3. Verify the Supabase Site URL and redirect allowlist use `https://dovidlogistics.com`, retaining only required development URLs and the prelaunch hostname during transition.
-4. Change the Paystack TEST webhook and callback URLs, ping the webhook, and repeat the full TEST journey before considering live mode.
-5. Restrict Google browser referrers to the final origin and verify both Places and Maps JavaScript from that origin.
-6. Update application base URL and Resend links, then repeat verification and recovery email delivery.
-7. Re-run hosted mobile acceptance, sitemap/canonical checks, Maps validation, payment webhook checks and Lighthouse/Core Web Vitals checks on the final domain.
-8. Remove obsolete provider URLs only after the cutover is verified.
+1. Keep only required Supabase redirect URLs; retain the prelaunch hostname only while controlled testing still needs it.
+2. Keep Paystack in TEST mode, verify the final-domain webhook and callback URLs, and repeat the complete TEST payment matrix on this exact release.
+3. Re-run Places, Routes and Maps JavaScript validation from the final origin after every key-restriction change.
+4. Re-run hosted mobile acceptance, sitemap/canonical checks, payment webhooks and Lighthouse/Core Web Vitals on the final deployment.
+5. Remove obsolete provider URLs only after the replacement path is verified.
 
 ## Controlled activation
 
-1. Keep all launch flags disabled.
-2. Complete all non-negotiable gates and retain their evidence.
-3. Activate approved Zones A-E, keep Zone F on manual approval, and use only verified, available motorcycles.
-4. Complete a controlled hosted TEST journey for every role and payment path.
-5. Enable public bookings for the single approved zone.
+1. Keep live Paystack and assisted-booking confirmation disabled.
+2. Public booking may be visible for founder testing, but must reject unsupported coverage, insufficient genuine fleet capacity, unsafe packages and unprofitable pricing. It must not create a delivery obligation from a pending manual-approval request.
+3. Complete all non-negotiable gates and retain their evidence.
+4. Activate only founder-reviewed zones, keep Zone F on manual approval, and use only verified, available motorcycles with genuine registration and safety records.
+5. Complete a controlled hosted TEST journey for every role and payment path.
 6. Monitor capacity, route failures, webhook delivery, email delivery, payment settlement and support escalations.
 7. Add zones only after founder approval and repeated checks.
 8. Enable live Paystack only after separate explicit authorization, credential review, refund/dispute ownership and financial reconciliation sign-off.
@@ -82,11 +89,11 @@ When the founder authorizes `dovidlogistics.com`:
 The remaining actions require provider-plan changes, real-world approval, controlled credentials or identity verification and therefore cannot be fabricated in source control:
 
 - leaked-password protection, intentionally deferred while Dovid Logistics remains on the Supabase Free plan;
-- disposable or authorized final-domain role accounts for hosted authenticated acceptance; the current release passes the isolated local Customer, Admin, Super Admin and Rider matrix at 375px and 390px;
-- fresh authorized Paystack TEST payment tokens/orders;
+- hosted authenticated acceptance of the final deployed commit with disposable or authorized role accounts; the release passes the isolated Customer, Admin, Super Admin and Rider matrix at 375px and 390px;
+- fresh authorized Paystack TEST payment tokens/orders for the full sender, receiver, supplemental, refund and dispute matrix;
 - field validation and final founder confirmation of the attributed active service polygons;
-- real fleet measurements, safety checks and rider verification;
+- real fleet registrations, measurements, safety checks and rider verification; the current remote placeholder motorcycles remain offline/unassigned and intentionally provide no dispatch capacity;
 - approved commercial operating configuration;
 - a tested owner-held Free-plan database export and completed restore drill (PITR is deferred by founder approval);
-- final-domain Paystack and Resend acceptance; Google Maps JavaScript, Places and representative Routes passed on 25 November 2026;
+- final-domain Paystack acceptance; real final-domain Resend application-email delivery, Google Maps JavaScript, Places and representative Routes passed on 25 November 2026;
 - final-domain accessibility, Core Web Vitals and low-end-device certification.

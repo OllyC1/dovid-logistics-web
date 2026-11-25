@@ -218,10 +218,9 @@ begin
     'recipient_unavailable','[]'::jsonb,600,'Recipient unavailable after verified contact attempts',
     '{}'::jsonb,null,'Controlled failed-attempt validation','71717171-7171-4171-8171-717171717171'
   );
-  perform public.transition_delivery_order(
-    return_order_id,'delivery_failed',
-    jsonb_build_object('source','database_validation','attemptId',return_attempt_id)
-  );
+  if (select delivery_status from public.delivery_orders where id=return_order_id)<>'delivery_failed' then
+    raise exception 'recorded delivery attempt did not atomically transition to failed';
+  end if;
   perform public.resolve_delivery_attempt(
     return_attempt_id,'44444444-4444-4444-4444-444444444444','return_to_sender',
     'under_review','Recipient remained unavailable; dispatch authorized custody-safe return.',

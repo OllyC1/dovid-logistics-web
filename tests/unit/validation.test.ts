@@ -29,6 +29,13 @@ describe("guest booking validation", () => {
     if (result.success) expect(result.data.packageDescription).toBe("");
   });
 
+  it("keeps delivery email optional while phone contacts remain required", () => {
+    const withoutEmail = bookingSchema.safeParse({ ...booking, notificationEmail: "" });
+    expect(withoutEmail.success).toBe(true);
+    if (withoutEmail.success) expect(withoutEmail.data.notificationEmail).toBeUndefined();
+    expect(bookingSchema.safeParse({ ...booking, senderPhone: "" }).success).toBe(false);
+  });
+
   it("rejects an undersized guest quote token", () => {
     expect(bookingSchema.safeParse({ ...booking, guestQuoteToken: "short" }).success).toBe(false);
   });

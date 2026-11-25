@@ -10,6 +10,8 @@ The application code supports Resend API delivery, signed Resend webhooks and a 
 - `RESEND_FROM_EMAIL` is configured for the Netlify production context.
 - `RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET` and `EMAIL_WORKER_SECRET` are configured as secret Netlify production variables.
 - The scheduled application queue and signed webhook were verified with real Resend test delivery on 16 November 2026.
+- On 25 November 2026, a real application email sent through the production queue to the founder-authorized mailbox `macochoajarvis36@gmail.com` was accepted by Resend and confirmed by the recipient as delivered. The delivery record completed on the first attempt, the signed webhook updated its status, and a duplicate event did not create a second email.
+- Unauthenticated calls to both the queue worker and the Resend webhook continue to be rejected. This is live-provider evidence, not a mocked or simulated test.
 
 ## Provider setup
 

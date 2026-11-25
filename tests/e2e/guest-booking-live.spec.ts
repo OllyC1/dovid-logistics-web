@@ -151,7 +151,7 @@ test.describe("real guest booking API", () => {
 
     await expect(page).toHaveURL(/\/guest\/orders\/[A-Za-z0-9_-]{40,128}$/);
     await expect(page.getByRole("heading", { name: "Your delivery" })).toBeVisible();
-    await expect(page.getByText("No account is needed.", { exact: false })).toBeVisible();
+    await expect(page.getByText(/No account is needed/)).toBeVisible();
     await expect(page.getByLabel("Email address for the payment receipt")).toBeVisible();
     await expectGuestMobilePage(page);
   });

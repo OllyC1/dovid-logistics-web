@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { deliveryQuoteRequestSchema } from "@/features/pricing/quote-request";
 
-export const assistedBookingDraftSchema = deliveryQuoteRequestSchema.extend({
+export const assistedBookingDraftSchema = deliveryQuoteRequestSchema.safeExtend({
   bookingOrigin: z.enum(["whatsapp_admin", "phone_admin", "other_admin"]),
   customerName: z.string().trim().min(2).max(120),
   customerPhone: z.string().trim().min(7).max(20),

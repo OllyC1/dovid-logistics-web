@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
 import { hashAssistedSecret } from "@/features/assisted-bookings/security";
+import { remainingDispatchSlots } from "@/features/dispatch/capacity";
 import { isRealVehicleRegistration } from "@/features/fleet/registration";
 import { deliveryQuoteRequestSchema } from "@/features/pricing/quote-request";
 import { createQuoteFromContext, loadActivePricingContext, loadComparableCompetitorQuotes, loadPromotion } from "@/features/pricing/service";
@@ -16,6 +17,21 @@ const attempts = new Map<string, { count: number; resetAt: number }>();
 function rateLimited(ip: string) { const now = Date.now(); const current = attempts.get(ip); if (!current || current.resetAt < now) { attempts.set(ip, { count: 1, resetAt: now + 60_000 }); return false; } current.count += 1; return current.count > 12; }
 function durationSeconds(duration: string) { return Math.max(0, Math.round(Number.parseFloat(duration.replace("s", "")) || 0)); }
 
+function approvalScope(payload: Record<string, unknown>) {
+  return JSON.stringify({
+    pickupAddress: payload.pickupAddress,
+    pickupCoordinates: payload.pickupCoordinates,
+    deliveryAddress: payload.deliveryAddress,
+    deliveryCoordinates: payload.deliveryCoordinates,
+    packageCategory: payload.packageCategory,
+    packageSize: payload.packageSize,
+    serviceLevel: payload.serviceLevel,
+    additionalStops: payload.additionalStops,
+    oversized: payload.oversized,
+    scheduledAt: payload.scheduledAt ?? null,
+  });
+}
+
 type ActiveZone = {
   id: string;
   service_area_id: string;
@@ -23,7 +39,15 @@ type ActiveZone = {
   boundary_geojson: ZoneGeoJson;
   booking_eligibility: "standard" | "manual_approval" | "unavailable";
   dispatch_approval_required: boolean;
+  is_citywide: boolean;
 };
+
+function manualDecisionMessage(reasonCode: string, distanceMeters: number, standardMaxDistanceMeters: number) {
+  if (reasonCode === "distance_requires_dispatch_review") return `This route is ${(distanceMeters / 1000).toFixed(1)} km. Routes above ${(standardMaxDistanceMeters / 1000).toFixed(0)} km need a quick confirmation from dispatch.`;
+  if (reasonCode === "outside_service_hours") return "This request is outside today’s automatic service hours, so dispatch needs to confirm a safe collection time.";
+  if (reasonCode === "operational_review_required") return "One part of this route or parcel needs a quick safety check from dispatch.";
+  return "This route needs confirmation from our dispatch team.";
+}
 
 export async function POST(request: NextRequest) {
   if (!publicBookingsEnabled()) return NextResponse.json({ error: "Online bookings are not open yet. Please contact Dovid Logistics for help." }, { status: 503 });
@@ -38,12 +62,13 @@ export async function POST(request: NextRequest) {
     const now = new Date();
     const nowIso = now.toISOString();
     const { data: zoneRows, error: zoneError } = await admin.from("service_zones")
-      .select("id,service_area_id,code,boundary_geojson,booking_eligibility,dispatch_approval_required")
+      .select("id,service_area_id,code,boundary_geojson,booking_eligibility,dispatch_approval_required,is_citywide")
       .eq("active", true).eq("operational_status", "active").neq("booking_eligibility", "unavailable")
       .order("priority", { ascending: true })
       .lte("effective_from", nowIso).or(`effective_until.is.null,effective_until.gt.${nowIso}`);
     if (zoneError) throw zoneError;
-    const zones = (zoneRows ?? []).filter((zone) => zone.boundary_geojson) as ActiveZone[];
+    const zones = ((zoneRows ?? []).filter((zone) => zone.boundary_geojson) as ActiveZone[])
+      .sort((left, right) => Number(left.is_citywide) - Number(right.is_citywide));
     const pickupZone = zones.find((zone) => isPointInGeoJson(parsed.data.pickupCoordinates, zone.boundary_geojson));
     const deliveryZone = zones.find((zone) => isPointInGeoJson(parsed.data.deliveryCoordinates, zone.boundary_geojson));
     const stopZones = parsed.data.additionalStops.map((stop) => zones.find((zone) => isPointInGeoJson(stop.coordinates, zone.boundary_geojson)));
@@ -70,17 +95,20 @@ export async function POST(request: NextRequest) {
 
     let approvedRequest: { id: string; reference_code: string; status: string; review_reason: string | null } | null = null;
     if (parsed.data.approvalReference) {
+      if (!parsed.data.approvalToken) return NextResponse.json({ error: "Open the secure approval link before continuing.", code: "APPROVAL_TOKEN_REQUIRED" }, { status: 403 });
+      const { data: access } = await admin.from("availability_request_access_tokens")
+        .select("availability_request_id,expires_at")
+        .eq("token_hash", hashAssistedSecret(parsed.data.approvalToken))
+        .maybeSingle();
+      if (!access || new Date(access.expires_at) <= now) return NextResponse.json({ error: "This approval link is invalid or has expired.", code: "APPROVAL_TOKEN_INVALID" }, { status: 403 });
       const { data: request, error: requestError } = await admin.from("delivery_availability_requests")
         .select("id,reference_code,status,review_reason,request_payload")
+        .eq("id", access.availability_request_id)
         .eq("reference_code", parsed.data.approvalReference)
         .maybeSingle();
       if (requestError) throw requestError;
       const previousPayload = (request?.request_payload ?? {}) as Record<string, unknown>;
-      const matchesRoute = request &&
-        previousPayload.pickupAddress === parsed.data.pickupAddress &&
-        previousPayload.deliveryAddress === parsed.data.deliveryAddress &&
-        previousPayload.packageCategory === parsed.data.packageCategory &&
-        previousPayload.packageSize === parsed.data.packageSize;
+      const matchesRoute = request && approvalScope(previousPayload) === approvalScope(parsed.data);
       if (!request || !matchesRoute) {
         return NextResponse.json({ error: "That approval reference does not match this route.", code: "APPROVAL_REFERENCE_MISMATCH" }, { status: 404 });
       }
@@ -90,6 +118,7 @@ export async function POST(request: NextRequest) {
           message: request.review_reason || "Dispatch could not approve this route.",
           eligibility: "rejected",
           approvalState: "rejected",
+          continuationToken: parsed.data.approvalToken,
           availabilityRequestId: request.id,
           manualAssistance: {
             reference: request.reference_code,
@@ -106,6 +135,7 @@ export async function POST(request: NextRequest) {
           message: "Dispatch is still reviewing this route. Check again shortly or contact us using the reference below.",
           eligibility: "manual_approval",
           approvalState: "pending",
+          continuationToken: parsed.data.approvalToken,
           availabilityRequestId: request.id,
           manualAssistance: {
             reference: request.reference_code,
@@ -124,15 +154,27 @@ export async function POST(request: NextRequest) {
     }
 
     const context = await loadActivePricingContext(pickupZone.service_area_id, parsed.data.serviceLevel);
-    const [competitorQuotes, promotions, fleetResult, assignmentResult] = await Promise.all([
+    const [competitorQuotes, promotions, fleetResult, assignmentResult, riderMembershipResult, riderProfileResult] = await Promise.all([
       loadComparableCompetitorQuotes({ serviceAreaId: pickupZone.service_area_id, serviceLevel: parsed.data.serviceLevel, packageCategory: parsed.data.packageCategory, roadDistanceMeters: route.distanceMeters, config: context.config }),
       loadPromotion(parsed.data.promotionCode),
-      admin.from("fleet_vehicles").select("id,registration_number,assigned_rider_id,max_active_assignments").eq("operational_status", "available").eq("safety_status", "cleared"),
-      admin.from("delivery_assignments").select("vehicle_id,rider_id").is("released_at", null)
+      admin.from("fleet_vehicles").select("id,registration_number,assigned_rider_id,max_active_assignments,capacity_verified_at").in("operational_status", ["available", "assigned"]).eq("safety_status", "cleared"),
+      admin.from("delivery_assignments").select("vehicle_id,rider_id").is("released_at", null),
+      admin.from("staff_memberships").select("user_id").eq("staff_role", "rider").eq("status", "active"),
+      admin.from("profiles").select("id").eq("role", "rider")
     ]);
     const result = createQuoteFromContext({ roadDistanceMeters: route.distanceMeters, serviceLevel: parsed.data.serviceLevel, paymentMethod: parsed.data.paymentMethod, additionalStops: parsed.data.additionalStops.length, oversized: parsed.data.oversized, promotions, competitorQuotes }, context);
-    const activeVehicleIds = new Set((assignmentResult.data ?? []).map((assignment) => assignment.vehicle_id));
-    const availableFleetSlots = (fleetResult.data ?? []).filter((vehicle) => isRealVehicleRegistration(vehicle.registration_number) && vehicle.assigned_rider_id && !activeVehicleIds.has(vehicle.id)).length;
+    const vehicleWorkload = new Map<string, number>();
+    const riderWorkload = new Map<string, number>();
+    const activeRiderIds = new Set((riderMembershipResult.data ?? []).map((membership) => membership.user_id));
+    const riderProfileIds = new Set((riderProfileResult.data ?? []).map((profile) => profile.id));
+    for (const assignment of assignmentResult.data ?? []) {
+      vehicleWorkload.set(assignment.vehicle_id, (vehicleWorkload.get(assignment.vehicle_id) ?? 0) + 1);
+      riderWorkload.set(assignment.rider_id, (riderWorkload.get(assignment.rider_id) ?? 0) + 1);
+    }
+    const availableFleetSlots = (fleetResult.data ?? []).reduce((slots, vehicle) => {
+      if (!isRealVehicleRegistration(vehicle.registration_number) || !vehicle.assigned_rider_id || !vehicle.capacity_verified_at || !activeRiderIds.has(vehicle.assigned_rider_id) || !riderProfileIds.has(vehicle.assigned_rider_id)) return slots;
+      return slots + remainingDispatchSlots({ vehicleCapacity: vehicle.max_active_assignments, riderCapacity: settings.max_active_assignments_per_rider, vehicleWorkload: vehicleWorkload.get(vehicle.id) ?? 0, riderWorkload: riderWorkload.get(vehicle.assigned_rider_id) ?? 0 });
+    }, 0);
     const decision = evaluateBookingEligibility({
       pickupCovered: true,
       deliveryCovered: true,
@@ -178,16 +220,35 @@ export async function POST(request: NextRequest) {
         pricing_snapshot: { customerTotalKobo: result.customerTotalKobo, currency: result.currency, internal: result.internal, includedCharges: result.includedCharges }
       }).select("id,reference_code").single();
       if (availabilityError) throw availabilityError;
+      let continuationToken: string | undefined;
+      if (status === "pending") {
+        const rawToken = randomBytes(32).toString("base64url");
+        const { error: tokenError } = await admin.from("availability_request_access_tokens").insert({
+          availability_request_id: availability.id,
+          token_hash: hashAssistedSecret(rawToken),
+          expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        });
+        if (tokenError) throw new Error("The secure dispatch review could not be prepared.");
+        continuationToken = rawToken;
+      }
       const responseStatus = decision.decision === "capacity_unavailable" ? 409 : decision.decision === "unsupported" ? 422 : 202;
+      const customerMessage = decision.decision === "manual_approval"
+        ? manualDecisionMessage(decision.reasonCode, route.distanceMeters, settings.standard_max_distance_meters)
+        : decision.message;
       const manualMessage = `Hello Dovid Logistics, please review this delivery: ${parsed.data.pickupAddress} to ${parsed.data.deliveryAddress}. Request reference: ${availability.reference_code}.`;
       return NextResponse.json({
-        ...(responseStatus >= 400 ? { error: decision.message } : {}),
-        message: decision.message,
+        ...(responseStatus >= 400 ? { error: customerMessage } : {}),
+        message: customerMessage,
         eligibility: decision.decision,
         reasonCode: decision.reasonCode,
         availabilityRequestId: availability.id,
         distanceMeters: route.distanceMeters,
         duration: route.duration,
+        automaticDistanceLimitMeters: settings.standard_max_distance_meters,
+        manualDistanceLimitMeters: settings.manual_max_distance_meters,
+        pickupZoneCode: pickupZone.code,
+        deliveryZoneCode: deliveryZone.code,
+        ...(continuationToken ? { continuationToken } : {}),
         ...(responseStatus < 400 ? {
           manualAssistance: {
             reference: availability.reference_code,

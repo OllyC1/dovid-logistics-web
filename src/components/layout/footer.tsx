@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { isWorkspacePath } from "@/lib/auth/role-resolution";
+import { siteConfig } from "@/config/site";
 
 const groups = [
   { title: "Services", links: [["Motorcycle dispatch", "/services#dispatch"], ["Parcel delivery", "/services#parcel"], ["Business logistics", "/business"]] },
@@ -22,6 +23,11 @@ export function Footer() {
         <Image className="h-[58px] w-[190px]" src="/brand/dovid-reverse.svg" alt="Dovid Logistics" width={195} height={60} />
         <p className="mt-5 text-sm leading-7 text-white/70">Simple, dependable delivery for people and businesses.</p>
         <p className="mt-6 text-sm font-bold text-orange-light">Now serving Ibadan.</p>
+        <div className="mt-5 grid gap-1 text-sm text-white/75">
+          <a className="inline-flex min-h-11 items-center font-bold hover:text-orange-light" href={`tel:${siteConfig.support.phone}`}>{siteConfig.support.phone}</a>
+          <a className="inline-flex min-h-11 items-center font-bold hover:text-orange-light" href={`https://wa.me/${siteConfig.support.whatsapp}`} target="_blank" rel="noreferrer">WhatsApp us</a>
+          <a className="inline-flex min-h-11 items-center break-all font-bold hover:text-orange-light" href={`mailto:${siteConfig.support.email}`}>{siteConfig.support.email}</a>
+        </div>
       </div>
       <div className="grid grid-cols-2 gap-8 md:grid-cols-4">
         {groups.map((group) => <div key={group.title}>

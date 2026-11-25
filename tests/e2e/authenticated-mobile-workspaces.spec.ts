@@ -954,18 +954,13 @@ test("rider completes a paid pickup and handover with proof on mobile", async ({
   await expect(page.getByText(/Release the parcel only when payment status is paid/)).toBeVisible();
   await expectCurrentMobilePage(page, "rider paid-delivery operations");
 
-  await page.getByLabel("Expense type").selectOption("toll_road_access");
-  await page.getByLabel("Amount (NGN)").fill("500");
-  await page.getByLabel("What happened?").fill("Controlled toll-road acceptance expense");
-  await page.getByRole("button", { name: "Submit for review" }).click();
-  await expect(page.getByRole("status")).toContainText("Expense submitted for review");
-  await page.getByRole("button", { name: "Dismiss message" }).click();
-
-  await page.getByRole("button", { name: "Start waiting timer" }).click();
-  await expect(page.getByRole("status")).toContainText("Waiting timer started");
-  await page.getByRole("button", { name: "Dismiss message" }).click();
-  await page.getByRole("button", { name: "Stop waiting timer" }).click();
-  await expect(page.getByRole("status")).toContainText("Waiting time recorded");
+  const costSection = page.locator("details").filter({ hasText: "Request an additional cost" });
+  await costSection.locator("summary").click();
+  await costSection.getByLabel("Cost type").selectOption("toll_road_access");
+  await costSection.getByLabel("Amount (NGN)").fill("500");
+  await costSection.getByLabel("What happened?").fill("Controlled toll-road acceptance expense");
+  await costSection.getByRole("button", { name: "Send cost for review" }).click();
+  await expect(page.getByRole("status")).toContainText("did not mark the delivery as failed");
   await page.getByRole("button", { name: "Dismiss message" }).click();
 
   for (const [button, next] of [
@@ -977,6 +972,11 @@ test("rider completes a paid pickup and handover with proof on mobile", async ({
     await expect(page.getByRole("button", { name: next })).toBeVisible();
   }
   await page.getByRole("button", { name: "Arrived at destination" }).click();
+  await expect(page.getByText("Waiting time", { exact: true })).toBeVisible();
+  await expect(page.getByText(/of free waiting time remains/)).toBeVisible();
+  await page.getByRole("button", { name: "Stop waiting timer" }).click();
+  await expect(page.getByRole("status")).toContainText("Waiting time recorded");
+  await page.getByRole("button", { name: "Dismiss message" }).click();
   await expect(page.getByRole("heading", { name: "Confirm the recipient before handover" })).toBeVisible();
   await expectCurrentMobilePage(page, "rider handover confirmation");
   await page.getByLabel("Handover notes (optional)").fill("Recipient checked the controlled parcel");
@@ -1012,13 +1012,14 @@ test("rider reports a missed delivery and completes an authorized return on mobi
   await page.goto(`/rider/orders/${fixture.orderId}`);
   await page.getByRole("button", { name: "Start pickup journey" }).click();
   await expect(page.getByRole("button", { name: "Confirm pickup" })).toBeVisible();
-  await page.getByLabel("What stopped the delivery?").selectOption("recipient_unavailable");
-  await page.getByLabel("Reason", { exact: true }).fill("Recipient could not be reached at the address");
-  await page.getByLabel("Time spent waiting (minutes)").fill("5");
-  await page.getByLabel("Private notes for dispatch").fill("Called twice using the verified delivery number");
+  const failureSection = page.locator("details").filter({ hasText: "Could not deliver this parcel" });
+  await failureSection.locator("summary").click();
+  await failureSection.getByLabel("What stopped the delivery?").selectOption("recipient_unavailable");
+  await failureSection.getByLabel("What happened?").fill("Recipient could not be reached at the address");
+  await failureSection.getByLabel("Private notes for dispatch").fill("Called twice using the verified delivery number");
   await expectCurrentMobilePage(page, "rider missed-delivery report");
-  await page.getByRole("button", { name: "Record attempt safely" }).click();
-  await expect(page.getByRole("status")).toContainText("Delivery attempt recorded");
+  await failureSection.getByRole("button", { name: "Send issue to dispatch" }).click();
+  await expect(page.getByRole("status")).toContainText("Delivery issue recorded");
 
   await expect.poll(async () => {
     const { data } = await admin.from("delivery_attempts").select("id,status").eq("order_id", fixture.orderId).maybeSingle();

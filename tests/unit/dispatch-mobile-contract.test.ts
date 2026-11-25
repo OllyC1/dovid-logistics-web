@@ -53,11 +53,12 @@ describe("dispatch mobile layout", () => {
     expect(rateCardsSource).toContain("Beyond-band rate");
   });
 
-  it("uses field-friendly units while preserving server units", () => {
+  it("uses field-friendly money and server-recorded waiting time", () => {
     expect(riderOperationsSource).toContain('name="amountNaira"');
     expect(riderOperationsSource).toContain('Number(form.get("amountNaira")) * 100');
-    expect(riderOperationsSource).toContain('name="waitingMinutes"');
-    expect(riderOperationsSource).toContain('Number(form.get("waitingMinutes") || 0) * 60');
+    expect(riderOperationsSource).toContain("waitingDurationSeconds: elapsedSeconds");
+    expect(riderOperationsSource).toContain("freeSecondsRemaining");
+    expect(riderOperationsSource).not.toContain('name="waitingMinutes"');
     expect(riderOperationsSource).not.toContain('placeholder="Amount in kobo"');
     expect(riderOperationsSource).not.toContain('placeholder="Waiting time in seconds"');
   });

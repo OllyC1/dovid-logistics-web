@@ -159,7 +159,7 @@ test("sender can book with address search, enter test checkout, verify, track an
 
   await page.route("**/api/payments/verify?reference=DOV-MOBILE-PAY", route => route.fulfill({ contentType: "application/json", body: JSON.stringify({ status: "paid", verified: true }) }));
   await page.goto("/pay/callback?reference=DOV-MOBILE-PAY");
-  await expect(page.getByText("Payment confirmed. Your delivery can continue.")).toBeVisible();
+  await expect(page.getByRole("status")).toContainText("Payment confirmed.");
   await expectMobileJourneyPage(page, "payment confirmation");
 
   await page.route("**/track/TRK-MOBILE", route => route.fulfill({ contentType: "text/html", body: "<main><h1>DOV-MOBILE</h1><p>Delivered</p><p>Delivery confirmed</p></main>" }));
@@ -169,6 +169,50 @@ test("sender can book with address search, enter test checkout, verify, track an
   await page.getByRole("button", { name: "Check delivery status" }).click();
   await expect(page.getByText("Delivered")).toBeVisible();
   await expect(page.getByText("Delivery confirmed")).toBeVisible();
+});
+
+test("manual route approval preserves the guest request and creates no order before continuation", async ({ page }) => {
+  await mockAddresses(page);
+  let quoteCalls = 0;
+  let orderCalls = 0;
+  await page.route("**/api/orders", route => { orderCalls += 1; return route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ error: "Order creation was not expected" }) }); });
+  await page.route("**/api/delivery/quotes", async route => {
+    quoteCalls += 1;
+    const request = route.request().postDataJSON() as { approvalReference?: string; approvalToken?: string };
+    if (quoteCalls === 1) {
+      return route.fulfill({ status: 202, contentType: "application/json", body: JSON.stringify({
+        eligibility: "manual_approval",
+        message: "This route needs confirmation from our dispatch team.",
+        continuationToken: "a".repeat(43),
+        manualAssistance: { reference: "DOV-APR-261125-ABCDEF12", email: "hello@dovidlogistics.com", phone: "+2347072232323", emailUrl: "mailto:hello@dovidlogistics.com", phoneUrl: "tel:+2347072232323", whatsappUrl: "https://wa.me/2347072232323", state: "pending" },
+      }) });
+    }
+    expect(request.approvalReference).toBe("DOV-APR-261125-ABCDEF12");
+    expect(request.approvalToken).toBe("a".repeat(43));
+    return route.fulfill({ contentType: "application/json", body: JSON.stringify({ quoteId: "approved-mobile-quote", eligibility: "standard_eligible", distanceMeters: 14_000, customerTotalKobo: 350000, currency: "NGN", includedCharges: [{ label: "Approved delivery", amountKobo: 350000 }], expiresAt: new Date(Date.now() + 600_000).toISOString() }) });
+  });
+
+  await page.goto("/book");
+  await expect(page.locator('[data-hydrated="true"]')).toBeVisible();
+  await page.getByLabel("Where should we collect the parcel?").fill("Bodija");
+  await page.getByRole("button", { name: /Bodija/ }).click();
+  await page.getByLabel("Where should we deliver it?").fill("Ring Road");
+  await page.getByRole("button", { name: /Ring Road/ }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByLabel("Your name").fill("Mobile Sender");
+  await page.getByLabel("Your phone number").fill("08000000000");
+  await page.getByLabel("Email for delivery updates (optional)").fill("sender@example.test");
+  await page.getByLabel("Receiver's name").fill("Mobile Receiver");
+  await page.getByLabel("Receiver's phone number").fill("08000000001");
+  await page.getByRole("button", { name: "See my price" }).click();
+  await expect(page.getByText("No order, rider assignment or payment exists yet.", { exact: false })).toBeVisible();
+  expect(orderCalls).toBe(0);
+  await page.getByRole("button", { name: "Check approval and continue" }).click();
+  await expect(page.getByText(/3,500/).first()).toBeVisible();
+  expect(quoteCalls).toBe(2);
+  expect(orderCalls).toBe(0);
+  await expectMobileJourneyPage(page, "approved manual route review");
 });
 
 test("receiver can use a secure payment link without an account", async ({ page }) => {

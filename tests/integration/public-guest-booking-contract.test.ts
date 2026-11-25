@@ -60,7 +60,7 @@ describe("direct public guest booking", () => {
 
   it("collects an explicit delivery-update email and explains direct rider contact", () => {
     expect(booking).toContain("Email for delivery updates");
-    expect(booking).toContain("Riders may also call the sender or receiver directly");
+    expect(booking).toContain("the rider may need to call the sender or receiver");
     expect(orderRoute).toContain("notification_email");
     expect(notificationEmailMigration).toContain("selected_order.notification_email");
   });
@@ -81,10 +81,13 @@ describe("direct public guest booking", () => {
   it("offers email, call and WhatsApp assistance for manual routes", () => {
     expect(quoteRoute).toContain("manualAssistance");
     expect(quoteRoute).toContain("whatsappUrl");
-    expect(booking).toContain("Contact dispatch to continue");
+    expect(booking).toContain("Dispatch is checking this route");
     expect(booking).toContain("Email dispatch");
     expect(booking).toContain("WhatsApp dispatch");
     expect(booking).toContain("Check approval and continue");
+    expect(booking).toContain("No order, rider assignment or payment exists yet");
+    expect(quoteRoute).toContain("approvalToken");
+    expect(quoteRoute).toContain("availability_request_access_tokens");
     expect(quoteRoute).toContain('operational_approval_status: approvedRequest ? "approved" : "not_required"');
     expect(quoteRoute).toContain("reference_code");
   });

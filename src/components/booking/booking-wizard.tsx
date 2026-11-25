@@ -19,6 +19,7 @@ type CustomerQuote = {
 };
 type ManualAssistance = {
   reference: string;
+  continuationToken?: string;
   email: string;
   phone: string;
   emailUrl: string;
@@ -34,16 +35,19 @@ const emptyDraft: Draft = {
   packageCategory: "parcel", packageSize: "small", packageDescription: "",
   serviceLevel: "standard", scheduledAt: "", oversized: "false",
   senderName: "", senderPhone: "", notificationEmail: "", recipientName: "", recipientPhone: "",
-  payer: "sender", paymentMethod: "online"
+  payer: "sender", paymentMethod: "online", promotionCode: ""
 };
 
-export function BookingWizard() {
+export function BookingWizard({ approvalToken }: { approvalToken?: string }) {
   const [step, setStep] = useState(0);
   const [draft, setDraft] = useState<Draft>(emptyDraft);
   const [additionalStops, setAdditionalStops] = useState<AddressValue[]>([]);
   const [quote, setQuote] = useState<CustomerQuote | null>(null);
   const [message, setMessage] = useState("");
   const [manualAssistance, setManualAssistance] = useState<ManualAssistance | null>(null);
+  const [approvalReference, setApprovalReference] = useState("");
+  const [approvalAccessToken, setApprovalAccessToken] = useState(approvalToken ?? "");
+  const [continuationLoading, setContinuationLoading] = useState(Boolean(approvalToken));
   const [pending, setPending] = useState(false);
   const [hydrated, setHydrated] = useState(false);
 
@@ -59,6 +63,47 @@ export function BookingWizard() {
   }, []);
 
   useEffect(() => {
+    if (!approvalToken) return;
+    let cancelled = false;
+    void fetch(`/api/delivery/availability/${encodeURIComponent(approvalToken)}`, { cache: "no-store" })
+      .then(async (response) => ({ response, body: await response.json().catch(() => ({})) }))
+      .then(({ response, body }) => {
+        if (cancelled) return;
+        if (!response.ok) { setMessage(body.error ?? "This continuation link could not be opened."); return; }
+        const stored = body.requestPayload as Record<string, unknown>;
+        const text = (key: string, fallback = "") => typeof stored[key] === "string" ? String(stored[key]) : fallback;
+        const pickup = stored.pickupCoordinates as { latitude?: number; longitude?: number } | undefined;
+        const delivery = stored.deliveryCoordinates as { latitude?: number; longitude?: number } | undefined;
+        setDraft({ ...emptyDraft, pickupAddress: text("pickupAddress"), pickupLatitude: String(pickup?.latitude ?? ""), pickupLongitude: String(pickup?.longitude ?? ""), deliveryAddress: text("deliveryAddress"), deliveryLatitude: String(delivery?.latitude ?? ""), deliveryLongitude: String(delivery?.longitude ?? ""), packageCategory: text("packageCategory", "parcel"), packageSize: text("packageSize", "small"), packageDescription: text("packageDescription"), serviceLevel: text("serviceLevel", "standard"), paymentMethod: text("paymentMethod", "online"), scheduledAt: text("scheduledAt"), oversized: String(stored.oversized === true), payer: text("payer", "sender"), promotionCode: text("promotionCode"), senderName: text("senderName"), senderPhone: text("senderPhone"), notificationEmail: text("notificationEmail"), recipientName: text("recipientName"), recipientPhone: text("recipientPhone") });
+        const restoredStops = Array.isArray(stored.additionalStops) ? stored.additionalStops.flatMap((item) => { const stop = item as { address?: unknown; coordinates?: { latitude?: unknown; longitude?: unknown } }; return typeof stop.address === "string" && typeof stop.coordinates?.latitude === "number" && typeof stop.coordinates?.longitude === "number" ? [{ address: stop.address, latitude: String(stop.coordinates.latitude), longitude: String(stop.coordinates.longitude) }] : []; }) : [];
+        setAdditionalStops(restoredStops);
+        setApprovalReference(String(body.reference ?? ""));
+        setApprovalAccessToken(approvalToken);
+        if (body.status === "approved") { setStep(2); setMessage("Dispatch approved this route. Check the saved contact details, then continue to your confirmed price and payment choice."); }
+        else if (body.status === "rejected") setMessage(body.reviewReason ?? "Dispatch could not approve this route.");
+        else setMessage("Dispatch is still reviewing this route. Keep this page open; it updates automatically.");
+      })
+      .catch(() => { if (!cancelled) setMessage("We could not open this continuation link. Check your connection and try again."); })
+      .finally(() => { if (!cancelled) setContinuationLoading(false); });
+    return () => { cancelled = true; };
+  }, [approvalToken]);
+
+  useEffect(() => {
+    const token = manualAssistance?.state === "pending" ? manualAssistance.continuationToken : "";
+    if (!token) return;
+    const timer = window.setInterval(() => {
+      void fetch(`/api/delivery/availability/${encodeURIComponent(token)}`, { cache: "no-store" })
+        .then(async (response) => response.ok ? response.json() : null)
+        .then((body) => {
+          if (body?.status === "approved") { setApprovalReference(String(body.reference)); setApprovalAccessToken(token); setManualAssistance(null); setStep(2); setMessage("Dispatch approved this route. Check your contact details, then continue to your confirmed price."); }
+          if (body?.status === "rejected") { setManualAssistance((current) => current ? { ...current, state: "rejected" } : current); setMessage(body.reviewReason ?? "Dispatch could not approve this route."); }
+        })
+        .catch(() => undefined);
+    }, 7_500);
+    return () => window.clearInterval(timer);
+  }, [manualAssistance?.continuationToken, manualAssistance?.state]);
+
+  useEffect(() => {
     if (!hydrated) return;
     localStorage.setItem("dovid-booking-draft", JSON.stringify(draft));
     localStorage.setItem("dovid-booking-stops", JSON.stringify(additionalStops));
@@ -66,7 +111,7 @@ export function BookingWizard() {
 
   const set = (key: string, invalidatesQuote = true) => (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     setDraft(current => ({ ...current, [key]: event.target.value }));
-    if (invalidatesQuote) { setQuote(null); setManualAssistance(null); }
+    if (invalidatesQuote) { setQuote(null); setManualAssistance(null); setApprovalReference(""); setApprovalAccessToken(""); }
   };
   const updateAddress = (prefix: "pickup" | "delivery", value: AddressValue) => {
     setDraft(current => ({
@@ -77,6 +122,8 @@ export function BookingWizard() {
     }));
     setQuote(null);
     setManualAssistance(null);
+    setApprovalReference("");
+    setApprovalAccessToken("");
   };
   const pickupAddress = { address: draft.pickupAddress, latitude: draft.pickupLatitude, longitude: draft.pickupLongitude };
   const deliveryAddress = { address: draft.deliveryAddress, latitude: draft.deliveryLatitude, longitude: draft.deliveryLongitude };
@@ -86,12 +133,17 @@ export function BookingWizard() {
     draft.pickupLatitude, draft.pickupLongitude, draft.deliveryLatitude, draft.deliveryLongitude,
     ...additionalStops.flatMap(stop => [stop.latitude, stop.longitude])
   ].every(value => Number.isFinite(Number(value)) && value !== "") && additionalStops.every(stop => stop.address.length >= 8), [draft, additionalStops]);
+  const contactReady = draft.senderName.trim().length >= 2
+    && draft.senderPhone.trim().length >= 7
+    && draft.recipientName.trim().length >= 2
+    && draft.recipientPhone.trim().length >= 7
+    && (!draft.notificationEmail || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(draft.notificationEmail));
   const serializedStops = additionalStops.map(stop => ({
     address: stop.address,
     coordinates: { latitude: Number(stop.latitude), longitude: Number(stop.longitude) }
   }));
 
-  async function requestQuote(nextStep = 3) {
+  async function requestQuote(nextStep = 3, explicitApprovalReference?: string) {
     setPending(true);
     setMessage("");
     setManualAssistance(null);
@@ -109,19 +161,26 @@ export function BookingWizard() {
           serviceLevel: draft.serviceLevel,
           paymentMethod: draft.paymentMethod,
           payer: draft.payer,
+          promotionCode: draft.promotionCode.trim() || undefined,
           guestBooking: true,
+          senderName: draft.senderName || undefined,
+          senderPhone: draft.senderPhone || undefined,
+          notificationEmail: draft.notificationEmail || undefined,
+          recipientName: draft.recipientName || undefined,
+          recipientPhone: draft.recipientPhone || undefined,
           scheduledAt: draft.scheduledAt ? new Date(draft.scheduledAt).toISOString() : undefined,
           additionalStops: serializedStops,
           oversized: draft.oversized === "true",
-          approvalReference: manualAssistance?.reference
+          approvalReference: explicitApprovalReference || approvalReference || manualAssistance?.reference || undefined,
+          approvalToken: approvalAccessToken || manualAssistance?.continuationToken || undefined
         })
       });
       const body = await response.json().catch(() => ({}));
-      if (body.manualAssistance) setManualAssistance(body.manualAssistance);
+      if (body.manualAssistance) { setManualAssistance({ ...body.manualAssistance, continuationToken: body.continuationToken }); setApprovalReference(body.manualAssistance.reference ?? ""); if (body.continuationToken) setApprovalAccessToken(body.continuationToken); }
       if (!response.ok) return setMessage(body.error ?? "We could not calculate a price right now. Please try again.");
       if (body.eligibility && body.eligibility !== "standard_eligible") {
         setQuote(null);
-        setManualAssistance(body.manualAssistance ? { ...body.manualAssistance, state: body.approvalState === "rejected" ? "rejected" : "pending" } : null);
+        setManualAssistance(body.manualAssistance ? { ...body.manualAssistance, continuationToken: body.continuationToken, state: body.approvalState === "rejected" ? "rejected" : "pending" } : null);
         setMessage(body.message ?? "This route needs confirmation from our dispatch team.");
         return;
       }
@@ -158,7 +217,7 @@ export function BookingWizard() {
         oversized: draft.oversized === "true",
         senderName: draft.senderName,
         senderPhone: draft.senderPhone,
-        notificationEmail: draft.notificationEmail,
+        notificationEmail: draft.notificationEmail.trim() || undefined,
         recipientName: draft.recipientName,
         recipientPhone: draft.recipientPhone,
         payer: draft.payer,
@@ -209,6 +268,7 @@ export function BookingWizard() {
     <section className="min-w-0 rounded-[2rem] border border-navy/10 bg-white p-6 shadow-sm md:p-9">
       <h2 className="text-2xl font-extrabold text-navy">{steps[step]}</h2>
       <div className="mt-7 grid gap-5">
+        {continuationLoading ? <div role="status" className="flex items-center gap-3 rounded-2xl bg-cloud p-4 text-sm font-bold text-navy"><Loader2 className="size-5 animate-spin text-orange"/>Opening your approved delivery request…</div> : null}
         {step === 0 ? <><AddressAutocomplete label="Where should we collect the parcel?" value={pickupAddress} onChange={value => updateAddress("pickup", value)} /><AddressAutocomplete label="Where should we deliver it?" value={deliveryAddress} onChange={value => updateAddress("delivery", value)} /></> : null}
         {step === 1 ? <>
           <div className="grid gap-4 sm:grid-cols-2"><label className="grid gap-2 text-sm font-semibold text-navy">What are you sending?<select className="min-h-12 rounded-2xl border border-slate/25 px-4" value={draft.packageCategory} onChange={set("packageCategory")}><option value="document">Documents</option><option value="parcel">A parcel</option><option value="food">Food</option><option value="other">Something else</option></select></label><label className="grid gap-2 text-sm font-semibold text-navy">About how big is it?<select className="min-h-12 rounded-2xl border border-slate/25 px-4" value={draft.packageSize} onChange={set("packageSize")}><option value="small">Small</option><option value="medium">Medium</option><option value="large">Large</option></select></label></div>
@@ -217,13 +277,14 @@ export function BookingWizard() {
           <label className="grid gap-2 text-sm font-semibold text-navy">Does it need extra space?<select className="min-h-12 rounded-2xl border border-slate/25 px-4" value={draft.oversized} onChange={set("oversized")}><option value="false">No, it fits on a motorcycle</option><option value="true">Yes, it is oversized</option></select></label>
           <div className="rounded-2xl border border-navy/10 p-4"><div className="flex items-center justify-between gap-4"><div><p className="font-bold text-navy">Need another stop?</p><p className="text-xs text-slate">Add up to five stops. We will include them in your price.</p></div><button type="button" disabled={additionalStops.length >= 5} className="rounded-full border border-orange px-4 py-2 text-sm font-bold text-orange disabled:opacity-40" onClick={() => { setAdditionalStops(current => [...current, { address: "", latitude: "", longitude: "" }]); setQuote(null); }}>Add a stop</button></div><div className="mt-4 grid gap-4">{additionalStops.map((stop, index) => <div key={index} className="grid gap-3 rounded-2xl bg-cloud p-4"><div className="flex justify-between"><p className="text-sm font-bold text-navy">Stop {index + 1}</p><button type="button" className="text-xs font-bold text-red-700" onClick={() => { setAdditionalStops(current => current.filter((_, position) => position !== index)); setQuote(null); }}>Remove</button></div><AddressAutocomplete label="Stop address" value={stop} onChange={value => { setAdditionalStops(current => current.map((item, position) => position === index ? value : item)); setQuote(null); }} /></div>)}</div></div>
           <TextareaField label="Anything we should know about the parcel?" placeholder="For example: fragile, contains food, or call before pickup" value={draft.packageDescription} onChange={set("packageDescription")} />
+          <Field label="Discount code (optional)" value={draft.promotionCode} onChange={set("promotionCode")} autoCapitalize="characters" autoComplete="off" placeholder="Enter a code" />
         </> : null}
-        {step === 2 ? <><div className="grid gap-4 sm:grid-cols-2"><Field label="Your name" value={draft.senderName} onChange={set("senderName", false)} /><Field label="Your phone number" value={draft.senderPhone} onChange={set("senderPhone", false)} /></div><Field label="Email for delivery updates" type="email" value={draft.notificationEmail} onChange={set("notificationEmail", false)} autoComplete="email" placeholder="you@example.com" /><div className="grid gap-4 sm:grid-cols-2"><Field label="Receiver's name" value={draft.recipientName} onChange={set("recipientName", false)} /><Field label="Receiver's phone number" value={draft.recipientPhone} onChange={set("recipientPhone", false)} /></div><p className="rounded-2xl bg-cloud p-4 text-sm leading-6 text-slate">We use this email for booking, payment and delivery updates. Please check spam. Riders may also call the sender or receiver directly using the phone numbers provided.</p></> : null}
+        {step === 2 ? <><div className="grid gap-4 sm:grid-cols-2"><Field label="Your name" required autoComplete="name" value={draft.senderName} onChange={set("senderName", false)} /><Field label="Your phone number" required type="tel" autoComplete="tel" value={draft.senderPhone} onChange={set("senderPhone", false)} /></div><Field label="Email for delivery updates (optional)" type="email" value={draft.notificationEmail} onChange={set("notificationEmail", false)} autoComplete="email" placeholder="you@example.com" /><div className="grid gap-4 sm:grid-cols-2"><Field label="Receiver's name" required value={draft.recipientName} onChange={set("recipientName", false)} /><Field label="Receiver's phone number" required type="tel" value={draft.recipientPhone} onChange={set("recipientPhone", false)} /></div><p className="rounded-2xl bg-cloud p-4 text-sm leading-6 text-slate">If you add an email, we use it for approval, payment and delivery updates. Phone numbers remain important because the rider may need to call the sender or receiver.</p>{!contactReady ? <p className="text-sm font-semibold text-slate">Add valid sender and receiver names and phone numbers before seeing the price.</p> : null}</> : null}
         {step === 3 ? quote ? <div className="grid gap-4"><div className="rounded-3xl bg-cloud p-6"><p className="text-sm text-slate">Journey</p><p className="mt-1 font-bold text-navy">{draft.pickupAddress} → {draft.deliveryAddress}</p><p className="mt-4 text-sm text-slate">Distance</p><p className="font-bold text-navy">{(quote.distanceMeters / 1000).toFixed(1)} km</p><p className="mt-4 text-sm text-slate">Your delivery price</p><p className="text-3xl font-extrabold text-orange">{formatMoney(quote.customerTotalKobo, quote.currency)}</p>{quote.includedCharges.map(charge => <div key={charge.label} className="mt-2 flex justify-between text-sm text-slate"><span>{charge.label}</span><span>{formatMoney(charge.amountKobo, quote.currency)}</span></div>)}</div><p className="text-sm leading-6 text-slate">This price includes the route and delivery option you chose. It is held until {new Date(quote.expiresAt).toLocaleTimeString("en-NG", { hour: "2-digit", minute: "2-digit" })}.</p></div> : <p className="text-slate">Complete the previous steps to see your price.</p> : null}
         {step === 4 ? <><label className="grid gap-2 text-sm font-semibold text-navy">Who will pay?<select className="min-h-12 rounded-2xl border border-slate/25 px-4" value={draft.payer} onChange={set("payer", false)}><option value="sender">I will pay</option><option value="receiver_before_delivery">The receiver will pay before delivery</option><option value="receiver_at_delivery">The receiver will pay when it arrives</option></select></label><label className="grid gap-2 text-sm font-semibold text-navy">How would you like to pay?<select className="min-h-12 rounded-2xl border border-slate/25 px-4" value={draft.paymentMethod} onChange={set("paymentMethod", false)}><option value="online">Pay online</option><option value="bank_transfer">Pay by bank transfer</option></select></label><p className="rounded-2xl bg-cloud p-4 text-sm leading-6 text-slate">Your quoted delivery price does not change when the payer changes. The payer receives a secure payment link; riders never collect cash directly.</p></> : null}
         {message ? <p role={manualAssistance ? "status" : "alert"} className="rounded-2xl bg-amber-50 p-4 text-sm text-amber-900">{message}</p> : null}
         {manualAssistance ? <section className="grid gap-3 rounded-2xl border border-orange/30 bg-orange/5 p-4" aria-label="Contact dispatch">
-          <div><p className="font-extrabold text-navy">{manualAssistance.state === "rejected" ? "Dispatch could not approve this route" : "Contact dispatch to continue"}</p><p className="mt-1 text-sm leading-6 text-slate">Request <strong className="text-navy">{manualAssistance.reference}</strong>. {manualAssistance.state === "rejected" ? "Contact us if the route, pickup time or parcel details have changed." : "Dispatch can review it while you keep this page open."}</p></div>
+          <div><p className="font-extrabold text-navy">{manualAssistance.state === "rejected" ? "Dispatch could not approve this route" : "Dispatch is checking this route"}</p><p className="mt-1 text-sm leading-6 text-slate">Request <strong className="text-navy">{manualAssistance.reference}</strong>. {manualAssistance.state === "rejected" ? "Contact us if the route, pickup time or parcel details have changed." : "Keep this page open and it will continue automatically after approval. No order, rider assignment or payment exists yet."}</p></div>
           <div className="grid gap-2 sm:grid-cols-3">
             <a className="inline-flex min-h-12 items-center justify-center rounded-full bg-navy px-4 text-center text-sm font-bold text-white" href={manualAssistance.emailUrl}>Email dispatch</a>
             <a className="inline-flex min-h-12 items-center justify-center rounded-full border border-navy/15 px-4 text-center text-sm font-bold text-navy" href={manualAssistance.phoneUrl}>Call {manualAssistance.phone}</a>
@@ -232,7 +293,7 @@ export function BookingWizard() {
           {manualAssistance.state !== "rejected" ? <Button type="button" disabled={pending} onClick={() => requestQuote(3)}>{pending ? "Checking approval…" : "Check approval and continue"}</Button> : null}
         </section> : null}
       </div>
-      <div className="mt-8 flex flex-wrap justify-between gap-3"><Button variant="ghost" disabled={step === 0 || pending} onClick={() => setStep(current => current - 1)}><ChevronLeft className="mr-2 size-4" />Back</Button>{step < 2 ? <Button disabled={pending || (step === 0 && !routeReady)} onClick={() => setStep(current => current + 1)}>Continue<ChevronRight className="ml-2 size-4" /></Button> : null}{step === 2 ? <Button disabled={pending || !allLocationsReady} onClick={() => requestQuote(3)}>{pending ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}See my price</Button> : null}{step === 3 ? <Button disabled={!quote} onClick={() => setStep(4)}>Continue to payment<ChevronRight className="ml-2 size-4" /></Button> : null}{step === 4 && quote ? <Button disabled={pending} onClick={confirmOrder}>{pending ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}{draft.payer === "sender" ? "Create delivery and pay" : "Confirm delivery"}</Button> : null}</div>
+      <div className="mt-8 flex flex-wrap justify-between gap-3"><Button variant="ghost" disabled={step === 0 || pending} onClick={() => setStep(current => current - 1)}><ChevronLeft className="mr-2 size-4" />Back</Button>{step < 2 ? <Button disabled={pending || (step === 0 && !routeReady)} onClick={() => setStep(current => current + 1)}>Continue<ChevronRight className="ml-2 size-4" /></Button> : null}{step === 2 ? <Button disabled={pending || !allLocationsReady || !contactReady} onClick={() => requestQuote(3)}>{pending ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}See my price</Button> : null}{step === 3 ? <Button disabled={!quote} onClick={() => setStep(4)}>Continue to payment<ChevronRight className="ml-2 size-4" /></Button> : null}{step === 4 && quote ? <Button disabled={pending} onClick={confirmOrder}>{pending ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}{draft.payer === "sender" ? "Create delivery and pay" : "Confirm delivery"}</Button> : null}</div>
     </section>
   </div>;
 }

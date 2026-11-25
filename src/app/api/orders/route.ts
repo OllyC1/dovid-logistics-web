@@ -20,8 +20,10 @@ export async function POST(request: NextRequest) {
       const orderId = (data as Record<string, unknown> | null)?.order_id;
       if (typeof orderId === "string") {
         const admin = createSupabaseAdminClient();
-        const { error: contactError } = await admin.from("delivery_orders").update({ notification_email: parsed.data.notificationEmail.toLowerCase(), updated_at: new Date().toISOString() }).eq("id", orderId);
-        if (contactError) throw contactError;
+        if (parsed.data.notificationEmail) {
+          const { error: contactError } = await admin.from("delivery_orders").update({ notification_email: parsed.data.notificationEmail.toLowerCase(), updated_at: new Date().toISOString() }).eq("id", orderId);
+          if (contactError) throw contactError;
+        }
         const { error: dispatchError } = await admin.rpc("auto_assign_delivery_order", { target_order_id: orderId });
         if (dispatchError) throw dispatchError;
       }
@@ -42,8 +44,10 @@ export async function POST(request: NextRequest) {
     if (error) throw error;
     const orderId = (data as Record<string, unknown> | null)?.order_id;
     if (typeof orderId === "string") {
-      const { error: contactError } = await admin.from("delivery_orders").update({ notification_email: parsed.data.notificationEmail.toLowerCase(), updated_at: new Date().toISOString() }).eq("id", orderId);
-      if (contactError) throw contactError;
+      if (parsed.data.notificationEmail) {
+        const { error: contactError } = await admin.from("delivery_orders").update({ notification_email: parsed.data.notificationEmail.toLowerCase(), updated_at: new Date().toISOString() }).eq("id", orderId);
+        if (contactError) throw contactError;
+      }
       const { error: dispatchError } = await admin.rpc("auto_assign_delivery_order", { target_order_id: orderId });
       if (dispatchError) throw dispatchError;
     }

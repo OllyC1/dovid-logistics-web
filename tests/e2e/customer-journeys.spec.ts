@@ -95,7 +95,7 @@ test("manual routes show email, call and WhatsApp dispatch options on mobile",as
   await page.getByLabel("Receiver's name").fill("Manual Receiver");
   await page.getByLabel("Receiver's phone number").fill("08000000001");
   await page.getByRole("button",{name:"See my price"}).click();
-  await expect(page.getByText("Contact dispatch to continue")).toBeVisible();
+  await expect(page.getByText("Dispatch is checking this route")).toBeVisible();
   await expect(page.getByRole("link",{name:"Email dispatch"})).toHaveAttribute("href",/mailto:hello@dovidlogistics\.com/);
   await expect(page.getByRole("link",{name:/Call \+2347072232323/})).toHaveAttribute("href","tel:+2347072232323");
   await expect(page.getByRole("link",{name:"WhatsApp dispatch"})).toHaveAttribute("href",/wa\.me\/2347072232323/);

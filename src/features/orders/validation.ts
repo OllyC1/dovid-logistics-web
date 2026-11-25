@@ -21,7 +21,10 @@ export const bookingSchema = quoteSchema.extend({
   handlingInstructions: z.string().max(500).optional(),
   senderName: z.string().min(2).max(120),
   senderPhone: z.string().min(7).max(20),
-  notificationEmail: z.email(),
+  notificationEmail: z.preprocess(
+    (value) => typeof value === "string" && value.trim() === "" ? undefined : value,
+    z.email().optional(),
+  ),
   recipientName: z.string().min(2).max(120),
   recipientPhone: z.string().min(7).max(20),
   payer: z.enum(["sender", "receiver_before_delivery", "receiver_at_delivery"]),

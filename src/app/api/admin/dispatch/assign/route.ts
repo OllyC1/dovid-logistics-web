@@ -14,20 +14,25 @@ export async function POST(request: NextRequest) {
   const parsed = schema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Choose an order, bike and rider." }, { status: 400 });
   const admin = createSupabaseAdminClient();
-  const [{ data: order }, { data: vehicle }, { data: riderMembership }, { count: workload }] = await Promise.all([
-    admin.from("delivery_orders").select("id,pickup_latitude,pickup_longitude,quotes(duration_seconds)").eq("id", parsed.data.orderId).maybeSingle(),
+  const [{ data: order }, { data: vehicle }, { data: riderMembership }, { count: riderWorkload }, { count: vehicleWorkload }] = await Promise.all([
+    admin.from("delivery_orders").select("id,pickup_latitude,pickup_longitude,pickup_zone_id,quotes(duration_seconds)").eq("id", parsed.data.orderId).maybeSingle(),
     admin.from("fleet_vehicles").select("id,registration_number,operational_status,safety_status,current_latitude,current_longitude,max_active_assignments,assigned_rider_id,capacity_verified_at").eq("id", parsed.data.vehicleId).maybeSingle(),
     admin.from("staff_memberships").select("user_id").eq("user_id", parsed.data.riderId).eq("staff_role", "rider").eq("status", "active").maybeSingle(),
-    admin.from("delivery_assignments").select("id", { count: "exact", head: true }).eq("rider_id", parsed.data.riderId).is("released_at", null)
+    admin.from("delivery_assignments").select("id", { count: "exact", head: true }).eq("rider_id", parsed.data.riderId).is("released_at", null),
+    admin.from("delivery_assignments").select("id", { count: "exact", head: true }).eq("vehicle_id", parsed.data.vehicleId).is("released_at", null)
   ]);
   if (!order || !vehicle) return NextResponse.json({ error: "Order or bike not found." }, { status: 404 });
   if (!riderMembership) return NextResponse.json({ error: "Choose an active, identity-verified rider." }, { status: 409 });
   if (!isRealVehicleRegistration(vehicle.registration_number) || !vehicle.capacity_verified_at) return NextResponse.json({ error: "The bike needs its real plate and verified measured capacity before assignment." }, { status: 409 });
   const proximityMeters = vehicle.current_latitude === null || vehicle.current_longitude === null ? null : approximateDistanceMeters({ latitude: Number(vehicle.current_latitude), longitude: Number(vehicle.current_longitude) }, { latitude: Number(order.pickup_latitude), longitude: Number(order.pickup_longitude) });
+  const { data: pickupZone } = order.pickup_zone_id ? await admin.from("service_zones").select("service_area_id").eq("id", order.pickup_zone_id).maybeSingle() : { data: null };
+  const { data: settings } = pickupZone ? await admin.from("service_area_operational_settings").select("max_active_assignments_per_rider").eq("service_area_id", pickupZone.service_area_id).maybeSingle() : { data: null };
+  const capacity = Math.min(vehicle.max_active_assignments, settings?.max_active_assignments_per_rider ?? 1);
+  const workload = Math.max(riderWorkload ?? 0, vehicleWorkload ?? 0);
   const quoteRelation = Array.isArray(order.quotes) ? order.quotes[0] : order.quotes;
-  const score = scoreDispatchCandidate({ riderId: parsed.data.riderId, vehicleId: vehicle.id, proximityMeters, activeAssignments: workload ?? 0, capacity: vehicle.max_active_assignments, routeDurationSeconds: quoteRelation?.duration_seconds ?? 0, available: vehicle.operational_status === "available", safetyCleared: vehicle.safety_status === "cleared", homeTerritoryMatch: vehicle.assigned_rider_id === parsed.data.riderId });
+  const score = scoreDispatchCandidate({ riderId: parsed.data.riderId, vehicleId: vehicle.id, proximityMeters, activeAssignments: workload, capacity, routeDurationSeconds: quoteRelation?.duration_seconds ?? 0, available: ["available", "assigned"].includes(vehicle.operational_status), safetyCleared: vehicle.safety_status === "cleared", homeTerritoryMatch: vehicle.assigned_rider_id === parsed.data.riderId });
   if (!score.eligible) return NextResponse.json({ error: "This assignment would exceed current capacity or safety controls." }, { status: 409 });
-  const { data: assignmentId, error } = await admin.rpc("assign_delivery_order", { target_order_id: parsed.data.orderId, target_vehicle_id: parsed.data.vehicleId, target_rider_id: parsed.data.riderId, actor_id: auth.user.id, score_snapshot: { ...score, proximityMeters, workload: workload ?? 0 }, override_reason: parsed.data.overrideReason ?? null });
+  const { data: assignmentId, error } = await admin.rpc("assign_delivery_order", { target_order_id: parsed.data.orderId, target_vehicle_id: parsed.data.vehicleId, target_rider_id: parsed.data.riderId, actor_id: auth.user.id, score_snapshot: { ...score, proximityMeters, workload, capacity }, override_reason: parsed.data.overrideReason ?? null });
   if (error) return NextResponse.json({ error: error.message }, { status: 409 });
   return NextResponse.json({ assignmentId, score: score.score });
 }

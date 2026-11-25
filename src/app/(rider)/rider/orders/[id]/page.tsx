@@ -18,10 +18,11 @@ export default async function RiderOrderPage({ params }: { params: Promise<{ id:
     .maybeSingle();
 
   if (!order) notFound();
-  const [{ data: assignment }, { data: returningAssignment }, { data: proof }] = await Promise.all([
+  const [{ data: assignment }, { data: returningAssignment }, { data: proof }, { data: waiting }] = await Promise.all([
     supabase.from("delivery_assignments").select("delivery_run_id").eq("order_id", id).is("released_at", null).maybeSingle(),
     supabase.from("run_assignments").select("run_id").eq("order_id", id).eq("status", "returning").limit(1).maybeSingle(),
     createSupabaseAdminClient().from("delivery_proofs").select("completed_at,recipient_name").eq("order_id", id).maybeSingle(),
+    supabase.from("delivery_waiting_sessions").select("id,started_at,free_waiting_minutes_snapshot,status").eq("order_id", id).in("status", ["running", "paused"]).maybeSingle(),
   ]);
   const additionalStops=(order.additional_stops??[]) as Array<{address:string}>;
 
@@ -36,7 +37,13 @@ export default async function RiderOrderPage({ params }: { params: Promise<{ id:
     {!returningAssignment ? <RiderStatusControls orderId={order.id} currentStatus={order.delivery_status as DeliveryStatus} paymentStatus={order.payment_status as PaymentStatus}/> : null}
     {!returningAssignment ? <DeliveryProofForm orderId={order.id} expectedRecipientName={order.recipient_name} deliveryStatus={order.delivery_status as DeliveryStatus} paymentStatus={order.payment_status as PaymentStatus} existingProof={proof ? { completedAt: proof.completed_at, recipientName: proof.recipient_name } : null}/> : null}
     {returningAssignment ? <ReturnToSenderForm orderId={order.id} expectedSenderName={order.sender_name} /> : null}
-    <DeliveryOperationsForms orderId={order.id} runId={assignment?.delivery_run_id ?? returningAssignment?.run_id} returnInProgress={Boolean(returningAssignment)}/>
+    <DeliveryOperationsForms
+      orderId={order.id}
+      runId={assignment?.delivery_run_id ?? returningAssignment?.run_id}
+      deliveryStatus={order.delivery_status as DeliveryStatus}
+      activeWaitingSession={waiting ? { id: waiting.id, startedAt: waiting.started_at, freeMinutes: waiting.free_waiting_minutes_snapshot ?? 10 } : null}
+      returnInProgress={Boolean(returningAssignment)}
+    />
     <div className="mt-6 grid gap-5 lg:grid-cols-2">
       <article className="min-w-0 rounded-3xl bg-white p-4 sm:p-6"><h2 className="font-extrabold text-navy">Pickup</h2><p className="mt-4 break-words text-sm leading-7 text-slate">{order.pickup_address}<br/>{order.sender_name}<br/><a className="inline-flex min-h-10 items-center rounded-lg font-bold text-orange" href={`tel:${order.sender_phone}`}>{order.sender_phone}</a></p></article>
       <article className="min-w-0 rounded-3xl bg-white p-4 sm:p-6"><h2 className="font-extrabold text-navy">Drop-off</h2><p className="mt-4 break-words text-sm leading-7 text-slate">{order.delivery_address}<br/>{order.recipient_name}<br/><a className="inline-flex min-h-10 items-center rounded-lg font-bold text-orange" href={`tel:${order.recipient_phone}`}>{order.recipient_phone}</a></p></article>

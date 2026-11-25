@@ -31,7 +31,7 @@ const successMessages: Partial<Record<DeliveryStatus, string>> = {
   rider_en_route_to_pickup: "Pickup journey started. The next step is ready.",
   picked_up: "Pickup confirmed. You can now start the delivery journey.",
   in_transit: "Delivery journey started. The next step is ready.",
-  arrived_at_destination: "Arrival recorded. Confirm the recipient before handover.",
+  arrived_at_destination: "Arrival recorded. The waiting timer has started automatically. Confirm the recipient before handover.",
   awaiting_payment: "Payment hold recorded. Do not release the parcel yet.",
   delivered: "Delivery completed and recorded.",
   delivery_failed: "Delivery issue recorded for dispatch review."
