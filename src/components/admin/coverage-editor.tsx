@@ -141,6 +141,7 @@ export function CoverageEditor({ initialZones, settings: initialSettings, mapsKe
   const mapElement = useRef<HTMLDivElement>(null);
   const map = useRef<MapInstance | null>(null);
   const polygons = useRef<PolygonInstance[]>([]);
+  const mapsFailed = useRef(false);
   const fitBoundary = useRef(true);
   const [mapsReady, setMapsReady] = useState(typeof window !== "undefined" && Boolean(window.google?.maps?.Map));
   const [mapsError, setMapsError] = useState<"missing_key" | "authentication" | "network" | null>(mapsKey ? null : "missing_key");
@@ -156,6 +157,12 @@ export function CoverageEditor({ initialZones, settings: initialSettings, mapsKe
     if (!mapsKey) return;
     const previousAuthFailure = window.gm_authFailure;
     window.gm_authFailure = () => {
+      mapsFailed.current = true;
+      polygons.current.forEach((polygon) => {
+        try { polygon.setMap(null); } catch { /* A rejected provider object may already be unusable. */ }
+      });
+      polygons.current = [];
+      map.current = null;
       setMapsReady(false);
       setMapsError("authentication");
     };
@@ -163,6 +170,7 @@ export function CoverageEditor({ initialZones, settings: initialSettings, mapsKe
     const loaded = async () => {
       for (let attempt = 0; attempt < 10; attempt += 1) {
         try {
+          if (mapsFailed.current) return;
           if (!window.google?.maps) throw new Error("Google Maps did not load.");
           if (!window.google.maps.Map && window.google.maps.importLibrary) await window.google.maps.importLibrary("maps");
           if (window.google.maps.Map) {
@@ -178,7 +186,7 @@ export function CoverageEditor({ initialZones, settings: initialSettings, mapsKe
       setMapsReady(false);
       setMapsError("network");
     };
-    const failed = () => { setMapsReady(false); setMapsError("network"); };
+    const failed = () => { mapsFailed.current = true; map.current = null; setMapsReady(false); setMapsError("network"); };
     const handleLoad = () => { void loaded(); };
     if (window.google?.maps) {
       void loaded();
@@ -200,30 +208,53 @@ export function CoverageEditor({ initialZones, settings: initialSettings, mapsKe
   }, [mapsKey]);
 
   useEffect(() => {
-    if (!mapsReady || !mapElement.current || map.current || !window.google?.maps) return;
-    map.current = new window.google.maps.Map(mapElement.current, { center: { lat: 7.38, lng: 3.95 }, zoom: 12, mapTypeControl: true, streetViewControl: false });
+    if (!mapsReady || mapsFailed.current || !mapElement.current || map.current || !window.google?.maps) return;
+    try {
+      map.current = new window.google.maps.Map(mapElement.current, { center: { lat: 7.38, lng: 3.95 }, zoom: 12, mapTypeControl: true, streetViewControl: false });
+    } catch {
+      mapsFailed.current = true;
+      map.current = null;
+      const failureTimer = window.setTimeout(() => {
+        setMapsReady(false);
+        setMapsError("network");
+      }, 0);
+      return () => window.clearTimeout(failureTimer);
+    }
   }, [mapsReady]);
 
   useEffect(() => {
-    if (!map.current || !window.google?.maps) return;
-    polygons.current.forEach((polygon) => polygon.setMap(null));
-    const paths = polygonPaths(boundary);
-    if (!paths.length) { polygons.current = []; return; }
-    const nextPolygons = paths.map((path, index) => new window.google!.maps.Polygon({ map: map.current!, paths: path, editable: paths.length === 1, draggable: false, strokeColor: index === 0 ? "#F36C21" : "#F39A21", strokeOpacity: 1, strokeWeight: 3, fillColor: "#F36C21", fillOpacity: 0.2 }));
-    polygons.current = nextPolygons;
-    if (fitBoundary.current) {
-      const bounds = new window.google.maps.LatLngBounds();
-      paths.flat().forEach((position) => bounds.extend(position));
-      if (!bounds.isEmpty()) map.current.fitBounds(bounds, 48);
-      fitBoundary.current = false;
+    if (mapsFailed.current || !map.current || !window.google?.maps) return;
+    try {
+      polygons.current.forEach((polygon) => polygon.setMap(null));
+      const paths = polygonPaths(boundary);
+      if (!paths.length) { polygons.current = []; return; }
+      const nextPolygons = paths.map((path, index) => new window.google!.maps.Polygon({ map: map.current!, paths: path, editable: paths.length === 1, draggable: false, strokeColor: index === 0 ? "#F36C21" : "#F39A21", strokeOpacity: 1, strokeWeight: 3, fillColor: "#F36C21", fillOpacity: 0.2 }));
+      polygons.current = nextPolygons;
+      if (fitBoundary.current) {
+        const bounds = new window.google.maps.LatLngBounds();
+        paths.flat().forEach((position) => bounds.extend(position));
+        if (!bounds.isEmpty()) map.current.fitBounds(bounds, 48);
+        fitBoundary.current = false;
+      }
+      const pathsWithListeners = nextPolygons.map((polygon) => ({ polygon, path: polygon.getPath() }));
+      if (pathsWithListeners.some(({ path }) => !path || typeof path.addListener !== "function")) throw new Error("Google Maps polygon path is unavailable.");
+      const sync = () => setBoundary(pathsToGeoJson(pathsWithListeners.map(({ path }) => path.getArray())));
+      const listeners = pathsWithListeners.flatMap(({ path }) => [
+        path.addListener("insert_at", sync),
+        path.addListener("set_at", sync),
+        path.addListener("remove_at", sync),
+      ]);
+      return () => listeners.forEach((listener) => listener.remove());
+    } catch {
+      mapsFailed.current = true;
+      polygons.current = [];
+      map.current = null;
+      const failureTimer = window.setTimeout(() => {
+        setMapsReady(false);
+        setMapsError("network");
+      }, 0);
+      return () => window.clearTimeout(failureTimer);
     }
-    const sync = () => setBoundary(pathsToGeoJson(nextPolygons.map((polygon) => polygon.getPath().getArray())));
-    const listeners = nextPolygons.flatMap((polygon) => [
-      polygon.getPath().addListener("insert_at", sync),
-      polygon.getPath().addListener("set_at", sync),
-      polygon.getPath().addListener("remove_at", sync),
-    ]);
-    return () => listeners.forEach((listener) => listener.remove());
   }, [boundary, selectedId, mapsReady]);
 
   useEffect(() => {
@@ -407,15 +438,15 @@ export function CoverageEditor({ initialZones, settings: initialSettings, mapsKe
       </section>
     </div>
     <section className="rounded-3xl bg-white p-4 shadow-sm sm:p-6">
-      <h2 className="text-xl font-extrabold text-navy">Operating rules</h2><p className="mt-2 text-sm text-slate">Set safe hours and capacity rules. These controls never replace route, payment or profitability checks.</p>
+      <h2 className="text-xl font-extrabold text-navy">Operating rules</h2><p className="mt-2 text-sm text-slate">Set service hours and capacity rules. Timing allowances and rider-break values are optional guidance; route, payment, profitability, active-rider and fleet-capacity checks still apply.</p>
       <div aria-live="polite" className={`mt-5 rounded-2xl border p-4 ${missingSafetyTimes.length ? "border-amber-300 bg-amber-50 text-amber-950" : "border-emerald-200 bg-emerald-50 text-emerald-950"}`}>
         <div className="flex items-start gap-3">{missingSafetyTimes.length ? <XCircle aria-hidden="true" className="mt-0.5 size-5 shrink-0"/> : <CheckCircle2 aria-hidden="true" className="mt-0.5 size-5 shrink-0"/>}<div><p className="font-extrabold">{missingSafetyTimes.length ? "Automatic scheduling is not ready" : "Safety times are configured"}</p><p className="mt-1 text-sm leading-6">{missingSafetyTimes.length ? "Bookings will stay in dispatch review and multi-parcel runs cannot be assigned until all four safety times below are approved and saved." : "Automatic scheduling can use these times, while route, fleet, pricing and payment checks still apply."}</p></div></div>
         <ul className="mt-3 grid gap-2 sm:grid-cols-2">{safetyTimes.map((rule) => <li key={rule.label} className="flex min-h-11 items-center justify-between gap-3 rounded-xl bg-white/70 px-3 py-2 text-sm"><span className="font-bold">{rule.label}</span><span className="shrink-0">{rule.value === null ? "Not set" : `${rule.value} min`}</span></li>)}</ul>
       </div>
       <div className="mt-5 grid gap-4 sm:grid-cols-3"><label className="grid gap-2 text-sm font-bold text-navy">Standard maximum (km)<input type="number" inputMode="numeric" className="min-h-12 rounded-xl border p-3 font-normal" value={settings.standard_max_distance_meters / 1000} onChange={(event) => setSettings({ ...settings, standard_max_distance_meters: Math.round(Number(event.target.value) * 1000) })}/></label><label className="grid gap-2 text-sm font-bold text-navy">Manual maximum (km)<input type="number" inputMode="numeric" className="min-h-12 rounded-xl border p-3 font-normal" value={settings.manual_max_distance_meters / 1000} onChange={(event) => setSettings({ ...settings, manual_max_distance_meters: Math.round(Number(event.target.value) * 1000) })}/></label><label className="grid gap-2 text-sm font-bold text-navy">Parcels per rider<input aria-label="Parcels per rider" type="number" inputMode="numeric" min={1} max={10} className="min-h-12 rounded-xl border p-3 font-normal" value={settings.max_active_assignments_per_rider} onChange={(event) => setSettings({ ...settings, max_active_assignments_per_rider: Number(event.target.value) })}/><span className="text-xs font-normal leading-5 text-slate">The maximum active parcels one rider may carry at the same time.</span></label></div>
       <div className="mt-6 grid gap-3"><p className="text-sm font-extrabold text-navy">Service hours · Africa/Lagos</p>{serviceDays.map(({ key, label }) => { const hours = settings.service_hours[key]; return <div key={key} className="grid items-center gap-3 rounded-2xl bg-cloud p-3 sm:grid-cols-[120px_1fr_1fr_auto]"><span className="text-sm font-bold text-navy">{label}</span><input aria-label={`${label} opens`} disabled={!hours} type="time" value={hours?.[0] ?? "07:00"} onChange={(event) => setSettings({ ...settings, service_hours: { ...settings.service_hours, [key]: [event.target.value, hours?.[1] ?? "22:00"] } })} className="min-h-12 rounded-xl border bg-white p-3"/><input aria-label={`${label} closes`} disabled={!hours} type="time" value={hours?.[1] ?? "22:00"} onChange={(event) => setSettings({ ...settings, service_hours: { ...settings.service_hours, [key]: [hours?.[0] ?? "07:00", event.target.value] } })} className="min-h-12 rounded-xl border bg-white p-3"/><label className="flex min-h-12 items-center gap-3 rounded-xl px-2 text-sm font-bold text-navy"><input className="size-5" type="checkbox" checked={Boolean(hours)} onChange={(event) => setSettings({ ...settings, service_hours: { ...settings.service_hours, [key]: event.target.checked ? ["07:00", "22:00"] : null } })}/>Open</label></div>; })}</div>
-      <div className="mt-6 grid gap-4 sm:grid-cols-3"><label className="grid gap-2 text-sm font-bold text-navy">Same-day booking cutoff<input aria-label="Same-day booking cutoff" type="time" value={settings.same_day_booking_cutoff.slice(0, 5)} onChange={(event) => setSettings({ ...settings, same_day_booking_cutoff: event.target.value })} className="min-h-12 rounded-xl border p-3 font-normal"/><span className="text-xs font-normal leading-5 text-slate">Requests after this time move to a future schedule.</span></label><label className="grid gap-2 text-sm font-bold text-navy">Pickup handover allowance (minutes)<input aria-label="Pickup handover allowance (minutes)" type="number" inputMode="numeric" min={0} max={240} value={settings.handover_buffer_minutes ?? ""} onChange={(event) => setSettings({ ...settings, handover_buffer_minutes: nullableNumber(event.target.value) })} className="min-h-12 rounded-xl border p-3 font-normal"/><span className="text-xs font-normal leading-5 text-slate">Time reserved for the rider to confirm and safely receive a parcel.</span></label><label className="grid gap-2 text-sm font-bold text-navy">End-of-day safety allowance (minutes)<input aria-label="End-of-day safety allowance (minutes)" type="number" inputMode="numeric" min={0} max={240} value={settings.safe_completion_buffer_minutes ?? ""} onChange={(event) => setSettings({ ...settings, safe_completion_buffer_minutes: nullableNumber(event.target.value) })} className="min-h-12 rounded-xl border p-3 font-normal"/><span className="text-xs font-normal leading-5 text-slate">Keeps a route from finishing too close to closing time.</span></label></div>
-      <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4"><label className="grid gap-2 text-sm font-bold text-navy">Free waiting time (minutes)<input aria-label="Free waiting time (minutes)" type="number" inputMode="numeric" min={0} max={240} value={settings.waiting_free_minutes ?? ""} onChange={(event) => setSettings({ ...settings, waiting_free_minutes: nullableNumber(event.target.value) })} className="min-h-12 rounded-xl border p-3 font-normal"/><span className="text-xs font-normal leading-5 text-slate">Waiting charges begin only after this time.</span></label><label className="grid gap-2 text-sm font-bold text-navy">Waiting fee (kobo per minute)<input aria-label="Waiting fee (kobo per minute)" type="number" inputMode="numeric" min={0} value={settings.waiting_fee_per_minute_kobo ?? ""} onChange={(event) => setSettings({ ...settings, waiting_fee_per_minute_kobo: nullableNumber(event.target.value) })} className="min-h-12 rounded-xl border p-3 font-normal"/><span className="text-xs font-normal leading-5 text-slate">100 kobo equals ₦1. The customer must approve any charge.</span></label><label className="grid gap-2 text-sm font-bold text-navy">Maximum riding before a break (minutes)<input aria-label="Maximum riding before a break (minutes)" type="number" inputMode="numeric" min={15} max={480} value={settings.maximum_continuous_riding_minutes ?? ""} onChange={(event) => setSettings({ ...settings, maximum_continuous_riding_minutes: nullableNumber(event.target.value) })} className="min-h-12 rounded-xl border p-3 font-normal"/><span className="text-xs font-normal leading-5 text-slate">Longer routes must be split or reviewed before assignment.</span></label><label className="grid gap-2 text-sm font-bold text-navy">Minimum rider break (minutes)<input aria-label="Minimum rider break (minutes)" type="number" inputMode="numeric" min={5} max={180} value={settings.minimum_break_minutes ?? ""} onChange={(event) => setSettings({ ...settings, minimum_break_minutes: nullableNumber(event.target.value) })} className="min-h-12 rounded-xl border p-3 font-normal"/><span className="text-xs font-normal leading-5 text-slate">The rest period required before riding continues.</span></label></div>
+      <div className="mt-6 grid gap-4 sm:grid-cols-3"><label className="grid gap-2 text-sm font-bold text-navy">Same-day booking cutoff<input aria-label="Same-day booking cutoff" type="time" value={settings.same_day_booking_cutoff.slice(0, 5)} onChange={(event) => setSettings({ ...settings, same_day_booking_cutoff: event.target.value })} className="min-h-12 rounded-xl border p-3 font-normal"/><span className="text-xs font-normal leading-5 text-slate">Requests after this time move to a future schedule.</span></label><label className="grid gap-2 text-sm font-bold text-navy">Pickup handover allowance (minutes) <span className="font-normal text-slate">(optional)</span><input aria-label="Pickup handover allowance (minutes)" type="number" inputMode="numeric" min={0} max={240} value={settings.handover_buffer_minutes ?? ""} onChange={(event) => setSettings({ ...settings, handover_buffer_minutes: nullableNumber(event.target.value) })} className="min-h-12 rounded-xl border p-3 font-normal"/><span className="text-xs font-normal leading-5 text-slate">Adds extra time beyond the provider route estimate when supplied.</span></label><label className="grid gap-2 text-sm font-bold text-navy">End-of-day allowance (minutes) <span className="font-normal text-slate">(optional)</span><input aria-label="End-of-day safety allowance (minutes)" type="number" inputMode="numeric" min={0} max={240} value={settings.safe_completion_buffer_minutes ?? ""} onChange={(event) => setSettings({ ...settings, safe_completion_buffer_minutes: nullableNumber(event.target.value) })} className="min-h-12 rounded-xl border p-3 font-normal"/><span className="text-xs font-normal leading-5 text-slate">Adds a preferred margin before closing when supplied.</span></label></div>
+      <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4"><label className="grid gap-2 text-sm font-bold text-navy">Free waiting time (minutes)<input aria-label="Free waiting time (minutes)" type="number" inputMode="numeric" min={0} max={240} value={settings.waiting_free_minutes ?? ""} onChange={(event) => setSettings({ ...settings, waiting_free_minutes: nullableNumber(event.target.value) })} className="min-h-12 rounded-xl border p-3 font-normal"/><span className="text-xs font-normal leading-5 text-slate">Waiting charges begin only after this time.</span></label><label className="grid gap-2 text-sm font-bold text-navy">Waiting fee (kobo per minute)<input aria-label="Waiting fee (kobo per minute)" type="number" inputMode="numeric" min={0} value={settings.waiting_fee_per_minute_kobo ?? ""} onChange={(event) => setSettings({ ...settings, waiting_fee_per_minute_kobo: nullableNumber(event.target.value) })} className="min-h-12 rounded-xl border p-3 font-normal"/><span className="text-xs font-normal leading-5 text-slate">100 kobo equals ₦1. The customer must approve any charge.</span></label><label className="grid gap-2 text-sm font-bold text-navy">Maximum riding before a break (minutes) <span className="font-normal text-slate">(optional)</span><input aria-label="Maximum riding before a break (minutes)" type="number" inputMode="numeric" min={15} max={480} value={settings.maximum_continuous_riding_minutes ?? ""} onChange={(event) => setSettings({ ...settings, maximum_continuous_riding_minutes: nullableNumber(event.target.value) })} className="min-h-12 rounded-xl border p-3 font-normal"/><span className="text-xs font-normal leading-5 text-slate">When supplied, longer routes are held for review. Leave blank to let riders take suitable breaks during active work.</span></label><label className="grid gap-2 text-sm font-bold text-navy">Minimum rider break (minutes) <span className="font-normal text-slate">(optional)</span><input aria-label="Minimum rider break (minutes)" type="number" inputMode="numeric" min={5} max={180} value={settings.minimum_break_minutes ?? ""} onChange={(event) => setSettings({ ...settings, minimum_break_minutes: nullableNumber(event.target.value) })} className="min-h-12 rounded-xl border p-3 font-normal"/><span className="text-xs font-normal leading-5 text-slate">Optional guidance only; riders may take an appropriate quick break while a delivery remains active.</span></label></div>
       <div className="mt-4 grid gap-3 rounded-2xl border p-4"><label className="flex min-h-12 items-center gap-3 text-sm font-bold text-navy"><input className="size-5 shrink-0" type="checkbox" checked={Boolean(settings.motorcycle_restrictions_confirmed_at)} onChange={(event) => setSettings({ ...settings, motorcycle_restrictions_confirmed_at: event.target.checked ? new Date().toISOString() : null })}/>Motorcycle access restrictions have been operationally reviewed</label><textarea value={settings.motorcycle_restrictions_notes ?? ""} onChange={(event) => setSettings({ ...settings, motorcycle_restrictions_notes: event.target.value || null })} placeholder="Record reviewed roads, time restrictions and evidence. Do not guess." className="min-h-24 rounded-xl border p-3 text-sm"/></div>
       <Button className="mt-5 w-full sm:w-auto" disabled={pending} onClick={() => setSettingsReasonOpen(true)}>Save operating rules</Button>
     </section>

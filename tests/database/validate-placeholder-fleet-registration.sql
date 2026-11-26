@@ -52,7 +52,9 @@ begin
         capacity_verified_at=now()
     where registration_number='PENDING-BIKE-01';
     raise exception 'placeholder motorcycle became dispatchable';
-  exception when others then
+  exception when check_violation then
+    null;
+  when others then
     if sqlerrm not in (
       'verify the physical motorcycle registration before activation',
       'placeholder motorcycle registration cannot be dispatchable'

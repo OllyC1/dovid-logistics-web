@@ -58,20 +58,14 @@ export function evaluateOperatingSchedule(input: {
   if (requested.minutes < opensAt || requested.minutes >= closesAt) {
     return { decision: "future_schedule" as const, reason: "outside_operating_hours" };
   }
-  if (input.handoverBufferMinutes === null || input.safeCompletionBufferMinutes === null) {
-    return { decision: "manual_review" as const, reason: "completion_buffers_unconfigured" };
-  }
-  if (input.maximumContinuousRidingMinutes === null || input.minimumBreakMinutes === null) {
-    return { decision: "manual_review" as const, reason: "rider_rest_rules_unconfigured" };
-  }
-  if (Math.ceil(input.routeDurationSeconds / 60) > input.maximumContinuousRidingMinutes) {
+  if (input.maximumContinuousRidingMinutes !== null && Math.ceil(input.routeDurationSeconds / 60) > input.maximumContinuousRidingMinutes) {
     return { decision: "manual_review" as const, reason: "continuous_riding_limit_exceeded" };
   }
   const sameDay = now.dateKey === requested.dateKey;
   if (sameDay && now.minutes >= minutes(input.sameDayCutoff)) {
     return { decision: "future_schedule" as const, reason: "same_day_cutoff_passed" };
   }
-  const completionMinutes = requested.minutes + Math.ceil(input.routeDurationSeconds / 60) + input.handoverBufferMinutes + input.safeCompletionBufferMinutes;
+  const completionMinutes = requested.minutes + Math.ceil(input.routeDurationSeconds / 60) + (input.handoverBufferMinutes ?? 0) + (input.safeCompletionBufferMinutes ?? 0);
   if (completionMinutes > closesAt) return { decision: "future_schedule" as const, reason: "unsafe_completion_after_close" };
   if (!input.riderAvailable) return { decision: "manual_review" as const, reason: "capacity_not_confirmed" };
   return { decision: sameDay ? "same_day_eligible" as const : "future_schedule" as const, reason: sameDay ? "within_operating_window" : "future_operating_period" };

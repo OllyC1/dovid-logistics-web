@@ -13,4 +13,11 @@ describe("coverage map loader", () => {
     expect(source).toContain("fitBoundary.current = true");
     expect(source).toContain("map.current.fitBounds(bounds, 48)");
   });
+  it("stops reusing partially initialized provider objects after authentication failure", () => {
+    const source = readFileSync("src/components/admin/coverage-editor.tsx", "utf8");
+    expect(source).toContain("mapsFailed.current = true");
+    expect(source).toContain("map.current = null");
+    expect(source).toContain('setMapsError("authentication")');
+    expect(source).toContain('typeof path.addListener !== "function"');
+  });
 });

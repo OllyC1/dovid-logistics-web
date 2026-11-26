@@ -1,13 +1,20 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
-import { isRealVehicleRegistration } from "@/features/fleet/registration";
 import { getDispatchManagerAuthorization } from "@/lib/auth/staff";
 
+const optionalRegistration = z.preprocess(
+  (value) => typeof value === "string" && !value.trim() ? null : value,
+  z.string().trim().min(3).max(20).regex(/^[a-zA-Z0-9 -]+$/).nullable(),
+);
+const optionalText = (minimum: number, maximum: number) => z.preprocess(
+  (value) => typeof value === "string" && !value.trim() ? null : value,
+  z.string().trim().min(minimum).max(maximum).nullable(),
+);
 const schema = z.object({
-  registrationNumber: z.string().trim().min(3).max(20).regex(/^[a-zA-Z0-9 -]+$/).refine(isRealVehicleRegistration),
+  registrationNumber: optionalRegistration,
   internalCode: z.string().trim().min(2).max(30).regex(/^[a-zA-Z0-9 -]+$/).optional(),
-  manufacturer: z.string().trim().min(2).max(60),
-  model: z.string().trim().min(1).max(60),
+  manufacturer: optionalText(2, 60),
+  model: optionalText(1, 60),
   modelYear: z.number().int().min(1980).max(2100).nullable(),
   homeTerritoryCodes: z.array(z.enum(["A", "B", "C", "D", "E", "F"])).max(6),
   reason: z.string().trim().min(8).max(1_000),
@@ -23,11 +30,11 @@ export async function POST(request: NextRequest) {
 
   const parsed = schema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
-    return NextResponse.json({ error: "Enter the plate number, bike details and a clear registration reason." }, { status: 400 });
+    return NextResponse.json({ error: "Check the optional bike details and enter a clear registration reason." }, { status: 400 });
   }
 
-  const registrationNumber = normalizeIdentifier(parsed.data.registrationNumber);
-  const code = normalizeIdentifier(parsed.data.internalCode || registrationNumber).replaceAll(" ", "-");
+  const registrationNumber = parsed.data.registrationNumber ? normalizeIdentifier(parsed.data.registrationNumber) : null;
+  const code = normalizeIdentifier(parsed.data.internalCode || registrationNumber || `BIKE-${crypto.randomUUID().slice(0, 8)}`).replaceAll(" ", "-");
   const { data: vehicle, error } = await auth.admin.from("fleet_vehicles").insert({
     registration_number: registrationNumber,
     code,

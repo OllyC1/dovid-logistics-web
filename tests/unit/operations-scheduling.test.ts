@@ -17,11 +17,11 @@ describe("Nigeria operating schedule", () => {
   it("handles a cross-date future booking in Africa/Lagos", () => {
     expect(evaluateOperatingSchedule({ ...base, now: new Date("2026-11-16T20:00:00Z"), requestedAt: new Date("2026-11-17T06:00:00Z") })).toMatchObject({ decision: "future_schedule", reason: "future_operating_period" });
   });
-  it("requires manual review when safe-completion buffers are unconfigured", () => {
-    expect(evaluateOperatingSchedule({ ...base, handoverBufferMinutes: null, now: new Date("2026-11-16T07:00:00Z"), requestedAt: new Date("2026-11-16T08:00:00Z") }).decision).toBe("manual_review");
+  it("uses no extra allowance when optional completion buffers are unconfigured", () => {
+    expect(evaluateOperatingSchedule({ ...base, handoverBufferMinutes: null, safeCompletionBufferMinutes: null, now: new Date("2026-11-16T07:00:00Z"), requestedAt: new Date("2026-11-16T08:00:00Z") }).decision).toBe("same_day_eligible");
   });
-  it("requires configured rest rules and reviews a route above the continuous-riding limit", () => {
-    expect(evaluateOperatingSchedule({ ...base, minimumBreakMinutes: null, now: new Date("2026-11-16T07:00:00Z"), requestedAt: new Date("2026-11-16T08:00:00Z") })).toMatchObject({ decision: "manual_review", reason: "rider_rest_rules_unconfigured" });
+  it("treats rider guidance as optional but enforces a supplied continuous-riding limit", () => {
+    expect(evaluateOperatingSchedule({ ...base, maximumContinuousRidingMinutes: null, minimumBreakMinutes: null, now: new Date("2026-11-16T07:00:00Z"), requestedAt: new Date("2026-11-16T08:00:00Z") })).toMatchObject({ decision: "same_day_eligible", reason: "within_operating_window" });
     expect(evaluateOperatingSchedule({ ...base, routeDurationSeconds: 181 * 60, now: new Date("2026-11-16T07:00:00Z"), requestedAt: new Date("2026-11-16T08:00:00Z") })).toMatchObject({ decision: "manual_review", reason: "continuous_riding_limit_exceeded" });
   });
 });

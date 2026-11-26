@@ -21,11 +21,9 @@ function Gate({ label, value, ready, note }: { label: string; value: string; rea
 }
 
 export function LaunchReadinessPanel(props: LaunchReadinessPanelProps) {
-  const safeSchedulingConfigured = props.dispatch.scheduleBuffersConfigured && props.dispatch.riderRestRulesConfigured;
   const databaseReady = props.activeApprovedZones > 0
     && props.activeRateCards > 0
-    && props.dispatch.automaticCapacityAvailable
-    && safeSchedulingConfigured;
+    && props.dispatch.automaticCapacityAvailable;
 
   return <section aria-labelledby="launch-readiness-heading" className={`mt-8 rounded-3xl border p-4 sm:p-6 ${databaseReady ? "border-emerald-200 bg-emerald-50" : "border-amber-300 bg-amber-50"}`}>
     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -41,7 +39,7 @@ export function LaunchReadinessPanel(props: LaunchReadinessPanelProps) {
       <Gate label="Coverage records" value={`${props.activeApprovedZones} active`} ready={props.activeApprovedZones > 0} note="Approved boundaries recorded in the database. Road and address field confirmation remains a separate founder check." />
       <Gate label="Commercial pricing" value={`${props.activeRateCards} active card${props.activeRateCards === 1 ? "" : "s"}`} ready={props.activeRateCards > 0} note="Only active, non-provisional rate cards count here. Profitability controls still apply to every quote." />
       <Gate label="Dispatch capacity" value={`${props.dispatch.availableParcelSlots} free slot${props.dispatch.availableParcelSlots === 1 ? "" : "s"}`} ready={props.dispatch.automaticCapacityAvailable} note={`${props.dispatch.readyMotorcycles} of ${props.dispatch.totalMotorcycles} motorcycles currently meet the recorded dispatch requirements.`} />
-      <Gate label="Safe scheduling" value={safeSchedulingConfigured ? "Configured" : "Not configured"} ready={safeSchedulingConfigured} note="Pickup handover, end-of-day safety, maximum continuous riding and minimum break times must all be recorded." />
+      <Gate label="Optional scheduling guidance" value={props.dispatch.scheduleBuffersConfigured || props.dispatch.riderRestRulesConfigured ? "Partly recorded" : "Not required"} ready note="Handover, end-of-day, continuous-riding and break values may be recorded as guidance, but they do not block otherwise feasible bookings." />
     </div>
 
     <div className="mt-5 rounded-2xl bg-white p-4">
@@ -63,7 +61,7 @@ export function LaunchReadinessPanel(props: LaunchReadinessPanelProps) {
     <details className="mt-5 rounded-2xl border border-navy/10 bg-white p-4">
       <summary className="flex min-h-11 cursor-pointer items-center font-extrabold text-navy">Evidence the software cannot create for you</summary>
       <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-6 text-slate">
-        <li>Genuine motorcycle plates, physical measurements, safety inspection and verified rider identities.</li>
+        <li>Physical carrying-capacity measurements, safety inspection and verified rider identities. Plate, make, model, year and registration notes are optional company records.</li>
         <li>Founder field confirmation that the active Ibadan polygons match real roads and supported addresses.</li>
         <li>Encrypted owner-held backup storage with approved retention, recovery point and recovery time targets.</li>
         <li>A physical low-end Android and slow-network field observation, plus a provider-generated Paystack dispute exercise.</li>

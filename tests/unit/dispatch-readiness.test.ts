@@ -16,7 +16,7 @@ const verifiedVehicle = {
 };
 
 describe("assessDispatchReadiness", () => {
-  it("never counts an unverified motorcycle for public or assisted booking capacity", () => {
+  it("never counts a motorcycle without verified measured capacity", () => {
     expect(calculateDispatchCapacity({
       vehicles: [{ ...verifiedVehicle, capacity_verified_at: null }],
       activeNamedRiderIds: ["rider-1"],
@@ -25,13 +25,13 @@ describe("assessDispatchReadiness", () => {
     })).toEqual({ readyMotorcycles: 0, availableParcelSlots: 0 });
   });
 
-  it("does not mistake a plausible test plate for verified registration evidence", () => {
+  it("does not require optional registration evidence for an otherwise ready motorcycle", () => {
     expect(calculateDispatchCapacity({
       vehicles: [{ ...verifiedVehicle, registration_verified_at: null }],
       activeNamedRiderIds: ["rider-1"],
       activeAssignments: [],
       riderParcelLimit: 10,
-    })).toEqual({ readyMotorcycles: 0, availableParcelSlots: 0 });
+    })).toEqual({ readyMotorcycles: 1, availableParcelSlots: 10 });
   });
 
   it("does not treat placeholder fleet records as booking capacity", () => {
@@ -77,7 +77,7 @@ describe("assessDispatchReadiness", () => {
     });
   });
 
-  it("does not advertise automatic booking while safety buffers are unset", () => {
+  it("keeps automatic booking available while optional timing buffers are unset", () => {
     const readiness = assessDispatchReadiness({
       vehicles: [verifiedVehicle],
       activeNamedRiderIds: ["rider-1"],
@@ -92,10 +92,10 @@ describe("assessDispatchReadiness", () => {
     expect(readiness.availableParcelSlots).toBe(10);
     expect(readiness.scheduleBuffersConfigured).toBe(false);
     expect(readiness.riderRestRulesConfigured).toBe(true);
-    expect(readiness.automaticCapacityAvailable).toBe(false);
+    expect(readiness.automaticCapacityAvailable).toBe(true);
   });
 
-  it("does not advertise automatic booking while rider rest rules are unset", () => {
+  it("keeps automatic booking available while optional rider guidance is unset", () => {
     const readiness = assessDispatchReadiness({
       vehicles: [verifiedVehicle],
       activeNamedRiderIds: ["rider-1"],
@@ -110,7 +110,7 @@ describe("assessDispatchReadiness", () => {
     expect(readiness.availableParcelSlots).toBe(10);
     expect(readiness.scheduleBuffersConfigured).toBe(true);
     expect(readiness.riderRestRulesConfigured).toBe(false);
-    expect(readiness.automaticCapacityAvailable).toBe(false);
+    expect(readiness.automaticCapacityAvailable).toBe(true);
   });
 
   it("requires an active named rider even when the motorcycle looks ready", () => {

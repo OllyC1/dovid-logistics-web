@@ -1,7 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { scoreDispatchCandidate } from "@/features/dispatch/scoring";
-import { hasVerifiedVehicleRegistration } from "@/features/fleet/registration";
 import { getDispatchManagerAuthorization as getAuthenticatedRole } from "@/lib/auth/staff";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
@@ -23,7 +22,7 @@ export async function POST(request: NextRequest) {
   ]);
   if (!order || !vehicle) return NextResponse.json({ error: "Order or bike not found." }, { status: 404 });
   if (!riderMembership) return NextResponse.json({ error: "Choose an active, identity-verified rider." }, { status: 409 });
-  if (!hasVerifiedVehicleRegistration(vehicle) || !vehicle.capacity_verified_at) return NextResponse.json({ error: "The bike needs an evidence-verified plate and measured capacity before assignment." }, { status: 409 });
+  if (!vehicle.capacity_verified_at) return NextResponse.json({ error: "The bike needs measured capacity before assignment." }, { status: 409 });
   const proximityMeters = vehicle.current_latitude === null || vehicle.current_longitude === null ? null : approximateDistanceMeters({ latitude: Number(vehicle.current_latitude), longitude: Number(vehicle.current_longitude) }, { latitude: Number(order.pickup_latitude), longitude: Number(order.pickup_longitude) });
   const { data: pickupZone } = order.pickup_zone_id ? await admin.from("service_zones").select("service_area_id").eq("id", order.pickup_zone_id).maybeSingle() : { data: null };
   const { data: settings } = pickupZone ? await admin.from("service_area_operational_settings").select("max_active_assignments_per_rider").eq("service_area_id", pickupZone.service_area_id).maybeSingle() : { data: null };

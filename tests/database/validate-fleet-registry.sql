@@ -35,7 +35,7 @@ begin
     where id='86000000-0000-4000-8000-000000000010';
     raise exception 'unready motorcycle became available';
   exception when others then
-    if sqlerrm <> 'verify the physical motorcycle registration before activation' then raise; end if;
+    if sqlerrm <> 'assign an active rider before activation' then raise; end if;
   end;
 end;
 $$;

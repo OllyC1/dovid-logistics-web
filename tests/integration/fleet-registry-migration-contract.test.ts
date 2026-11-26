@@ -5,6 +5,7 @@ const sql = readFileSync("supabase/migrations/20261117144443_fleet_registry_and_
 const createRoute = readFileSync("src/app/api/admin/dispatch/fleet/route.ts", "utf8");
 const updateRoute = readFileSync("src/app/api/admin/dispatch/fleet/[id]/route.ts", "utf8");
 const verificationSql = readFileSync("supabase/migrations/20261126180626_verify_fleet_registrations.sql", "utf8");
+const optionalMetadataSql = readFileSync("supabase/migrations/20261126204919_make_fleet_metadata_and_rest_rules_optional.sql", "utf8");
 
 describe("fleet registry and readiness hardening", () => {
   it("makes normalized plate numbers unique without inventing plates for seeded bikes", () => {
@@ -14,12 +15,12 @@ describe("fleet registry and readiness hardening", () => {
     expect(sql).not.toMatch(/update public\.fleet_vehicles[\s\S]+registration_number\s*=/i);
   });
 
-  it("prevents an unready bike or unverified rider from becoming available", () => {
-    expect(sql).toContain("record the motorcycle plate number before activation");
-    expect(sql).toContain("assign an active rider before activation");
-    expect(sql).toContain("complete the motorcycle safety review before activation");
-    expect(sql).toContain("record and verify motorcycle capacity before activation");
-    expect(sql).toContain("membership.status='active'");
+  it("requires active rider, safety and measured capacity while leaving metadata optional", () => {
+    expect(optionalMetadataSql).toContain("assign an active rider before activation");
+    expect(optionalMetadataSql).toContain("complete the motorcycle safety review before activation");
+    expect(optionalMetadataSql).toContain("record and verify motorcycle capacity before activation");
+    expect(optionalMetadataSql).toContain("membership.status='active'");
+    expect(optionalMetadataSql).not.toContain("verify the physical motorcycle registration before activation");
   });
 
   it("keeps fleet changes permission checked and audited", () => {
@@ -35,15 +36,15 @@ describe("fleet registry and readiness hardening", () => {
     expect(updateRoute).toContain('in("status", ["planned", "active", "paused"])');
   });
 
-  it("separates entered plate text from reviewed physical registration evidence", () => {
+  it("retains optional registration records without using them as dispatch gates", () => {
     expect(verificationSql).toContain("registration_verified_at timestamptz");
     expect(verificationSql).toContain("registration_verification_method text");
     expect(verificationSql).toContain("registration_verification_reference text");
-    expect(verificationSql).toContain("verify the physical motorcycle registration before activation");
-    expect(verificationSql).toContain("registration-verified, safety-cleared bike");
-    expect(verificationSql).toContain("set operational_status='offline'");
+    expect(optionalMetadataSql).toContain("registration_verified_at is null");
+    expect(optionalMetadataSql).toContain("fleet.optional_metadata_readiness_restored");
+    expect(optionalMetadataSql).toContain("Plate, description and registration notes are optional");
     expect(updateRoute).toContain("registrationVerificationMethod");
     expect(updateRoute).toContain("registrationVerificationReference");
-    expect(updateRoute).toContain("registrationChanged");
+    expect(updateRoute).toContain("normalizedRegistration");
   });
 });

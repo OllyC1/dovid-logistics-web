@@ -807,6 +807,9 @@ test("administrator reaches the admin workspace without MFA and every authorized
         await page.keyboard.press("Control+A");
         if (nextValue) await page.keyboard.insertText(nextValue);
         else await page.keyboard.press("Backspace");
+        if (await page.getByRole("heading", { name: "That page did not finish loading" }).count()) {
+          throw new Error(`Coverage page crashed while editing ${label}: ${pageErrors.join(" | ") || "no browser error was captured"}`);
+        }
         await expect(page.getByLabel(label)).toHaveValue(nextValue);
       }
       const saveButton = page.getByRole("button", { name: "Save operating rules", exact: true });
@@ -816,7 +819,9 @@ test("administrator reaches the admin workspace without MFA and every authorized
       await expect(dialog).toBeVisible();
       await dialog.locator("textarea").fill(reason);
       const responsePromise = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/admin/coverage/settings" && response.request().method() === "PATCH");
-      await dialog.getByRole("button", { name: "Save operating rules", exact: true }).click();
+      const confirmButton = dialog.getByRole("button", { name: "Save operating rules", exact: true });
+      await expect(confirmButton).toBeEnabled();
+      await confirmButton.evaluate((button: HTMLButtonElement) => button.click());
       const response = await responsePromise;
       expect(response.status(), `operating-rule response: ${await response.text()}`).toBe(200);
       if (await page.getByRole("heading", { name: "That page did not finish loading" }).count()) {
@@ -994,13 +999,12 @@ test("administrator creates and completes the audited service-zone lifecycle on 
   }
 });
 
-test("administrator registers a bike, assigns its rider and sees every remaining run-safety gate on mobile", async ({ page }) => {
+test("administrator prepares a bike using required rider, safety and capacity gates on mobile", async ({ page }) => {
   test.setTimeout(240_000);
   const account = accounts.find((item) => item.role === "admin")!;
   await login(page, account, /\/admin(?:\?|$)/);
   const riderAccount = accounts.find((item) => item.role === "rider")!;
   const viewportCode = test.info().project.name === "mobile-375" ? "375" : "390";
-  const plateNumber = `TST ${viewportCode} ${fixtureRunCode}`;
   const bikeCode = `E2E-${viewportCode}-${fixtureRunCode}`;
   await page.goto("/admin/dispatch");
   await expect(page.getByRole("heading", { name: "Automatic capacity is not ready" })).toBeVisible();
@@ -1009,17 +1013,13 @@ test("administrator registers a bike, assigns its rider and sees every remaining
   const addBike = page.locator("details").filter({ hasText: "Add a motorcycle" });
   await addBike.locator("summary").click();
   await expectCurrentMobilePage(page, "expanded motorcycle registration");
-  await addBike.getByLabel("Plate / registration number").fill(plateNumber);
   await addBike.getByLabel(/Internal bike name/).fill(bikeCode);
-  await addBike.getByLabel("Manufacturer").fill("Honda");
-  await addBike.getByLabel("Model", { exact: true }).fill("E2E test motorcycle");
-  await addBike.getByLabel("Model year (optional)", { exact: true }).fill("2024");
   await addBike.getByLabel(/Why is this bike being registered/).fill("Controlled mobile fleet acceptance fixture");
   await addBike.getByRole("button", { name: "Register motorcycle offline" }).click();
-  await expect(page.getByRole("status")).toContainText(`${plateNumber} was registered offline`);
+  await expect(page.getByRole("status")).toContainText(`${bikeCode} was added offline`);
 
   let bikeCard = page.locator("details").filter({ hasText: bikeCode }).first();
-  await bikeCard.locator("summary").click();
+  await bikeCard.locator("summary").first().click();
   let bikeForm = bikeCard.locator("form");
   await expect(bikeForm).toBeVisible();
   await expectCurrentMobilePage(page, "expanded motorcycle assignment");
@@ -1031,21 +1031,13 @@ test("administrator registers a bike, assigns its rider and sees every remaining
   await bikeForm.getByLabel("Length").fill("500");
   await bikeForm.getByLabel("Width").fill("400");
   await bikeForm.getByLabel("Height").fill("400");
-  await bikeForm.getByLabel(/checked this plate against the physical motorcycle/i).check();
-  await bikeForm.getByLabel("How was it checked?").fill("Controlled physical inspection");
-  await bikeForm.getByLabel("Evidence reference").fill(`E2E-${viewportCode}-${fixtureRunCode}-REG`);
   await bikeForm.getByLabel("I physically measured and verified this capacity").check();
   await bikeForm.getByLabel("Operating status").selectOption("available");
   await bikeForm.getByLabel("Reason and verification evidence").fill("Controlled inspection and rider assignment completed");
   await bikeForm.getByRole("button", { name: "Save bike record" }).click();
   await expect(page.getByRole("status")).toContainText("Bike configuration updated and recorded");
-  const availableCapacity = page.getByRole("heading", { name: "Automatic capacity is available" });
-  if (await availableCapacity.count()) await expect(availableCapacity).toBeVisible();
-  else {
-    await expect(page.getByRole("heading", { name: "Automatic capacity is not ready" })).toBeVisible();
-    await expect(page.getByText(/set the maximum riding and minimum break times/i)).toBeVisible();
-  }
-  await expectCurrentMobilePage(page, "dispatch capacity after fleet verification");
+  await expect(page.getByRole("heading", { name: "Automatic capacity is available" })).toBeVisible();
+  await expectCurrentMobilePage(page, "dispatch capacity after fleet readiness");
 
   await page.goto("/admin/run-operations");
   const runCreator = page.locator("details").filter({ hasText: "Create a compliant delivery run" }).first();
@@ -1062,7 +1054,7 @@ test("administrator registers a bike, assigns its rider and sees every remaining
   }
   const createRun = runCreator.getByRole("button", { name: "Create planned run" });
   expect((await createRun.boundingBox())?.height ?? 0, "Create run touch target").toBeGreaterThanOrEqual(44);
-  const testBikeOption = runCreator.getByRole("option", { name: new RegExp(plateNumber) });
+  const testBikeOption = runCreator.getByRole("option", { name: new RegExp(bikeCode) });
   const testBikeId = await testBikeOption.getAttribute("value");
   expect(testBikeId).toBeTruthy();
   await runCreator.getByRole("combobox", { name: "Bike" }).selectOption(testBikeId!);
@@ -1072,7 +1064,7 @@ test("administrator registers a bike, assigns its rider and sees every remaining
 
   await page.goto("/admin/dispatch");
   bikeCard = page.locator("details").filter({ hasText: bikeCode }).first();
-  await bikeCard.locator("summary").click();
+  await bikeCard.locator("summary").first().click();
   bikeForm = bikeCard.locator("form");
   await bikeForm.getByLabel("Operating status").selectOption("offline");
   await bikeForm.getByLabel("Assigned rider").selectOption("");

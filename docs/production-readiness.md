@@ -40,7 +40,7 @@ This evidence does not make the service production-ready. The physical fleet, fi
 | Hosted role acceptance | Current release tested at 375px and 390px with disposable Customer, Admin, Rider and Super Admin accounts; no provisioner left enabled |
 | Paystack TEST | Current release tested for guest sender-pay, authenticated sender-pay, receiver-pay, waiting and redelivery charges, duplicate webhook replay, handover blocking and clearance, refunds and disputes |
 | Service coverage | Founder-approved road-accurate polygons with boundary source, road/address checks, overlap review, motorcycle restrictions and an explicit activation approval for one initial zone |
-| Fleet readiness | Real registration details, physical capacity measurements, safety checks, verified riders, assignments and successful two-bike conflict/capacity tests |
+| Fleet readiness | Company-owned motorcycles, physical capacity measurements, safety checks, verified riders, assignments and successful two-bike conflict/capacity tests; plate and descriptive metadata are optional |
 | Commercial approval | Approved active rate card, cost assumptions, profitability floor, service hours, distance thresholds, charges, promotions, rider capacity and escalation procedure |
 | Domain/providers | Custom domain connected; Supabase, Paystack, Google and Resend URLs/restrictions updated and retested |
 | Quality certification | Lighthouse, accessibility, keyboard and constrained Android emulator evidence captured on the final domain; one physical low-end Android field pass and slow-network operational observation remain |
@@ -74,6 +74,8 @@ The founder explicitly authorized migration `20261126180626` on 26 November 2026
 Commit `8141b253b93852efc7d226e03775360e4cba710b` was then published through the GitHub-to-Netlify production pipeline as deploy `6b088215ad53fc9464720c89`. Netlify scanned 472 files with no secret match and deployed the Next.js handler, scheduled email worker and edge functions successfully. The final-domain authentication, booking/payment UI and public-page audit passed 56/56 checks at 375px and 390px. A real controlled Bodija-to-Dugbe quote used Google routing and returned 7,627 metres and 814 seconds, then failed closed with HTTP 409 `capacity_unavailable` because both test bikes are offline. It created no quote, order or payment; the single rejected availability-test record was removed by its exact ID and marker. Deployment-window observability recorded zero HTTP 5xx responses; the two 404 responses were deliberate unknown-route recovery checks, the single 409 was the controlled capacity check, and the 499 responses were client-aborted browser-test requests.
 
 The Admin operating-rule acceptance was subsequently strengthened from display-only coverage to a complete mobile save cycle. At both 375px and 390px an administrator entered all four required safety times using focus-and-keyboard interaction, supplied the mandatory reason, received HTTP 200, observed the configured state, verified the stored values and immutable audit event, then restored the original isolated local values through the same authorized atomic RPC. Both runs passed and no hosted operating setting changed.
+
+The founder subsequently confirmed that plate, make, model, model year, registration evidence, handover allowance, end-of-day allowance, maximum continuous riding time and minimum break duration are optional company records rather than dispatch prerequisites. Pending migration `20261126204919_make_fleet_metadata_and_rest_rules_optional.sql` implements that policy while retaining active named rider, safety-clearance, measured-capacity, parcel-limit, payment and concurrency gates. It restores only bikes whose latest explicit administrator fleet action was `available` and which still satisfy the retained gates, recording a new audit event for each restoration. The clean 51-migration replay, all 16 database suites, local SQL lint, TypeScript, full ESLint, 391/391 applicable tests, the 60-page build and the affected 375px/390px Admin matrix all passed. The migration is the only production-pending migration and has not been applied; the dependent application changes have not been pushed or deployed.
 
 ## Database backup and restore
 
@@ -129,7 +131,7 @@ If payment state or delivery custody is uncertain, disable the relevant operatio
 1. Keep live Paystack and assisted-booking confirmation disabled.
 2. Public booking may be visible for founder testing, but must reject unsupported coverage, insufficient genuine fleet capacity, unsafe packages and unprofitable pricing. It must not create a delivery obligation from a pending manual-approval request.
 3. Complete all non-negotiable gates and retain their evidence.
-4. Activate only founder-reviewed zones, keep Zone F on manual approval, and use only verified, available motorcycles with genuine registration and safety records.
+4. Activate only founder-reviewed zones, keep Zone F on manual approval, and use only available company motorcycles with an active verified rider, safety clearance and measured carrying capacity. Plate and descriptive metadata remain optional.
 5. Complete a controlled hosted TEST journey for every role and payment path.
 6. Monitor capacity, route failures, webhook delivery, email delivery, payment settlement and support escalations.
 7. Add zones only after founder approval and repeated checks.
@@ -143,7 +145,7 @@ The remaining actions require provider-plan changes, real-world approval, contro
 - hosted authenticated acceptance of the final deployed commit with disposable or authorized role accounts; the release passes the isolated Customer, Admin, Super Admin and Rider matrix at 375px and 390px;
 - the hosted sender-pay, mandatory supplemental-charge, receiver-pay and full-refund TEST journeys are complete on the final domain; a genuine provider-generated dispute still requires Paystack dashboard/support simulation because the public API cannot create a dispute;
 - field validation and final founder confirmation of the attributed active service polygons;
-- real fleet registrations, measurements, safety checks and rider verification; the current remote placeholder motorcycles remain offline/unassigned and intentionally provide no dispatch capacity;
+- production application of pending migration `20261126204919`, followed by the dependent application deployment and hosted capacity retest; physical capacity measurements, safety checks and rider verification remain mandatory while registration metadata is optional;
 - approved commercial operating configuration;
 - encrypted off-device owner-held storage for the verified logical export, recorded retention/RPO/RTO ownership, and either the runbook-required non-production-project restore or an explicit approval to use the completed isolated full-stack drill as the Free-plan recovery environment;
 - final-domain Paystack acceptance; real final-domain Resend application-email delivery, Google Maps JavaScript, Places and representative Routes passed on 25 November 2026;

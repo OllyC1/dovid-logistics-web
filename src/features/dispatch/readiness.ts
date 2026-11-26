@@ -1,5 +1,4 @@
 import { remainingDispatchSlots } from "@/features/dispatch/capacity";
-import { hasVerifiedVehicleRegistration } from "@/features/fleet/registration";
 
 type ReadinessVehicle = {
   id: string;
@@ -47,8 +46,7 @@ export function calculateDispatchCapacity(input: {
   }
 
   const readyVehicles = input.vehicles.filter((vehicle) => (
-    hasVerifiedVehicleRegistration(vehicle)
-    && ["available", "assigned"].includes(vehicle.operational_status)
+    ["available", "assigned"].includes(vehicle.operational_status)
     && vehicle.safety_status === "cleared"
     && Boolean(vehicle.capacity_verified_at)
     && Boolean(vehicle.assigned_rider_id && activeRiderIds.has(vehicle.assigned_rider_id))
@@ -86,6 +84,6 @@ export function assessDispatchReadiness(input: {
     riderParcelLimit: input.riderParcelLimit,
     scheduleBuffersConfigured,
     riderRestRulesConfigured,
-    automaticCapacityAvailable: capacity.availableParcelSlots > 0 && scheduleBuffersConfigured && riderRestRulesConfigured,
+    automaticCapacityAvailable: capacity.availableParcelSlots > 0,
   };
 }

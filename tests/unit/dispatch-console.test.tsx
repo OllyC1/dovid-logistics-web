@@ -30,10 +30,10 @@ describe("DispatchConsole readiness", () => {
     />);
 
     expect(screen.getByRole("heading", { name: "Automatic capacity is not ready" })).toBeTruthy();
-    expect(screen.getByText(/no verified motorcycle and active rider have a free parcel slot/i)).toBeTruthy();
+    expect(screen.getByText(/no safety-cleared motorcycle and active rider have a free parcel slot/i)).toBeTruthy();
     expect(screen.getByText("Ready motorcycles").parentElement?.textContent).toContain("0 / 2");
-    expect(screen.getByText(/set the pickup handover and end-of-day safety allowances/i)).toBeTruthy();
-    expect(screen.getByText(/set the maximum riding and minimum break times/i)).toBeTruthy();
+    expect(screen.getByText(/no extra handover or end-of-day allowance is configured/i)).toBeTruthy();
+    expect(screen.getByText(/riders may take an appropriate break during active work/i)).toBeTruthy();
     expect(screen.getByRole("link", { name: "Review motorcycles" }).getAttribute("href")).toBe("#fleet-registry");
     expect(screen.getByRole("link", { name: "Manage riders" }).getAttribute("href")).toBe("/admin/team");
     expect(screen.getByRole("link", { name: "Set operating rules" }).getAttribute("href")).toBe("/admin/coverage");

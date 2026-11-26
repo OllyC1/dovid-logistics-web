@@ -22,10 +22,10 @@ describe("LaunchReadinessPanel", () => {
     expect(screen.getByText(/Road and address field confirmation remains a separate founder check/)).toBeTruthy();
     expect(screen.getByText(/Live Paystack:/).parentElement?.textContent).toContain("disabled");
     expect(screen.getByText(/Assisted confirmation:/).parentElement?.textContent).toContain("disabled");
-    const schedulingGate = screen.getByText("Safe scheduling").closest("article");
+    const schedulingGate = screen.getByText("Optional scheduling guidance").closest("article");
     expect(schedulingGate).toBeTruthy();
-    expect(within(schedulingGate!).getByText("Not configured")).toBeTruthy();
-    expect(within(schedulingGate!).getByText(/maximum continuous riding and minimum break/i)).toBeTruthy();
+    expect(within(schedulingGate!).getByText("Partly recorded")).toBeTruthy();
+    expect(within(schedulingGate!).getByText(/do not block otherwise feasible bookings/i)).toBeTruthy();
     expect(screen.getByRole("link", { name: "Prepare motorcycles" }).getAttribute("href")).toBe("/admin/dispatch");
   });
 });

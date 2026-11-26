@@ -1,11 +1,14 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
-import { isRealVehicleRegistration } from "@/features/fleet/registration";
 import { getDispatchManagerAuthorization as getAuthenticatedRole } from "@/lib/auth/staff";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
+const optionalRegistration = z.preprocess(
+  (value) => typeof value === "string" && !value.trim() ? null : value,
+  z.string().trim().min(3).max(20).regex(/^[a-zA-Z0-9 -]+$/).nullable(),
+);
 const schema = z.object({
-  registrationNumber: z.string().trim().min(3).max(20).regex(/^[a-zA-Z0-9 -]+$/),
+  registrationNumber: optionalRegistration,
   registrationVerified: z.boolean(),
   registrationVerificationMethod: z.string().trim().max(100).nullable(),
   registrationVerificationReference: z.string().trim().max(200).nullable(),
@@ -24,10 +27,6 @@ const schema = z.object({
   reason: z.string().trim().min(8).max(1_000),
 }).superRefine((value, context) => {
   if (value.capacityVerified && (!value.maxPayloadWeightGrams || !value.cargoLengthMm || !value.cargoWidthMm || !value.cargoHeightMm)) context.addIssue({ code: "custom", message: "Measured payload and all cargo dimensions are required before capacity verification." });
-  if (value.registrationVerified && (!value.manufacturer || !value.model || !value.modelYear)) context.addIssue({ code: "custom", message: "Manufacturer, model and model year are required before registration verification." });
-  if (value.registrationVerified && (!value.registrationVerificationMethod || value.registrationVerificationMethod.length < 4 || !value.registrationVerificationReference || value.registrationVerificationReference.length < 4)) context.addIssue({ code: "custom", message: "Record how the physical plate was checked and the evidence reference." });
-  if ((value.assignedRiderId || ["available", "assigned"].includes(value.operationalStatus)) && !isRealVehicleRegistration(value.registrationNumber)) context.addIssue({ code: "custom", path: ["registrationNumber"], message: "Replace the temporary registration with the motorcycle's real plate before assigning a rider or making it available." });
-  if (["available", "assigned"].includes(value.operationalStatus) && !value.registrationVerified) context.addIssue({ code: "custom", message: "Verify the physical plate and registration evidence before making this motorcycle available." });
 });
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await getAuthenticatedRole();
@@ -44,7 +43,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (!riderMembership || !riderProfile?.full_name?.trim()) return NextResponse.json({ error: "Choose an active rider whose name has been recorded." }, { status: 400 });
   }
   const [{ data: currentVehicle }, { data: activeAssignments }, { data: activeRuns }] = await Promise.all([
-    admin.from("fleet_vehicles").select("registration_number,registration_verification_reference").eq("id", id).maybeSingle(),
+    admin.from("fleet_vehicles").select("registration_number").eq("id", id).maybeSingle(),
     admin.from("delivery_assignments").select("id,order_id").eq("vehicle_id", id).is("released_at", null),
     admin.from("delivery_runs").select("id,run_reference,status").eq("vehicle_id", id).in("status", ["planned", "active", "paused"]),
   ]);
@@ -62,11 +61,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       activeRuns: (activeRuns ?? []).map((run) => ({ reference: run.run_reference, status: run.status })),
     }, { status: 409 });
   }
-  const normalizedRegistration = parsed.data.registrationNumber.trim().replace(/\s+/g, " ").toUpperCase();
-  const registrationChanged = normalizedRegistration !== currentVehicle.registration_number;
-  if (registrationChanged && parsed.data.registrationVerified && parsed.data.registrationVerificationReference === currentVehicle.registration_verification_reference) {
-    return NextResponse.json({ error: "The plate changed. Record a new evidence reference for the new physical registration." }, { status: 400 });
-  }
+  const normalizedRegistration = parsed.data.registrationNumber?.trim().replace(/\s+/g, " ").toUpperCase() ?? null;
   const { error } = await admin.rpc("update_fleet_vehicle_configuration", {
     target_vehicle_id: id,
     actor_id: auth.user.id,
