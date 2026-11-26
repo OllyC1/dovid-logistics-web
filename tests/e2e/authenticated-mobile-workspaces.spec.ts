@@ -79,7 +79,6 @@ async function createRiderFixture({ withRun = false }: { withRun?: boolean } = {
   await insertFixture("delivery_orders", {
     id: orderId,
     customer_id: customer.id,
-    rider_id: rider.id,
     quote_id: quoteId,
     order_reference: `DOV-RIDER-${suffix}`,
     tracking_reference: `TRK-RIDER-${suffix}`,
@@ -96,8 +95,8 @@ async function createRiderFixture({ withRun = false }: { withRun?: boolean } = {
     recipient_phone: "08000000001",
     payer: "sender",
     payment_method: "online",
-    delivery_status: "assigned",
-    payment_status: "paid",
+    delivery_status: "awaiting_assignment",
+    payment_status: "pending",
     distance_meters: 4_000,
     quoted_amount_minor: 10_000,
     currency: "NGN",
@@ -111,14 +110,6 @@ async function createRiderFixture({ withRun = false }: { withRun?: boolean } = {
     length_mm: 250,
     width_mm: 180,
     height_mm: 120,
-  });
-  await insertFixture("delivery_status_events", {
-    order_id: orderId,
-    previous_status: null,
-    new_status: "assigned",
-    actor_id: administrator.id,
-    actor_type: "admin",
-    metadata: { fixture: true },
   });
   await insertFixture("payment_intents", {
     id: paymentIntentId,
@@ -140,6 +131,24 @@ async function createRiderFixture({ withRun = false }: { withRun?: boolean } = {
     currency: "NGN",
     status: "paid",
     immutable_payload: { domain: "test", fixture: true },
+  });
+  const paymentClearance = await admin.from("delivery_orders")
+    .update({ payment_status: "paid" })
+    .eq("id", orderId)
+    .eq("payment_status", "pending");
+  if (paymentClearance.error) throw paymentClearance.error;
+  const assignment = await admin.from("delivery_orders")
+    .update({ rider_id: rider.id, delivery_status: "assigned" })
+    .eq("id", orderId)
+    .eq("delivery_status", "awaiting_assignment");
+  if (assignment.error) throw assignment.error;
+  await insertFixture("delivery_status_events", {
+    order_id: orderId,
+    previous_status: "awaiting_assignment",
+    new_status: "assigned",
+    actor_id: administrator.id,
+    actor_type: "admin",
+    metadata: { fixture: true, paymentClearanceVerified: true },
   });
 
   const fixture: RiderFixture = { orderId, quoteId, pricingRuleId, paymentIntentId };
