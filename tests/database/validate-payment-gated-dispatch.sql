@@ -16,6 +16,7 @@ declare
   receiver_order_id uuid := '93000000-0000-4000-8000-000000000021';
   free_quote_id uuid := '93000000-0000-4000-8000-000000000030';
   free_order_id uuid := '93000000-0000-4000-8000-000000000031';
+  run_id uuid := '93000000-0000-4000-8000-000000000040';
   result_id uuid;
 begin
   select z.service_area_id, z.id into area_id, zone_id
@@ -124,6 +125,14 @@ begin
     'online', 'awaiting_assignment', 'unpaid', 5000, 0, zone_id, zone_id
   );
 
+  insert into public.delivery_packages(
+    order_id, category, size, description, weight_grams,
+    length_mm, width_mm, height_mm
+  ) values (
+    sender_order_id, 'parcel', 'small',
+    'Payment-gated multi-parcel validation package', 1000, 200, 150, 100
+  );
+
   result_id := public.auto_assign_delivery_order(sender_order_id);
   if result_id is not null
     or (select rider_id from public.delivery_orders where id = sender_order_id) is not null
@@ -151,6 +160,44 @@ begin
   if exists(select 1 from public.delivery_assignments where order_id = sender_order_id) then
     raise exception 'failed manual assignment left a partial assignment';
   end if;
+
+  insert into public.delivery_runs(
+    id, run_reference, rider_id, vehicle_id, status, scheduled_start_at,
+    compliance_confirmed_at, compliance_confirmed_by, compliance_notes,
+    idempotency_key, created_by
+  ) values (
+    run_id, 'RUN-PAYMENT-GATE',
+    '33333333-3333-3333-3333-333333333333', vehicle_id, 'planned', now(),
+    now(), '44444444-4444-4444-4444-444444444444',
+    'Controlled payment gate validation',
+    '93000000-0000-4000-8000-000000000041',
+    '44444444-4444-4444-4444-444444444444'
+  );
+
+  begin
+    perform public.assign_order_to_delivery_run(
+      sender_order_id,
+      run_id,
+      '44444444-4444-4444-4444-444444444444',
+      '{"source":"payment_gate_validation"}'::jsonb,
+      null,
+      '93000000-0000-4000-8000-000000000042'
+    );
+    raise exception 'delivery-run assignment bypassed sender payment clearance';
+  exception when others then
+    if sqlerrm <> 'sender payment clearance required before assignment' then
+      raise;
+    end if;
+  end;
+
+  if exists(select 1 from public.delivery_assignments where order_id = sender_order_id)
+    or exists(select 1 from public.run_assignments where order_id = sender_order_id)
+    or exists(select 1 from public.delivery_run_stops where order_id = sender_order_id)
+  then
+    raise exception 'failed delivery-run assignment left partial operational records';
+  end if;
+
+  delete from public.delivery_runs where id = run_id;
 
   begin
     update public.delivery_orders
