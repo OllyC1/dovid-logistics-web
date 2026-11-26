@@ -56,7 +56,7 @@ The following is a read-only snapshot of the hosted Supabase records. It is evid
 - Payment protection: no active sender-paid assignment exists without a recorded paid transaction. Live Paystack remains disabled.
 - Controlled access: public booking remains visible for founder testing; assisted-booking confirmation remains disabled.
 
-Migration `20261126144013_audit_operational_settings_updates.sql` is locally validated but not deployed. It makes operating-rule changes atomic, reason-required and auditable with explicit before/after evidence. The hosted migration ledger still ends at `20261126123000_preserve_refund_state_order`; the dependent application commit must not be deployed before the migration receives explicit production authorization and is applied successfully.
+Migration `20261126144013_audit_operational_settings_updates.sql` was applied after explicit founder authorization and the hosted ledger now matches the repository through that version. It makes operating-rule changes atomic, reason-required and auditable with explicit before/after evidence. Remote validation proved that browser roles cannot execute the function, `service_role` can execute it, short reasons are rejected and a successful update creates before/after audit evidence in the same transaction. The validation transaction was rolled back and left no settings or audit-row change. Commit `5aba9a527a5a3089bc639a87e9ef980e29acbc34` then deployed through GitHub-to-Netlify as deployment `6b084f4b31706a9a4b4a6414`; the 465-file secret scan was clean and 48/48 final-domain mobile checks passed at 375px and 390px.
 
 ## Database backup and restore
 
