@@ -689,6 +689,22 @@ test("administrator reaches the admin workspace without MFA and every authorized
   await page.unroute("**/api/admin/assisted-bookings**");
 
   await page.goto("/admin/coverage");
+  await expect(page.getByText(/Automatic scheduling is not ready|Safety times are configured/)).toBeVisible();
+  for (const label of [
+    "Pickup handover allowance (minutes)",
+    "End-of-day safety allowance (minutes)",
+    "Maximum riding before a break (minutes)",
+    "Minimum rider break (minutes)",
+  ]) {
+    const control = page.getByLabel(label);
+    await expect(control).toBeVisible();
+    const bounds = await control.boundingBox();
+    expect(bounds, `${label} bounds`).not.toBeNull();
+    expect(bounds!.height, `${label} touch height`).toBeGreaterThanOrEqual(44);
+    expect(bounds!.x, `${label} left edge`).toBeGreaterThanOrEqual(0);
+    expect(bounds!.x + bounds!.width, `${label} right edge`).toBeLessThanOrEqual(page.viewportSize()!.width);
+  }
+  expect(await page.evaluate(() => document.documentElement.scrollWidth), "coverage operating rules overflow").toBeLessThanOrEqual(page.viewportSize()!.width);
   if (deployedBaseUrl?.includes(".netlify.app")) {
     await expect(page.locator(".gm-style")).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText("The map could not open")).toHaveCount(0);

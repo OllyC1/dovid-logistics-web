@@ -47,8 +47,13 @@ describe("CoverageEditor operating rules", () => {
   it("requires a reason and sends it with the complete settings update", async () => {
     render(<CoverageEditor initialZones={[zone]} settings={settings} />);
 
-    fireEvent.change(screen.getByLabelText("Handover buffer (minutes)"), { target: { value: "15" } });
-    fireEvent.change(screen.getByLabelText("Completion buffer (minutes)"), { target: { value: "20" } });
+    expect(screen.getByText("Automatic scheduling is not ready")).toBeTruthy();
+    expect(screen.getAllByText("Not set")).toHaveLength(2);
+    expect(screen.getByText(/bookings will stay in dispatch review/i)).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText("Pickup handover allowance (minutes)"), { target: { value: "15" } });
+    fireEvent.change(screen.getByLabelText("End-of-day safety allowance (minutes)"), { target: { value: "20" } });
+    expect(screen.getByText("Safety times are configured")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Save operating rules" }));
 
     const dialog = screen.getByRole("dialog");
