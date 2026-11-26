@@ -7,8 +7,28 @@ export async function proxy(request: NextRequest) {
   if (!url || !key) return NextResponse.next({ request });
   let response = NextResponse.next({ request });
   const supabase = createServerClient(url, key, { cookies: { getAll: () => request.cookies.getAll(), setAll: (items) => { items.forEach(({ name, value }) => request.cookies.set(name, value)); response = NextResponse.next({ request }); items.forEach(({ name, value, options }) => response.cookies.set(name, value, options)); } } });
-  await supabase.auth.getUser();
+  await supabase.auth.getClaims();
   return response;
 }
 
-export const config = { matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"] };
+// Public marketing, booking, tracking, guest and webhook routes do not read a
+// browser session. Keeping them outside Proxy avoids an unnecessary Auth
+// request while every authenticated workspace and API still refreshes its
+// cookie before the route performs its own authorization check.
+export const config = {
+  matcher: [
+    "/account/:path*",
+    "/admin/:path*",
+    "/rider/:path*",
+    "/staff/:path*",
+    "/reset-password",
+    "/api/admin/:path*",
+    "/api/customer/:path*",
+    "/api/rider/:path*",
+    "/api/staff/:path*",
+    "/api/orders",
+    "/api/payments/initialize",
+    "/api/payments/supplemental",
+    "/api/delivery/quotes/:id/:path*",
+  ],
+};
