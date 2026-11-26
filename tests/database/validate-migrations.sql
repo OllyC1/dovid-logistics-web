@@ -52,7 +52,7 @@ insert into public.delivery_orders(
   'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
   'DOV-VALIDATION', 'TRK-VALIDATION', 'dddddddd-dddd-dddd-dddd-dddddddddddd',
   'Pickup', 7.3, 3.9, 'Delivery', 7.4, 3.8,
-  'Sender', '08000000000', 'Recipient', '08000000001', 'sender', 'online',
+  'Sender', '08000000000', 'Recipient', '08000000001', 'receiver_before_delivery', 'online',
   'arrived_at_destination', 'unpaid', 5000, 200000
 );
 
@@ -269,7 +269,7 @@ begin
     return_order_id,'11111111-1111-1111-1111-111111111111',return_quote_id,
     'DOV-RETURN-VALIDATION','TRK-RETURN-VALIDATION','68686868-6868-4868-8868-686868686868',
     'Return pickup',7.3,3.9,'Return dropoff',7.4,3.8,'Validation Sender','08000000000',
-    'Validation Recipient','08000000001','sender','online','awaiting_assignment','paid',4500,200000
+    'Validation Recipient','08000000001','receiver_before_delivery','online','awaiting_assignment','paid',4500,200000
   );
   insert into public.delivery_packages(
     order_id,category,size,description,weight_grams,length_mm,width_mm,height_mm

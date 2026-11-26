@@ -50,6 +50,6 @@ insert into public.delivery_orders(
   'DOV-OPERATIONS-VALIDATION','TRK-OPERATIONS-VALIDATION',
   'dddddddd-dddd-dddd-dddd-dddddddddddd',
   'Pickup',7.3,3.9,'Delivery',7.4,3.8,
-  'Sender','08000000000','Recipient','08000000001','sender','online',
+  'Sender','08000000000','Recipient','08000000001','receiver_before_delivery','online',
   'arrived_at_destination','unpaid',5000,200000
 );

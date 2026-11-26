@@ -127,7 +127,7 @@ begin
       payment_method,delivery_status,payment_status,distance_meters,quoted_amount_minor,pickup_zone_id,delivery_zone_id
     ) values(
       order_id,'11111111-1111-1111-1111-111111111111',quote_id,'DOV-CAPACITY-'||lpad(counter::text,2,'0'),'TRK-CAPACITY-'||lpad(counter::text,2,'0'),gen_random_uuid(),
-      'Capacity pickup',7.4,3.9,'Capacity delivery',7.41,3.91,'Sender','08000000000','Receiver','08000000001','sender',
+      'Capacity pickup',7.4,3.9,'Capacity delivery',7.41,3.91,'Sender','08000000000','Receiver','08000000001','receiver_before_delivery',
       'online','awaiting_assignment','unpaid',5000,200000,zone_id,zone_id
     );
     if counter <= 9 then
