@@ -27,6 +27,7 @@ This evidence does not make the service production-ready. The physical fleet, fi
 - The scheduled application-email worker processed the new sender supplemental and receiver payment receipts on the first attempt. Resend reported both as delivered, and each notification recipient matched the email bound to its payment intent. No address is hardcoded: order-progress notifications continue to use the booking contact while payment receipts use the payer-entered address.
 - Commit `cd44b014d9c1dd769f589d6524fa82459d8f2f26` fixed Paystack refund intent lookup to use the original transaction reference, made authenticated duplicate delivery reconcile idempotently, and added mobile-first WhatsApp/copy/open actions for receiver payment links. Netlify published the exact commit after a clean 454-file secret scan. The full application suite passed 369/369 applicable tests, the production build passed, and the 375px/390px payment suite passed 14/14 applicable journeys.
 - A real full Paystack TEST refund then progressed through signed `refund.pending`, `refund.processing` and `refund.processed` events. The order ended `refunded`, rider handover clearance stayed false, and the immutable event history produced exactly one reconciled refund record. Migration `20261126123000_preserve_refund_state_order.sql` subsequently prevented a replayed older `refund.pending` event from downgrading the processed financial state; it replayed cleanly, passed migration/RLS and SECURITY DEFINER validation, was the only remote dry-run item and was applied without seeds, roles, reset or data deletion.
+- A real Android browser pass used the official Pixel 2 profile at 1080x1920, two CPU cores and the emulator-enforced 2.5 GB RAM. Android 16 with Chrome 133 rendered the final HTTPS site correctly and passed the homepage, non-clashing menu, one-tap login navigation, password visibility, guest booking and live Google Places suggestion checks. An Android 11 image with Chrome 83 correctly exposed the documented Next.js 16 browser boundary (Chrome 111+): HTML loaded but the unsupported browser ignored the modern stylesheet. The release therefore includes a framework-independent, touch-friendly browser-update and support notice for browsers missing the required CSS capabilities. TypeScript, ESLint, 372/372 applicable tests and the 60-page production build pass with that notice.
 
 ## Non-negotiable release gates
 
@@ -40,7 +41,7 @@ This evidence does not make the service production-ready. The physical fleet, fi
 | Fleet readiness | Real registration details, physical capacity measurements, safety checks, verified riders, assignments and successful two-bike conflict/capacity tests |
 | Commercial approval | Approved active rate card, cost assumptions, profitability floor, service hours, distance thresholds, charges, promotions, rider capacity and escalation procedure |
 | Domain/providers | Custom domain connected; Supabase, Paystack, Google and Resend URLs/restrictions updated and retested |
-| Quality certification | Lighthouse/Core Web Vitals, screen-reader, keyboard, slow-network and low-end Android evidence captured on the final domain |
+| Quality certification | Lighthouse, accessibility, keyboard and constrained Android emulator evidence captured on the final domain; one physical low-end Android field pass and slow-network operational observation remain |
 
 ## Database backup and restore
 
@@ -114,4 +115,4 @@ The remaining actions require provider-plan changes, real-world approval, contro
 - approved commercial operating configuration;
 - encrypted off-device owner-held storage for the verified logical export, recorded retention/RPO/RTO ownership, and either the runbook-required non-production-project restore or an explicit approval to use the completed isolated full-stack drill as the Free-plan recovery environment;
 - final-domain Paystack acceptance; real final-domain Resend application-email delivery, Google Maps JavaScript, Places and representative Routes passed on 25 November 2026;
-- final-domain accessibility, Core Web Vitals and low-end-device certification.
+- a final physical low-end Android handset field pass and slow-network operational observation; the final-domain automated accessibility/Lighthouse audit and constrained Android Chrome 133 browser pass are complete.
