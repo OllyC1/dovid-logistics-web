@@ -58,6 +58,21 @@ describe("assessDispatchReadiness", () => {
     });
   });
 
+  it("does not advertise automatic booking while safety buffers are unset", () => {
+    const readiness = assessDispatchReadiness({
+      vehicles: [verifiedVehicle],
+      activeNamedRiderIds: ["rider-1"],
+      activeAssignments: [],
+      riderParcelLimit: 10,
+      handoverBufferMinutes: null,
+      safeCompletionBufferMinutes: null,
+    });
+
+    expect(readiness.availableParcelSlots).toBe(10);
+    expect(readiness.scheduleBuffersConfigured).toBe(false);
+    expect(readiness.automaticCapacityAvailable).toBe(false);
+  });
+
   it("requires an active named rider even when the motorcycle looks ready", () => {
     const readiness = assessDispatchReadiness({
       vehicles: [verifiedVehicle],

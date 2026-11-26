@@ -68,6 +68,7 @@ export function assessDispatchReadiness(input: {
   safeCompletionBufferMinutes: number | null;
 }): DispatchReadiness {
   const capacity = calculateDispatchCapacity(input);
+  const scheduleBuffersConfigured = input.handoverBufferMinutes !== null && input.safeCompletionBufferMinutes !== null;
 
   return {
     activeNamedRiders: new Set(input.activeNamedRiderIds).size,
@@ -75,7 +76,7 @@ export function assessDispatchReadiness(input: {
     totalMotorcycles: input.vehicles.length,
     availableParcelSlots: capacity.availableParcelSlots,
     riderParcelLimit: input.riderParcelLimit,
-    scheduleBuffersConfigured: input.handoverBufferMinutes !== null && input.safeCompletionBufferMinutes !== null,
-    automaticCapacityAvailable: capacity.availableParcelSlots > 0,
+    scheduleBuffersConfigured,
+    automaticCapacityAvailable: capacity.availableParcelSlots > 0 && scheduleBuffersConfigured,
   };
 }
