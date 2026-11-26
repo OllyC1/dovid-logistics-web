@@ -12,7 +12,7 @@ The founder has authorized public booking to be visible for controlled pre-launc
 
 This evidence does not make the service production-ready. The physical fleet, final coverage, owner-held encrypted backup, hosted TEST payment matrix and final-device certification below remain launch gates.
 
-## Verified release evidence â€” 26 November 2026
+## Verified release evidence — 26 November 2026
 
 - Commit `599fc27257a4e19df6fac2741795cf61351772c4` was published by the GitHub-to-Netlify pipeline. The deployed mobile HTTPS audit passed 48/48 checks at 375px and 390px.
 - Mobile Lighthouse measured performance 93, accessibility 100, best practices 100 and SEO 100. Server response improved from 1.56 seconds to 0.15 seconds, Speed Index from 4.68 seconds to 1.90 seconds and cumulative layout shift remained zero.
