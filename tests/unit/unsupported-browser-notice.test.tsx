@@ -27,6 +27,11 @@ describe("UnsupportedBrowserNotice", () => {
 
     const css = container.querySelector("style")?.textContent ?? "";
     expect(css).toContain("@supports not ((color: oklch(50% 0.1 30)) and (font-size: 1cap))");
+    expect(css).toContain("top: 0");
+    expect(css).toContain("right: 0");
+    expect(css).toContain("bottom: 0");
+    expect(css).toContain("left: 0");
+    expect(css).not.toContain("inset: 0");
     expect(css).toContain("min-height: 52px");
   });
 });
