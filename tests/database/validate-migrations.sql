@@ -614,6 +614,11 @@ do $$ begin
   exception when others then
     if sqlerrm <> 'processed refunds exceed payment amount' then raise; end if;
   end;
+  perform public.record_payment_refund_event('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee','refund-validation','refund.pending',200000,'NGN','{"source":"stale-replay"}'::jsonb);
+  if (select status from public.payment_refunds where provider_refund_id='refund-validation') <> 'processed'
+     or (select last_provider_status from public.payment_intents where id='eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee') <> 'refund.processed' then
+    raise exception 'stale refund event moved reconciled state backwards';
+  end if;
   if (select payment_status from public.delivery_orders where id='cccccccc-cccc-cccc-cccc-cccccccccccc') <> 'refunded' then raise exception 'processed refund did not update the order'; end if;
   if (select count(*) from public.payment_refunds where provider_refund_id='refund-validation') <> 1 then raise exception 'duplicate refund was not idempotent'; end if;
 end $$;
