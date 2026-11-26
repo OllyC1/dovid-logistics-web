@@ -8,7 +8,7 @@ import { formatMoney } from "@/lib/utils";
 import type { DeliveryStatus } from "@/types/domain";
 
 type Feedback = { text: string; ok: boolean } | null;
-type WaitingSession = { id: string; startedAt: string; freeMinutes: number };
+type WaitingSession = { id: string; startedAt: string; freeMinutes: number | null; feePerMinuteKobo: number | null };
 
 export function DeliveryOperationsForms({
   orderId,
@@ -37,7 +37,8 @@ export function DeliveryOperationsForms({
   }, [waiting]);
 
   const elapsedSeconds = waiting ? Math.max(0, Math.floor((now - new Date(waiting.startedAt).getTime()) / 1_000)) : 0;
-  const freeSecondsRemaining = waiting ? Math.max(0, waiting.freeMinutes * 60 - elapsedSeconds) : 0;
+  const waitingPolicyConfigured = Boolean(waiting && waiting.freeMinutes !== null && waiting.feePerMinuteKobo !== null);
+  const freeSecondsRemaining = waitingPolicyConfigured ? Math.max(0, waiting!.freeMinutes! * 60 - elapsedSeconds) : null;
   const timeLabel = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
   const canReportExpense = !["delivered", "cancelled"].includes(deliveryStatus);
   const canReportFailure = !returnInProgress && ["rider_en_route_to_pickup", "picked_up", "in_transit", "arrived_at_destination", "awaiting_payment"].includes(deliveryStatus);
@@ -125,11 +126,12 @@ export function DeliveryOperationsForms({
   }
 
   return <section className="mt-5 grid gap-4" aria-label="Delivery help and exceptions">
-    {!returnInProgress && deliveryStatus === "arrived_at_destination" ? <div className="rounded-3xl border-2 border-orange bg-white p-4 sm:p-6">
+    {!returnInProgress && ["arrived_at_destination", "awaiting_payment"].includes(deliveryStatus) ? <div className="rounded-3xl border-2 border-orange bg-white p-4 sm:p-6">
       <p className="text-xs font-extrabold uppercase tracking-widest text-orange">Waiting time</p>
       {waiting ? <>
         <p className="mt-2 text-3xl font-extrabold tabular-nums text-navy">{timeLabel(elapsedSeconds)}</p>
-        <p className="mt-2 text-sm leading-6 text-slate">{freeSecondsRemaining > 0 ? `${timeLabel(freeSecondsRemaining)} of free waiting time remains.` : "The free waiting period has ended. Any proposed charge still needs dispatch review and customer approval."}</p>
+        <p className="mt-2 text-sm leading-6 text-slate">{freeSecondsRemaining === null ? "Waiting is being recorded, but the waiting price is not configured. No amount will be calculated automatically; dispatch must review the setup." : freeSecondsRemaining > 0 ? `${timeLabel(freeSecondsRemaining)} of free waiting time remains.` : "The free waiting period has ended. Any proposed charge still needs dispatch review and customer approval."}</p>
+        {deliveryStatus === "awaiting_payment" ? <p className="mt-2 rounded-xl bg-amber-50 p-3 text-sm font-bold leading-6 text-amber-950">Payment is still pending. Keep the parcel and stop the timer only when waiting has ended.</p> : null}
         <Button className="mt-4 w-full sm:w-auto" disabled={Boolean(pending)} onClick={stopWaiting}>{pending === "waiting" ? "Stopping timer…" : "Stop waiting timer"}</Button>
       </> : <p className="mt-2 text-sm leading-6 text-slate">Arrival was recorded. The secure server is starting the timer automatically; refresh this page if it does not appear within a few seconds.</p>}
     </div> : null}

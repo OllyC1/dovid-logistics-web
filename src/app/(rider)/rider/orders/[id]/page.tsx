@@ -22,7 +22,7 @@ export default async function RiderOrderPage({ params }: { params: Promise<{ id:
     supabase.from("delivery_assignments").select("delivery_run_id").eq("order_id", id).is("released_at", null).maybeSingle(),
     supabase.from("run_assignments").select("run_id").eq("order_id", id).eq("status", "returning").limit(1).maybeSingle(),
     createSupabaseAdminClient().from("delivery_proofs").select("completed_at,recipient_name").eq("order_id", id).maybeSingle(),
-    supabase.from("delivery_waiting_sessions").select("id,started_at,free_waiting_minutes_snapshot,status").eq("order_id", id).in("status", ["running", "paused"]).maybeSingle(),
+    supabase.from("delivery_waiting_sessions").select("id,started_at,free_waiting_minutes_snapshot,fee_per_minute_kobo_snapshot,status").eq("order_id", id).in("status", ["running", "paused"]).maybeSingle(),
   ]);
   const additionalStops=(order.additional_stops??[]) as Array<{address:string}>;
 
@@ -41,7 +41,7 @@ export default async function RiderOrderPage({ params }: { params: Promise<{ id:
       orderId={order.id}
       runId={assignment?.delivery_run_id ?? returningAssignment?.run_id}
       deliveryStatus={order.delivery_status as DeliveryStatus}
-      activeWaitingSession={waiting ? { id: waiting.id, startedAt: waiting.started_at, freeMinutes: waiting.free_waiting_minutes_snapshot ?? 10 } : null}
+      activeWaitingSession={waiting ? { id: waiting.id, startedAt: waiting.started_at, freeMinutes: waiting.free_waiting_minutes_snapshot, feePerMinuteKobo: waiting.fee_per_minute_kobo_snapshot } : null}
       returnInProgress={Boolean(returningAssignment)}
     />
     <div className="mt-6 grid gap-5 lg:grid-cols-2">

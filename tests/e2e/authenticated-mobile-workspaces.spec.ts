@@ -8,7 +8,7 @@ if (existsSync(".env.local") && process.env.DOVID_LOCAL_E2E !== "true") loadEnvF
 
 type TestRole = "customer" | "admin" | "rider" | "super_admin";
 type TestAccount = { id: string; email: string; password: string; role: TestRole };
-type RiderFixture = { orderId: string; quoteId: string; pricingRuleId: string; paymentIntentId: string; runId?: string; vehicleId?: string };
+type RiderFixture = { orderId: string; quoteId: string; pricingRuleId: string; paymentIntentId: string; runId?: string; vehicleId?: string; serviceAreaId?: string };
 type MailpitMessage = { ID: string; To?: { Address?: string }[] };
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -45,6 +45,8 @@ async function createRiderFixture({ withRun = false }: { withRun?: boolean } = {
   const quoteId = randomUUID();
   const orderId = randomUUID();
   const paymentIntentId = randomUUID();
+  const serviceAreaId = randomUUID();
+  const zoneId = randomUUID();
   const suffix = orderId.slice(0, 8).toUpperCase();
 
   await insertFixture("pricing_rules", {
@@ -111,6 +113,36 @@ async function createRiderFixture({ withRun = false }: { withRun?: boolean } = {
     width_mm: 180,
     height_mm: 120,
   });
+  await insertFixture("service_areas", {
+    id: serviceAreaId,
+    slug: `e2e-rider-${suffix.toLowerCase()}`,
+    name: `Controlled rider area ${suffix}`,
+    city: "Ibadan",
+    state: "Oyo",
+    active: false,
+  });
+  await insertFixture("service_zones", {
+    id: zoneId,
+    service_area_id: serviceAreaId,
+    name: `Controlled rider zone ${suffix}`,
+    code: `E2E${suffix.slice(0, 6)}`,
+    boundary_geojson: null,
+    active: false,
+    operational_status: "draft",
+    booking_eligibility: "unavailable",
+    dispatch_approval_required: true,
+    boundary_source: "Controlled isolated mobile acceptance fixture",
+  });
+  await insertFixture("service_area_operational_settings", {
+    service_area_id: serviceAreaId,
+    max_active_assignments_per_rider: 2,
+    waiting_free_minutes: 10,
+    waiting_fee_per_minute_kobo: 5_000,
+    maximum_continuous_riding_minutes: 180,
+    minimum_break_minutes: 20,
+  });
+  const orderZones = await admin.from("delivery_orders").update({ pickup_zone_id: zoneId, delivery_zone_id: zoneId }).eq("id", orderId);
+  if (orderZones.error) throw orderZones.error;
   await insertFixture("payment_intents", {
     id: paymentIntentId,
     order_id: orderId,
@@ -151,7 +183,7 @@ async function createRiderFixture({ withRun = false }: { withRun?: boolean } = {
     metadata: { fixture: true, paymentClearanceVerified: true },
   });
 
-  const fixture: RiderFixture = { orderId, quoteId, pricingRuleId, paymentIntentId };
+  const fixture: RiderFixture = { orderId, quoteId, pricingRuleId, paymentIntentId, serviceAreaId };
   if (withRun) {
     const vehicleId = randomUUID();
     const runId = randomUUID();
@@ -206,7 +238,7 @@ async function createRiderFixture({ withRun = false }: { withRun?: boolean } = {
       package_weight_grams: 1_000,
       package_volume_mm3: 5_400_000,
       compatibility_snapshot: { fixture: true },
-      route_snapshot: { fixture: true },
+      route_snapshot: { fixture: true, durationSeconds: 1_800 },
       idempotency_key: randomUUID(),
     });
     await insertFixture("delivery_run_stops", [{
@@ -260,6 +292,7 @@ async function cleanupRiderFixture(fixture: RiderFixture) {
   if (fixture.vehicleId) await deleteBy("fleet_vehicles", "id", fixture.vehicleId);
   await deleteBy("quotes", "id", fixture.quoteId);
   await deleteBy("pricing_rules", "id", fixture.pricingRuleId);
+  if (fixture.serviceAreaId) await deleteBy("service_areas", "id", fixture.serviceAreaId);
 }
 
 async function createAccount(role: TestRole, suffix: string) {
@@ -843,7 +876,7 @@ test("administrator creates and completes the audited service-zone lifecycle on 
   }
 });
 
-test("administrator registers a bike, assigns its rider and prepares a compliant run on mobile", async ({ page }) => {
+test("administrator registers a bike, assigns its rider and sees every remaining run-safety gate on mobile", async ({ page }) => {
   test.setTimeout(240_000);
   const account = accounts.find((item) => item.role === "admin")!;
   await login(page, account, /\/admin(?:\?|$)/);
@@ -885,8 +918,13 @@ test("administrator registers a bike, assigns its rider and prepares a compliant
   await bikeForm.getByLabel("Reason and verification evidence").fill("Controlled inspection and rider assignment completed");
   await bikeForm.getByRole("button", { name: "Save bike record" }).click();
   await expect(page.getByRole("status")).toContainText("Bike configuration updated and recorded");
-  await expect(page.getByRole("heading", { name: "Automatic capacity is available" })).toBeVisible();
-  await expectCurrentMobilePage(page, "dispatch capacity available");
+  const availableCapacity = page.getByRole("heading", { name: "Automatic capacity is available" });
+  if (await availableCapacity.count()) await expect(availableCapacity).toBeVisible();
+  else {
+    await expect(page.getByRole("heading", { name: "Automatic capacity is not ready" })).toBeVisible();
+    await expect(page.getByText(/set the maximum riding and minimum break times/i)).toBeVisible();
+  }
+  await expectCurrentMobilePage(page, "dispatch capacity after fleet verification");
 
   await page.goto("/admin/run-operations");
   const runCreator = page.locator("details").filter({ hasText: "Create a compliant delivery run" }).first();

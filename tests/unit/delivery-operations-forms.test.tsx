@@ -27,10 +27,20 @@ describe("DeliveryOperationsForms", () => {
   });
 
   it("shows the automatic free-wait countdown after arrival", () => {
-    render(<DeliveryOperationsForms orderId="order-1" runId="run-1" deliveryStatus="arrived_at_destination" activeWaitingSession={{ id: "wait-1", startedAt: new Date().toISOString(), freeMinutes: 10 }} />);
+    render(<DeliveryOperationsForms orderId="order-1" runId="run-1" deliveryStatus="arrived_at_destination" activeWaitingSession={{ id: "wait-1", startedAt: new Date().toISOString(), freeMinutes: 10, feePerMinuteKobo: 5_000 }} />);
 
     expect(screen.getByText("Waiting time")).toBeTruthy();
     expect(screen.getByText(/of free waiting time remains/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Stop waiting timer" })).toBeTruthy();
+  });
+
+  it("keeps the timer visible during receiver payment without inventing missing waiting prices", () => {
+    render(<DeliveryOperationsForms orderId="order-1" runId="run-1" deliveryStatus="awaiting_payment" activeWaitingSession={{ id: "wait-1", startedAt: new Date().toISOString(), freeMinutes: null, feePerMinuteKobo: null }} />);
+
+    expect(screen.getByText("Waiting time")).toBeTruthy();
+    expect(screen.getByText(/waiting price is not configured/i)).toBeTruthy();
+    expect(screen.getByText(/payment is still pending/i)).toBeTruthy();
+    expect(screen.queryByText(/of free waiting time remains/i)).toBeNull();
     expect(screen.getByRole("button", { name: "Stop waiting timer" })).toBeTruthy();
   });
 });
