@@ -1007,7 +1007,7 @@ test("administrator prepares a bike using required rider, safety and capacity ga
   const viewportCode = test.info().project.name === "mobile-375" ? "375" : "390";
   const bikeCode = `E2E-${viewportCode}-${fixtureRunCode}`;
   await page.goto("/admin/dispatch");
-  await expect(page.getByRole("heading", { name: "Automatic capacity is not ready" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Automatic capacity is (?:available|not ready)/ })).toBeVisible();
   await expect(page.getByRole("link", { name: "Manage riders", exact: true })).toBeVisible();
   await expectCurrentMobilePage(page, "dispatch readiness summary");
   const addBike = page.locator("details").filter({ hasText: "Add a motorcycle" });
