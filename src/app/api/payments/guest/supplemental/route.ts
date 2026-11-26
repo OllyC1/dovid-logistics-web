@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
   if (!supportedCategories.has(surcharge.category)) return NextResponse.json({ error: "This charge needs staff review." }, { status: 409 });
 
   try {
-    const intent = await getOrCreateSupplementalPaymentIntent(admin, { orderId: surcharge.order_id, orderReference: order.order_reference, surchargeId: surcharge.id, amountMinor: surcharge.approved_amount_kobo, currency: order.currency, idempotencyKey: parsed.data.idempotencyKey });
+    const intent = await getOrCreateSupplementalPaymentIntent(admin, { orderId: surcharge.order_id, orderReference: order.order_reference, surchargeId: surcharge.id, amountMinor: surcharge.approved_amount_kobo, currency: order.currency, idempotencyKey: parsed.data.idempotencyKey, receiptEmail: parsed.data.email });
     if (intent.status === "paid") return NextResponse.json({ error: "This charge is already paid." }, { status: 409 });
     const checkout = await getOrInitializePaymentCheckout(admin, intent, () => initializePaystackPayment({
       email: parsed.data.email,

@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { markPaymentInitializationFailed, type PaymentIntentReservation } from "@/features/payments/intents";
+import { markPaymentInitializationFailed, PaymentReceiptEmailConflictError, type PaymentIntentReservation } from "@/features/payments/intents";
 
 const INITIALIZATION_GRACE_MS = 60_000;
 
@@ -42,7 +42,9 @@ export function classifyCheckoutSession(session: CheckoutSession | null, intentC
 }
 
 export function paymentCheckoutErrorStatus(error: unknown) {
-  return error instanceof PaymentCheckoutInProgressError ? error.statusCode : 503;
+  return error instanceof PaymentCheckoutInProgressError || error instanceof PaymentReceiptEmailConflictError
+    ? error.statusCode
+    : 503;
 }
 
 export async function getOrInitializePaymentCheckout(

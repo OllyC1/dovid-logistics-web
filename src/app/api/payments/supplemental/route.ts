@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
   if (!new Set(["waiting_time", "toll_road_access", "redelivery", "authorized_parking_access", "extra_stop", "address_correction", "return_journey", "other"]).has(surcharge.category)) return NextResponse.json({ error: "Unsupported supplemental charge" }, { status: 409 });
 
   try {
-    const intent = await getOrCreateSupplementalPaymentIntent(admin, { orderId: surcharge.order_id, orderReference: order.order_reference, surchargeId: surcharge.id, amountMinor: surcharge.approved_amount_kobo, currency: order.currency });
+    const intent = await getOrCreateSupplementalPaymentIntent(admin, { orderId: surcharge.order_id, orderReference: order.order_reference, surchargeId: surcharge.id, amountMinor: surcharge.approved_amount_kobo, currency: order.currency, receiptEmail: customerEmail });
     if (intent.status === "paid") return NextResponse.json({ error: "This charge is already paid" }, { status: 409 });
     const checkout = await getOrInitializePaymentCheckout(admin, intent, () => initializePaystackPayment({ email: customerEmail, amountMinor: surcharge.approved_amount_kobo, reference: intent.provider_reference, callbackUrl: `${publicEnv.NEXT_PUBLIC_APP_URL}/pay/callback`, metadata: { order_id: surcharge.order_id, payment_intent_id: intent.id, surcharge_id: surcharge.id, payment_type: "supplemental" } }));
     await admin.from("customer_surcharges").update({ status: "payment_pending" }).eq("id", surcharge.id);

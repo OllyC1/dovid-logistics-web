@@ -53,6 +53,7 @@ export async function POST(request: NextRequest) {
       currency: order.currency,
       idempotencyKey: parsed.data.idempotencyKey,
       receiver: false,
+      receiptEmail: parsed.data.email,
     });
     const checkout = await getOrInitializePaymentCheckout(admin, intent, () => initializePaystackPayment({
       email: parsed.data.email,

@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
       if (error) throw error;
       return NextResponse.json({ checkoutUrl: `/account/orders/${order.id}`, confirmed: true }, { headers: { "Cache-Control": "no-store" } });
     }
-    const intent = await getOrCreateMainPaymentIntent(admin, { orderId: order.id, orderReference: order.order_reference, amountMinor: order.quoted_amount_minor, currency: order.currency, idempotencyKey: parsed.data.idempotencyKey, receiver: false });
+    const intent = await getOrCreateMainPaymentIntent(admin, { orderId: order.id, orderReference: order.order_reference, amountMinor: order.quoted_amount_minor, currency: order.currency, idempotencyKey: parsed.data.idempotencyKey, receiver: false, receiptEmail: customerEmail });
     const checkout = await getOrInitializePaymentCheckout(admin, intent, () => initializePaystackPayment({ email: customerEmail, amountMinor: order.quoted_amount_minor, reference: intent.provider_reference, callbackUrl: `${publicEnv.NEXT_PUBLIC_APP_URL}/pay/callback`, metadata: { order_id: order.id, payment_intent_id: intent.id, payment_type: "sender" }, channels: order.payment_method === "bank_transfer" ? ["bank_transfer"] : undefined }));
     await admin.from("delivery_orders").update({ payment_status: "processing", updated_at: new Date().toISOString() }).eq("id", order.id).neq("payment_status", "paid");
     return NextResponse.json({ checkoutUrl: checkout.authorization_url });
