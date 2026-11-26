@@ -1,7 +1,7 @@
 import { createHmac } from "node:crypto";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ResendNotificationProvider, NotificationProviderError } from "@/lib/notifications/provider";
-import { renderTransactionalEmail } from "@/lib/notifications/templates";
+import { getTransactionalEmailPurpose, renderTransactionalEmail, transactionalEmailPurposes } from "@/lib/notifications/templates";
 import { verifyResendWebhook } from "@/lib/resend/webhook";
 
 afterEach(() => vi.unstubAllGlobals());
@@ -43,6 +43,80 @@ describe("Resend transactional email", () => {
     expect(rendered.html).toContain("Delivery &lt;update&gt;");
     expect(rendered.html).not.toContain("Delivery <update>");
     expect(rendered.text).toContain("DOV-1");
+  });
+
+  it("renders enquiry acknowledgement as an enquiry with no delivery or account action", () => {
+    const rendered = renderTransactionalEmail({
+      eventType: "website_enquiry_acknowledged",
+      heading: "We received your message",
+      body: "Thank you for contacting Dovid Logistics.",
+      metadata: { actionPath: "/contact", enquiryKind: "support" }
+    });
+
+    expect(rendered.html).toContain("Support enquiry received");
+    expect(rendered.html).not.toContain("Delivery update");
+    expect(rendered.html).not.toContain("View secure update");
+    expect(rendered.html).not.toContain("href=");
+    expect(rendered.text).not.toContain("https://");
+    expect(rendered.text).toContain("You do not need to sign in or make a payment for an enquiry.");
+  });
+
+  it("renders an internal enquiry with readable fields and its staff action", () => {
+    const rendered = renderTransactionalEmail({
+      eventType: "website_enquiry_received",
+      heading: "New website support enquiry",
+      body: "Name: Test Customer\nEmail: customer@example.com\n\nMessage:\nPlease call me.",
+      metadata: { actionPath: "/admin", enquiryKind: "support" }
+    });
+
+    expect(rendered.html).toContain("New support enquiry");
+    expect(rendered.html).toContain("Name: Test Customer<br>Email: customer@example.com");
+    expect(rendered.html).toContain("Open admin workspace");
+    expect(rendered.html).toContain("Customer contact details are confidential.");
+    expect(rendered.html).not.toContain("send money to a rider");
+  });
+
+  it("uses payment-specific structure and the payment amount", () => {
+    const rendered = renderTransactionalEmail({
+      eventType: "payment_confirmed",
+      heading: "Payment confirmed",
+      body: "Your payment has been verified.",
+      metadata: { actionPath: "/account/orders/test", amountMinor: 250000, currency: "NGN", paymentStatus: "paid" }
+    });
+
+    expect(rendered.html).toContain("Payment receipt");
+    expect(rendered.html).toContain("View payment details");
+    expect(rendered.text).toContain("₦2,500.00");
+    expect(rendered.html).not.toContain("Track delivery");
+  });
+
+  it("does not create a button for an unsafe or unknown action", () => {
+    const unsafe = renderTransactionalEmail({ eventType: "booking_confirmed", heading: "Confirmed", body: "Done", metadata: { actionPath: "//malicious.example" } });
+    const unknown = renderTransactionalEmail({ eventType: "unreviewed_event", heading: "Update", body: "Details", metadata: { actionPath: "/account" } });
+
+    expect(unsafe.html).not.toContain("href=");
+    expect(unknown.html).toContain("Dovid Logistics update");
+    expect(unknown.html).not.toContain("href=");
+  });
+
+  it("has an explicit presentation for every application email event", () => {
+    expect(Object.keys(transactionalEmailPurposes).sort()).toEqual([
+      "additional_fee_request",
+      "booking_confirmed",
+      "delivery_failed",
+      "dispatch.approval_queue",
+      "dispatch.approval_requested",
+      "dispatch_request_approved",
+      "dispatch_request_rejected",
+      "package_collected",
+      "package_delivered",
+      "payment_confirmed",
+      "production_readiness_test",
+      "redelivery_scheduled",
+      "website_enquiry_acknowledged",
+      "website_enquiry_received"
+    ]);
+    expect(getTransactionalEmailPurpose("website_enquiry_received", { enquiryKind: "business" }).badge).toBe("New business enquiry");
   });
 
   it.each([

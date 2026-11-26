@@ -2,6 +2,23 @@
 
 The application code supports Resend API delivery, signed Resend webhooks and a durable Supabase-backed queue. Supabase Auth must continue to generate all confirmation, recovery and invitation tokens.
 
+## Purpose-specific email contract
+
+Application emails are not allowed to share a misleading generic call to action. The renderer has an explicit presentation for each currently supported event family:
+
+| Purpose | Event types | Customer or staff action |
+| --- | --- | --- |
+| Booking | `booking_confirmed`, `dispatch_request_approved`, `dispatch_request_rejected` | View or continue the relevant booking only |
+| Dispatch staff | `dispatch.approval_requested`, `dispatch.approval_queue` | Open Dispatch Control with a verified staff account |
+| Delivery | `package_collected`, `package_delivered`, `delivery_failed`, `redelivery_scheduled` | Track, view receipt or review the relevant next step |
+| Payment | `payment_confirmed`, `additional_fee_request` | View payment details or review the approved charge |
+| Enquiries | `website_enquiry_received`, `website_enquiry_acknowledged` | Staff may open the enquiry workspace; the customer acknowledgement has no sign-in or payment button |
+| Controlled validation | `production_readiness_test` | No customer action |
+
+Unknown events fail safely with a neutral Dovid Logistics label and no button. Every new application email event must be added to this catalogue with its audience, badge, action wording and safety note before release. The queue does not invent a default `/account` link.
+
+Supabase Auth emails are intentionally separate from the application queue. Confirmation, recovery, staff invitation, magic-link and email-change templates each have their own purpose-specific heading, explanation, single-use action and security copy in `supabase/templates/`.
+
 ## Verified pre-launch state
 
 - The Resend sending domain `dovidlogistics.com` is verified.
