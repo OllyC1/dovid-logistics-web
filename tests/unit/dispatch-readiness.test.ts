@@ -29,6 +29,8 @@ describe("assessDispatchReadiness", () => {
       riderParcelLimit: 10,
       handoverBufferMinutes: null,
       safeCompletionBufferMinutes: null,
+      maximumContinuousRidingMinutes: null,
+      minimumBreakMinutes: null,
     });
 
     expect(readiness).toMatchObject({
@@ -36,6 +38,7 @@ describe("assessDispatchReadiness", () => {
       availableParcelSlots: 0,
       automaticCapacityAvailable: false,
       scheduleBuffersConfigured: false,
+      riderRestRulesConfigured: false,
     });
   });
 
@@ -47,6 +50,8 @@ describe("assessDispatchReadiness", () => {
       riderParcelLimit: 10,
       handoverBufferMinutes: 15,
       safeCompletionBufferMinutes: 20,
+      maximumContinuousRidingMinutes: 180,
+      minimumBreakMinutes: 20,
     });
 
     expect(readiness).toMatchObject({
@@ -55,6 +60,7 @@ describe("assessDispatchReadiness", () => {
       availableParcelSlots: 1,
       automaticCapacityAvailable: true,
       scheduleBuffersConfigured: true,
+      riderRestRulesConfigured: true,
     });
   });
 
@@ -66,10 +72,31 @@ describe("assessDispatchReadiness", () => {
       riderParcelLimit: 10,
       handoverBufferMinutes: null,
       safeCompletionBufferMinutes: null,
+      maximumContinuousRidingMinutes: 180,
+      minimumBreakMinutes: 20,
     });
 
     expect(readiness.availableParcelSlots).toBe(10);
     expect(readiness.scheduleBuffersConfigured).toBe(false);
+    expect(readiness.riderRestRulesConfigured).toBe(true);
+    expect(readiness.automaticCapacityAvailable).toBe(false);
+  });
+
+  it("does not advertise automatic booking while rider rest rules are unset", () => {
+    const readiness = assessDispatchReadiness({
+      vehicles: [verifiedVehicle],
+      activeNamedRiderIds: ["rider-1"],
+      activeAssignments: [],
+      riderParcelLimit: 10,
+      handoverBufferMinutes: 15,
+      safeCompletionBufferMinutes: 20,
+      maximumContinuousRidingMinutes: null,
+      minimumBreakMinutes: null,
+    });
+
+    expect(readiness.availableParcelSlots).toBe(10);
+    expect(readiness.scheduleBuffersConfigured).toBe(true);
+    expect(readiness.riderRestRulesConfigured).toBe(false);
     expect(readiness.automaticCapacityAvailable).toBe(false);
   });
 
@@ -81,6 +108,8 @@ describe("assessDispatchReadiness", () => {
       riderParcelLimit: 10,
       handoverBufferMinutes: 15,
       safeCompletionBufferMinutes: 20,
+      maximumContinuousRidingMinutes: 180,
+      minimumBreakMinutes: 20,
     });
 
     expect(readiness.readyMotorcycles).toBe(0);

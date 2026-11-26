@@ -21,10 +21,11 @@ function Gate({ label, value, ready, note }: { label: string; value: string; rea
 }
 
 export function LaunchReadinessPanel(props: LaunchReadinessPanelProps) {
+  const safeSchedulingConfigured = props.dispatch.scheduleBuffersConfigured && props.dispatch.riderRestRulesConfigured;
   const databaseReady = props.activeApprovedZones > 0
     && props.activeRateCards > 0
     && props.dispatch.automaticCapacityAvailable
-    && props.dispatch.scheduleBuffersConfigured;
+    && safeSchedulingConfigured;
 
   return <section aria-labelledby="launch-readiness-heading" className={`mt-8 rounded-3xl border p-4 sm:p-6 ${databaseReady ? "border-emerald-200 bg-emerald-50" : "border-amber-300 bg-amber-50"}`}>
     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -40,7 +41,7 @@ export function LaunchReadinessPanel(props: LaunchReadinessPanelProps) {
       <Gate label="Coverage records" value={`${props.activeApprovedZones} active`} ready={props.activeApprovedZones > 0} note="Approved boundaries recorded in the database. Road and address field confirmation remains a separate founder check." />
       <Gate label="Commercial pricing" value={`${props.activeRateCards} active card${props.activeRateCards === 1 ? "" : "s"}`} ready={props.activeRateCards > 0} note="Only active, non-provisional rate cards count here. Profitability controls still apply to every quote." />
       <Gate label="Dispatch capacity" value={`${props.dispatch.availableParcelSlots} free slot${props.dispatch.availableParcelSlots === 1 ? "" : "s"}`} ready={props.dispatch.automaticCapacityAvailable} note={`${props.dispatch.readyMotorcycles} of ${props.dispatch.totalMotorcycles} motorcycles currently meet the recorded dispatch requirements.`} />
-      <Gate label="Safe scheduling" value={props.dispatch.scheduleBuffersConfigured ? "Configured" : "Not configured"} ready={props.dispatch.scheduleBuffersConfigured} note="Handover and safe-completion buffers are required for reliable assisted-booking scheduling." />
+      <Gate label="Safe scheduling" value={safeSchedulingConfigured ? "Configured" : "Not configured"} ready={safeSchedulingConfigured} note="Pickup handover, end-of-day safety, maximum continuous riding and minimum break times must all be recorded." />
     </div>
 
     <div className="mt-5 rounded-2xl bg-white p-4">

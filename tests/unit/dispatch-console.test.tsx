@@ -24,6 +24,7 @@ describe("DispatchConsole readiness", () => {
         availableParcelSlots: 0,
         riderParcelLimit: 10,
         scheduleBuffersConfigured: false,
+        riderRestRulesConfigured: false,
         automaticCapacityAvailable: false,
       }}
     />);
@@ -31,7 +32,8 @@ describe("DispatchConsole readiness", () => {
     expect(screen.getByRole("heading", { name: "Automatic capacity is not ready" })).toBeTruthy();
     expect(screen.getByText(/no verified motorcycle and active rider have a free parcel slot/i)).toBeTruthy();
     expect(screen.getByText("Ready motorcycles").parentElement?.textContent).toContain("0 / 2");
-    expect(screen.getByText(/set the handover and completion buffers/i)).toBeTruthy();
+    expect(screen.getByText(/set the pickup handover and end-of-day safety allowances/i)).toBeTruthy();
+    expect(screen.getByText(/set the maximum riding and minimum break times/i)).toBeTruthy();
     expect(screen.getByRole("link", { name: "Review motorcycles" }).getAttribute("href")).toBe("#fleet-registry");
     expect(screen.getByRole("link", { name: "Manage riders" }).getAttribute("href")).toBe("/admin/team");
     expect(screen.getByRole("link", { name: "Set operating rules" }).getAttribute("href")).toBe("/admin/coverage");
@@ -61,7 +63,7 @@ describe("DispatchConsole readiness", () => {
       missingRiderNames={0}
       requests={[]}
       orders={[{ id: "order-1", order_reference: "DOV-001", pickup_address: "Bodija", delivery_address: "Dugbe", pickup_zone_id: null }]}
-      readiness={{ activeNamedRiders: 1, readyMotorcycles: 0, totalMotorcycles: 1, availableParcelSlots: 0, riderParcelLimit: 10, scheduleBuffersConfigured: true, automaticCapacityAvailable: false }}
+      readiness={{ activeNamedRiders: 1, readyMotorcycles: 0, totalMotorcycles: 1, availableParcelSlots: 0, riderParcelLimit: 10, scheduleBuffersConfigured: true, riderRestRulesConfigured: true, automaticCapacityAvailable: false }}
     />);
 
     expect((screen.getByRole("option", { name: /capacity check needed/i }) as HTMLOptionElement).disabled).toBe(true);

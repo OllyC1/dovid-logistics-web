@@ -23,6 +23,7 @@ export type DispatchReadiness = {
   availableParcelSlots: number;
   riderParcelLimit: number;
   scheduleBuffersConfigured: boolean;
+  riderRestRulesConfigured: boolean;
   automaticCapacityAvailable: boolean;
 };
 
@@ -66,9 +67,12 @@ export function assessDispatchReadiness(input: {
   riderParcelLimit: number;
   handoverBufferMinutes: number | null;
   safeCompletionBufferMinutes: number | null;
+  maximumContinuousRidingMinutes: number | null;
+  minimumBreakMinutes: number | null;
 }): DispatchReadiness {
   const capacity = calculateDispatchCapacity(input);
   const scheduleBuffersConfigured = input.handoverBufferMinutes !== null && input.safeCompletionBufferMinutes !== null;
+  const riderRestRulesConfigured = (input.maximumContinuousRidingMinutes ?? 0) > 0 && (input.minimumBreakMinutes ?? 0) > 0;
 
   return {
     activeNamedRiders: new Set(input.activeNamedRiderIds).size,
@@ -77,6 +81,7 @@ export function assessDispatchReadiness(input: {
     availableParcelSlots: capacity.availableParcelSlots,
     riderParcelLimit: input.riderParcelLimit,
     scheduleBuffersConfigured,
-    automaticCapacityAvailable: capacity.availableParcelSlots > 0 && scheduleBuffersConfigured,
+    riderRestRulesConfigured,
+    automaticCapacityAvailable: capacity.availableParcelSlots > 0 && scheduleBuffersConfigured && riderRestRulesConfigured,
   };
 }

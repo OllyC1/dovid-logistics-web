@@ -21,7 +21,7 @@ export default async function AdminOverview() {
       auth.admin.from("staff_memberships").select("user_id").eq("staff_role", "rider").eq("status", "active"),
       auth.admin.from("profiles").select("id,full_name").eq("role", "rider"),
       auth.admin.from("delivery_assignments").select("vehicle_id,rider_id").is("released_at", null),
-      auth.admin.from("service_area_operational_settings").select("max_active_assignments_per_rider,handover_buffer_minutes,safe_completion_buffer_minutes").limit(1).maybeSingle(),
+      auth.admin.from("service_area_operational_settings").select("max_active_assignments_per_rider,handover_buffer_minutes,safe_completion_buffer_minutes,maximum_continuous_riding_minutes,minimum_break_minutes").limit(1).maybeSingle(),
       auth.admin.from("service_zones").select("id", { count: "exact", head: true }).eq("active", true).eq("operational_status", "active").not("approved_at", "is", null).not("boundary_geojson", "is", null),
       auth.admin.from("rate_cards").select("id", { count: "exact", head: true }).eq("active", true).eq("provisional", false).lte("effective_at", now).or(`expires_at.is.null,expires_at.gt.${now}`),
     ]);
@@ -34,6 +34,8 @@ export default async function AdminOverview() {
       riderParcelLimit: settings?.max_active_assignments_per_rider ?? 0,
       handoverBufferMinutes: settings?.handover_buffer_minutes ?? null,
       safeCompletionBufferMinutes: settings?.safe_completion_buffer_minutes ?? null,
+      maximumContinuousRidingMinutes: settings?.maximum_continuous_riding_minutes ?? null,
+      minimumBreakMinutes: settings?.minimum_break_minutes ?? null,
     });
     launchReadiness = <LaunchReadinessPanel
       dispatch={dispatch}
