@@ -6,6 +6,9 @@ begin;
 
 update public.fleet_vehicles
 set registration_number='IBD 901 WF', assigned_rider_id='33333333-3333-3333-3333-333333333333',
+    registration_verified_at=now(), registration_verified_by='44444444-4444-4444-4444-444444444444',
+    registration_verification_method='controlled physical inspection', registration_verification_reference='CONCURRENCY-REG-001',
+    manufacturer='Honda', model='Ace 125', model_year=2025,
     safety_status='cleared', max_payload_weight_grams=18000,
     cargo_length_mm=500, cargo_width_mm=400, cargo_height_mm=400,
     capacity_verified_at=now(), capacity_verified_by='44444444-4444-4444-4444-444444444444',

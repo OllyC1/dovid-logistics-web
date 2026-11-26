@@ -1,9 +1,13 @@
 import { remainingDispatchSlots } from "@/features/dispatch/capacity";
-import { isRealVehicleRegistration } from "@/features/fleet/registration";
+import { hasVerifiedVehicleRegistration } from "@/features/fleet/registration";
 
 type ReadinessVehicle = {
   id: string;
   registration_number: string | null;
+  registration_verified_at: string | null;
+  manufacturer: string | null;
+  model: string | null;
+  model_year: number | null;
   operational_status: string;
   safety_status: string;
   assigned_rider_id: string | null;
@@ -43,7 +47,7 @@ export function calculateDispatchCapacity(input: {
   }
 
   const readyVehicles = input.vehicles.filter((vehicle) => (
-    isRealVehicleRegistration(vehicle.registration_number)
+    hasVerifiedVehicleRegistration(vehicle)
     && ["available", "assigned"].includes(vehicle.operational_status)
     && vehicle.safety_status === "cleared"
     && Boolean(vehicle.capacity_verified_at)

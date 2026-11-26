@@ -192,6 +192,10 @@ async function createRiderFixture({ withRun = false }: { withRun?: boolean } = {
       id: vehicleId,
       code: `E2E-RIDER-${suffix}`,
       registration_number: `TST ${suffix.slice(0, 3)} RT`,
+      registration_verified_at: new Date().toISOString(),
+      registration_verified_by: administrator.id,
+      registration_verification_method: "Controlled physical inspection",
+      registration_verification_reference: `E2E-${suffix}-REG`,
       manufacturer: "Honda",
       model: "Controlled test motorcycle",
       model_year: 2024,
@@ -361,6 +365,10 @@ async function removeAccount(account: TestAccount) {
       safety_status: "review_required",
       capacity_verified_at: null,
       capacity_verified_by: null,
+      registration_verified_at: null,
+      registration_verified_by: null,
+      registration_verification_method: null,
+      registration_verification_reference: null,
     }).eq("id", vehicle.id);
     if (reset.error) throw reset.error;
     const removed = await admin.from("fleet_vehicles").delete()
@@ -913,6 +921,9 @@ test("administrator registers a bike, assigns its rider and sees every remaining
   await bikeForm.getByLabel("Length").fill("500");
   await bikeForm.getByLabel("Width").fill("400");
   await bikeForm.getByLabel("Height").fill("400");
+  await bikeForm.getByLabel(/checked this plate against the physical motorcycle/i).check();
+  await bikeForm.getByLabel("How was it checked?").fill("Controlled physical inspection");
+  await bikeForm.getByLabel("Evidence reference").fill(`E2E-${viewportCode}-${fixtureRunCode}-REG`);
   await bikeForm.getByLabel("I physically measured and verified this capacity").check();
   await bikeForm.getByLabel("Operating status").selectOption("available");
   await bikeForm.getByLabel("Reason and verification evidence").fill("Controlled inspection and rider assignment completed");

@@ -35,13 +35,18 @@ begin
     where id='86000000-0000-4000-8000-000000000010';
     raise exception 'unready motorcycle became available';
   exception when others then
-    if sqlerrm <> 'assign an active rider before activation' then raise; end if;
+    if sqlerrm <> 'verify the physical motorcycle registration before activation' then raise; end if;
   end;
 end;
 $$;
 
 update public.fleet_vehicles
 set assigned_rider_id='66666666-6666-4666-8666-666666666662',
+    model_year=2025,
+    registration_verified_at=now(),
+    registration_verified_by='66666666-6666-4666-8666-666666666661',
+    registration_verification_method='controlled physical inspection',
+    registration_verification_reference='FLEET-REG-001',
     safety_status='cleared',
     max_active_assignments=2,
     max_payload_weight_grams=18000,

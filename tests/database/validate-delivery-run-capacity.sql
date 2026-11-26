@@ -19,6 +19,13 @@ where service_area_id='10000000-0000-4000-8000-000000000001';
 
 update public.fleet_vehicles
 set registration_number='IBD 910 RC',
+    registration_verified_at=now(),
+    registration_verified_by='44444444-4444-4444-4444-444444444444',
+    registration_verification_method='controlled physical inspection',
+    registration_verification_reference='RUN-CAPACITY-REG-001',
+    manufacturer='Honda',
+    model='Ace 125',
+    model_year=2025,
     assigned_rider_id='33333333-3333-3333-3333-333333333333',
     operational_status='available',
     safety_status='cleared',

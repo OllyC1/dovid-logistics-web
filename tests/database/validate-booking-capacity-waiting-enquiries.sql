@@ -108,11 +108,15 @@ begin
   where service_area_id=area_id;
 
   insert into public.fleet_vehicles(
-    id,code,registration_number,manufacturer,model,assigned_rider_id,operational_status,safety_status,
+    id,code,registration_number,registration_verified_at,registration_verified_by,
+    registration_verification_method,registration_verification_reference,manufacturer,model,model_year,
+    assigned_rider_id,operational_status,safety_status,
     max_active_assignments,max_payload_weight_grams,cargo_length_mm,cargo_width_mm,cargo_height_mm,
     capacity_verified_at,capacity_verified_by
   ) values(
-    test_vehicle_id,'CAPACITY-BIKE','IBD 910 QA','Honda','Ace 125','33333333-3333-3333-3333-333333333333','available','cleared',
+    test_vehicle_id,'CAPACITY-BIKE','IBD 910 QA',now(),'44444444-4444-4444-4444-444444444444',
+    'controlled physical inspection','BOOKING-CAPACITY-REG-001','Honda','Ace 125',2025,
+    '33333333-3333-3333-3333-333333333333','available','cleared',
     10,18000,500,400,400,now(),'44444444-4444-4444-4444-444444444444'
   );
 

@@ -236,6 +236,10 @@ declare
 begin
   update public.fleet_vehicles
   set registration_number='TST RTS 001',
+      registration_verified_at=now(),
+      registration_verified_by='44444444-4444-4444-4444-444444444444',
+      registration_verification_method='controlled physical inspection',
+      registration_verification_reference='RETURN-WORKFLOW-REG-001',
       manufacturer='Validation',
       model='Return workflow bike',
       model_year=2024,

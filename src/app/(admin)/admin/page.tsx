@@ -17,7 +17,7 @@ export default async function AdminOverview() {
   if (auth.staffRole === "super_admin") {
     const now = new Date().toISOString();
     const [{ data: vehicles }, { data: riderMemberships }, { data: riderProfiles }, { data: assignments }, { data: settings }, zones, rateCards] = await Promise.all([
-      auth.admin.from("fleet_vehicles").select("id,registration_number,operational_status,safety_status,assigned_rider_id,max_active_assignments,capacity_verified_at"),
+      auth.admin.from("fleet_vehicles").select("id,registration_number,registration_verified_at,manufacturer,model,model_year,operational_status,safety_status,assigned_rider_id,max_active_assignments,capacity_verified_at"),
       auth.admin.from("staff_memberships").select("user_id").eq("staff_role", "rider").eq("status", "active"),
       auth.admin.from("profiles").select("id,full_name").eq("role", "rider"),
       auth.admin.from("delivery_assignments").select("vehicle_id,rider_id").is("released_at", null),

@@ -4,6 +4,10 @@ import { assessDispatchReadiness, calculateDispatchCapacity } from "@/features/d
 const verifiedVehicle = {
   id: "vehicle-1",
   registration_number: "ABC 123 XY",
+  registration_verified_at: "2026-11-26T09:00:00.000Z",
+  manufacturer: "Honda",
+  model: "Ace 125",
+  model_year: 2025,
   operational_status: "available",
   safety_status: "cleared",
   assigned_rider_id: "rider-1",
@@ -15,6 +19,15 @@ describe("assessDispatchReadiness", () => {
   it("never counts an unverified motorcycle for public or assisted booking capacity", () => {
     expect(calculateDispatchCapacity({
       vehicles: [{ ...verifiedVehicle, capacity_verified_at: null }],
+      activeNamedRiderIds: ["rider-1"],
+      activeAssignments: [],
+      riderParcelLimit: 10,
+    })).toEqual({ readyMotorcycles: 0, availableParcelSlots: 0 });
+  });
+
+  it("does not mistake a plausible test plate for verified registration evidence", () => {
+    expect(calculateDispatchCapacity({
+      vehicles: [{ ...verifiedVehicle, registration_verified_at: null }],
       activeNamedRiderIds: ["rider-1"],
       activeAssignments: [],
       riderParcelLimit: 10,

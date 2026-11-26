@@ -7,7 +7,7 @@ export default async function DispatchPage() {
   await requireStaffPermission("dispatch.manage");
   const admin = createSupabaseAdminClient();
   const [{ data: vehicles }, { data: riderMemberships }, { data: riderProfiles }, { data: requests }, { data: orders }, { data: assignments }, { data: settings }] = await Promise.all([
-    admin.from("fleet_vehicles").select("id,code,registration_number,manufacturer,model,model_year,operational_status,safety_status,assigned_rider_id,home_territory_codes,max_active_assignments,max_payload_weight_grams,cargo_length_mm,cargo_width_mm,cargo_height_mm,capacity_verified_at").order("code"),
+    admin.from("fleet_vehicles").select("id,code,registration_number,registration_verified_at,registration_verification_method,registration_verification_reference,manufacturer,model,model_year,operational_status,safety_status,assigned_rider_id,home_territory_codes,max_active_assignments,max_payload_weight_grams,cargo_length_mm,cargo_width_mm,cargo_height_mm,capacity_verified_at").order("code"),
     admin.from("staff_memberships").select("user_id").eq("staff_role", "rider").eq("status", "active"),
     admin.from("profiles").select("id,full_name").eq("role", "rider").order("full_name"),
     admin.from("delivery_availability_requests").select("id,reference_code,decision,reason_code,road_distance_meters,created_at,request_payload").eq("status", "pending").order("created_at"),

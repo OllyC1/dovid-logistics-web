@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { scoreDispatchCandidate } from "@/features/dispatch/scoring";
-import { isRealVehicleRegistration } from "@/features/fleet/registration";
+import { hasVerifiedVehicleRegistration } from "@/features/fleet/registration";
 import { getDispatchManagerAuthorization as getAuthenticatedRole } from "@/lib/auth/staff";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
@@ -16,14 +16,14 @@ export async function POST(request: NextRequest) {
   const admin = createSupabaseAdminClient();
   const [{ data: order }, { data: vehicle }, { data: riderMembership }, { count: riderWorkload }, { count: vehicleWorkload }] = await Promise.all([
     admin.from("delivery_orders").select("id,pickup_latitude,pickup_longitude,pickup_zone_id,quotes(duration_seconds)").eq("id", parsed.data.orderId).maybeSingle(),
-    admin.from("fleet_vehicles").select("id,registration_number,operational_status,safety_status,current_latitude,current_longitude,max_active_assignments,assigned_rider_id,capacity_verified_at").eq("id", parsed.data.vehicleId).maybeSingle(),
+    admin.from("fleet_vehicles").select("id,registration_number,registration_verified_at,manufacturer,model,model_year,operational_status,safety_status,current_latitude,current_longitude,max_active_assignments,assigned_rider_id,capacity_verified_at").eq("id", parsed.data.vehicleId).maybeSingle(),
     admin.from("staff_memberships").select("user_id").eq("user_id", parsed.data.riderId).eq("staff_role", "rider").eq("status", "active").maybeSingle(),
     admin.from("delivery_assignments").select("id", { count: "exact", head: true }).eq("rider_id", parsed.data.riderId).is("released_at", null),
     admin.from("delivery_assignments").select("id", { count: "exact", head: true }).eq("vehicle_id", parsed.data.vehicleId).is("released_at", null)
   ]);
   if (!order || !vehicle) return NextResponse.json({ error: "Order or bike not found." }, { status: 404 });
   if (!riderMembership) return NextResponse.json({ error: "Choose an active, identity-verified rider." }, { status: 409 });
-  if (!isRealVehicleRegistration(vehicle.registration_number) || !vehicle.capacity_verified_at) return NextResponse.json({ error: "The bike needs its real plate and verified measured capacity before assignment." }, { status: 409 });
+  if (!hasVerifiedVehicleRegistration(vehicle) || !vehicle.capacity_verified_at) return NextResponse.json({ error: "The bike needs an evidence-verified plate and measured capacity before assignment." }, { status: 409 });
   const proximityMeters = vehicle.current_latitude === null || vehicle.current_longitude === null ? null : approximateDistanceMeters({ latitude: Number(vehicle.current_latitude), longitude: Number(vehicle.current_longitude) }, { latitude: Number(order.pickup_latitude), longitude: Number(order.pickup_longitude) });
   const { data: pickupZone } = order.pickup_zone_id ? await admin.from("service_zones").select("service_area_id").eq("id", order.pickup_zone_id).maybeSingle() : { data: null };
   const { data: settings } = pickupZone ? await admin.from("service_area_operational_settings").select("max_active_assignments_per_rider").eq("service_area_id", pickupZone.service_area_id).maybeSingle() : { data: null };

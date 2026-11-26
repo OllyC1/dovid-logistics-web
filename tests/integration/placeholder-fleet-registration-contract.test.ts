@@ -18,13 +18,13 @@ describe("placeholder fleet registration quarantine", () => {
 
   it("prevents placeholders from being assigned or dispatched again", () => {
     expect(migration).toContain("fleet_vehicles_placeholder_not_dispatchable");
-    expect(assignmentRoute).toContain("isRealVehicleRegistration(vehicle.registration_number)");
-    expect(runRoute).toContain("isRealVehicleRegistration(vehicle.registration_number)");
+    expect(assignmentRoute).toContain("hasVerifiedVehicleRegistration(vehicle)");
+    expect(runRoute).toContain("hasVerifiedVehicleRegistration(vehicle)");
   });
 
   it("does not count a placeholder motorcycle as customer booking capacity", () => {
     expect(publicQuoteRoute).toContain("calculateDispatchCapacity");
     expect(assistedQuote).toContain("calculateDispatchCapacity");
-    expect(dispatchReadiness).toContain("isRealVehicleRegistration(vehicle.registration_number)");
+    expect(dispatchReadiness).toContain("hasVerifiedVehicleRegistration(vehicle)");
   });
 });

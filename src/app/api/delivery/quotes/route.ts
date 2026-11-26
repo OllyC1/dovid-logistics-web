@@ -157,7 +157,7 @@ export async function POST(request: NextRequest) {
     const [competitorQuotes, promotions, fleetResult, assignmentResult, riderMembershipResult, riderProfileResult] = await Promise.all([
       loadComparableCompetitorQuotes({ serviceAreaId: pickupZone.service_area_id, serviceLevel: parsed.data.serviceLevel, packageCategory: parsed.data.packageCategory, roadDistanceMeters: route.distanceMeters, config: context.config }),
       loadPromotion(parsed.data.promotionCode),
-      admin.from("fleet_vehicles").select("id,registration_number,operational_status,safety_status,assigned_rider_id,max_active_assignments,capacity_verified_at").in("operational_status", ["available", "assigned"]).eq("safety_status", "cleared"),
+      admin.from("fleet_vehicles").select("id,registration_number,registration_verified_at,manufacturer,model,model_year,operational_status,safety_status,assigned_rider_id,max_active_assignments,capacity_verified_at").in("operational_status", ["available", "assigned"]).eq("safety_status", "cleared"),
       admin.from("delivery_assignments").select("vehicle_id,rider_id").is("released_at", null),
       admin.from("staff_memberships").select("user_id").eq("staff_role", "rider").eq("status", "active"),
       admin.from("profiles").select("id").eq("role", "rider")
