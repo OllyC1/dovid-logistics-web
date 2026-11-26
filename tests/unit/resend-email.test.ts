@@ -39,9 +39,10 @@ describe("Resend transactional email", () => {
   });
 
   it("escapes user-controlled content and includes a text alternative", () => {
-    const rendered = renderTransactionalEmail({ eventType: "delivery_failed", heading: "Delivery <update>", body: "Review & continue", metadata: { orderReference: "DOV-1", actionPath: "/account/orders/1" } });
-    expect(rendered.html).toContain("Delivery &lt;update&gt;");
-    expect(rendered.html).not.toContain("Delivery <update>");
+    const rendered = renderTransactionalEmail({ eventType: "delivery_failed", heading: "Untrusted heading", body: "Review <update> & continue", metadata: { orderReference: "DOV-1", actionPath: "/account/orders/1" } });
+    expect(rendered.html).toContain("Review &lt;update&gt; &amp; continue");
+    expect(rendered.html).not.toContain("Review <update>");
+    expect(rendered.html).not.toContain("Untrusted heading");
     expect(rendered.text).toContain("DOV-1");
   });
 
@@ -54,6 +55,8 @@ describe("Resend transactional email", () => {
     });
 
     expect(rendered.html).toContain("Support enquiry received");
+    expect(rendered.subject).toBe("We received your Dovid Logistics enquiry");
+    expect(rendered.html).toContain("Thank you — your message is with our team");
     expect(rendered.html).not.toContain("Delivery update");
     expect(rendered.html).not.toContain("View secure update");
     expect(rendered.html).not.toContain("href=");
@@ -66,12 +69,13 @@ describe("Resend transactional email", () => {
       eventType: "website_enquiry_received",
       heading: "New website support enquiry",
       body: "Name: Test Customer\nEmail: customer@example.com\n\nMessage:\nPlease call me.",
-      metadata: { actionPath: "/admin", enquiryKind: "support" }
+      metadata: { actionPath: "/admin", enquiryKind: "support", enquirySubject: "Please call me" }
     });
 
     expect(rendered.html).toContain("New support enquiry");
+    expect(rendered.subject).toBe("New Dovid Logistics support enquiry: Please call me");
     expect(rendered.html).toContain("Name: Test Customer<br>Email: customer@example.com");
-    expect(rendered.html).toContain("Open admin workspace");
+    expect(rendered.html).toContain("Open enquiries");
     expect(rendered.html).toContain("Customer contact details are confidential.");
     expect(rendered.html).not.toContain("send money to a rider");
   });
@@ -84,6 +88,7 @@ describe("Resend transactional email", () => {
       metadata: { actionPath: "/account/orders/test", amountMinor: 250000, currency: "NGN", paymentStatus: "paid" }
     });
 
+    expect(rendered.subject).toBe("Your Dovid Logistics payment is confirmed");
     expect(rendered.html).toContain("Payment receipt");
     expect(rendered.html).toContain("View payment details");
     expect(rendered.text).toContain("₦2,500.00");
@@ -112,16 +117,17 @@ describe("Resend transactional email", () => {
       "payment_confirmed",
       "production_readiness_test",
       "redelivery_scheduled",
+      "staff_invitation_existing_user",
       "website_enquiry_acknowledged",
       "website_enquiry_received"
     ]);
-    expect(getTransactionalEmailPurpose("website_enquiry_received", { enquiryKind: "business" }).badge).toBe("New business enquiry");
+    expect(getTransactionalEmailPurpose("website_enquiry_received")).toBe(transactionalEmailPurposes.website_enquiry_received);
   });
 
   it.each([
-    ["booking_confirmed", "Your Dovid delivery is confirmed", "confirmed"],
-    ["package_collected", "Your package has been collected", "collected"],
-    ["package_delivered", "Your delivery is complete", "completed"],
+    ["booking_confirmed", "Your delivery is confirmed", "confirmed"],
+    ["package_collected", "Your delivery is on the way", "collected"],
+    ["package_delivered", "Your package has been delivered", "completed"],
     ["payment_confirmed", "Payment confirmed", "verified"]
   ])("renders the branded %s notification", (eventType, heading, body) => {
     const rendered = renderTransactionalEmail({
@@ -136,5 +142,42 @@ describe("Resend transactional email", () => {
     expect(rendered.html).toContain("DOV-EMAIL-TEST");
     expect(rendered.text).toContain("Dovid Logistics");
     expect(rendered.text).toContain(heading);
+  });
+
+  it.each([
+    ["booking_confirmed", "Your Dovid Logistics booking is confirmed", "View booking"],
+    ["package_collected", "Your package has been collected", "Track delivery"],
+    ["package_delivered", "Your Dovid Logistics delivery is complete", "View delivery receipt"],
+    ["delivery_failed", "Action needed: we could not complete your delivery", "Review next steps"],
+    ["payment_confirmed", "Your Dovid Logistics payment is confirmed", "View payment details"],
+    ["additional_fee_request", "Review an approved Dovid Logistics delivery charge", "Review and pay charge"],
+    ["redelivery_scheduled", "Your Dovid Logistics redelivery is scheduled", "View redelivery details"],
+    ["dispatch_request_approved", "Your Dovid Logistics route is approved", "Continue booking"],
+    ["dispatch_request_rejected", "Update on your Dovid Logistics route request", "Plan another route"]
+  ])("locks %s to its own subject and action", (eventType, subject, actionLabel) => {
+    const rendered = renderTransactionalEmail({
+      eventType,
+      heading: "Generic delivery update",
+      body: "Purpose-specific message body.",
+      metadata: { actionPath: "/account", orderReference: "DOV-PURPOSE-1", amountMinor: 250000, currency: "NGN" }
+    });
+
+    expect(rendered.subject).toBe(subject);
+    expect(rendered.html).toContain(actionLabel);
+    expect(rendered.html).not.toContain("Generic delivery update");
+    expect(rendered.html).not.toContain("View secure update");
+  });
+
+  it("uses a staff invitation instead of disguising onboarding as password recovery", () => {
+    const rendered = renderTransactionalEmail({
+      eventType: "staff_invitation_existing_user",
+      body: "Sign in with your existing account to review this invitation.",
+      metadata: { actionPath: "/login", staffRole: "rider", expiresAt: "2026-11-27T10:00:00Z" }
+    });
+
+    expect(rendered.subject).toBe("You've been invited as a Dovid Logistics rider");
+    expect(rendered.html).toContain("Join Dovid Logistics as a rider");
+    expect(rendered.html).toContain("Review staff invitation");
+    expect(rendered.html).not.toContain("Reset your password");
   });
 });

@@ -5,6 +5,7 @@ import { findAuthUserByEmail } from "@/lib/auth/admin-users";
 import { canInviteRole, getStaffAuthorization } from "@/lib/auth/staff";
 import { publicEnv } from "@/lib/env";
 import { removeUnregisteredInvitationIdentity } from "@/features/staff/invitation-identity";
+import { queueExistingUserStaffInvitation } from "@/lib/notifications/staff-invitation-email";
 
 const permissionKeys = ["staff.view","riders.invite","riders.manage","dispatch.manage","bookings.manage","pricing.view","pricing.manage","payments.view","payments.reconcile","reports.view","zones.manage","staff.suspend"] as const;
 const schema = z.object({
@@ -25,6 +26,7 @@ export async function POST(request: NextRequest) {
   let authUser = await findAuthUserByEmail(auth.admin, parsed.data.email);
   let createdForInvitation = false;
   let deliveryError: Error | null = null;
+  let applicationEmailRequired = false;
   if (!authUser) {
     const invited = await auth.admin.auth.admin.inviteUserByEmail(parsed.data.email, { redirectTo, data: { onboarding: "staff_invitation", staff_role: parsed.data.role } });
     authUser = invited.data.user;
@@ -42,8 +44,7 @@ export async function POST(request: NextRequest) {
     if ((invitationLookup.count ?? 0) > 0) return NextResponse.json({ error: "An active invitation already exists for this email. Resend or manage that invitation instead." }, { status: 409 });
     const mailClient = createClient(publicEnv.NEXT_PUBLIC_SUPABASE_URL!, publicEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY!, { auth: { persistSession: false, autoRefreshToken: false } });
     if (authUser.email_confirmed_at) {
-      const recovery = await mailClient.auth.resetPasswordForEmail(parsed.data.email, { redirectTo });
-      deliveryError = recovery.error;
+      applicationEmailRequired = true;
     } else {
       const resent = await mailClient.auth.resend({ type: "signup", email: parsed.data.email, options: { emailRedirectTo: redirectTo } });
       deliveryError = resent.error;
@@ -72,5 +73,19 @@ export async function POST(request: NextRequest) {
     if (cleanup === "failed" || cleanup === "referenced") return NextResponse.json({ error: "The staff invitation was not registered and its new identity requires administrator review. No staff role was granted." }, { status: 500 });
     return NextResponse.json({ error: error.message }, { status: 409 });
   }
-  return NextResponse.json({ invitationId, status: "sent", expiresAt }, { status: 201 });
+  if (applicationEmailRequired) {
+    const { error: queueError } = await queueExistingUserStaffInvitation(auth.admin, {
+      invitationId,
+      email: parsed.data.email,
+      role: parsed.data.role,
+      expiresAt,
+      deduplicationKey: `email:staff-invitation:${invitationId}:initial`
+    });
+    if (queueError) {
+      await auth.admin.from("staff_invitations").update({ status: "pending", sent_at: null, updated_at: new Date().toISOString() }).eq("id", invitationId);
+      await auth.admin.from("staff_audit_events").insert({ actor_id: auth.user.id, action: "staff.invitation.email_queue_failed", target_user_id: authUser.id, invitation_id: invitationId });
+      return NextResponse.json({ error: "The staff invitation was saved, but its purpose-specific email could not be queued. Use Resend from the pending invitation." }, { status: 502 });
+    }
+  }
+  return NextResponse.json({ invitationId, status: applicationEmailRequired ? "queued" : "sent", expiresAt }, { status: 201 });
 }

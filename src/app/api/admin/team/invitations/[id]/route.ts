@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { canInviteRole, getStaffAuthorization } from "@/lib/auth/staff";
 import { publicEnv } from "@/lib/env";
+import { queueExistingUserStaffInvitation } from "@/lib/notifications/staff-invitation-email";
 
 async function loadInvitation(id: string) {
   const auth = await getStaffAuthorization();
@@ -20,15 +21,24 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
   const { data: authUser } = await auth.admin.auth.admin.getUserById(invitation.auth_user_id);
   if (!authUser.user) return NextResponse.json({ error: "The invited identity no longer exists." }, { status: 409 });
   const redirectTo = `${publicEnv.NEXT_PUBLIC_APP_URL}/auth/callback?next=/staff/setup`;
-  const mailClient = createClient(publicEnv.NEXT_PUBLIC_SUPABASE_URL!, publicEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY!, { auth: { persistSession: false, autoRefreshToken: false } });
-  const delivered = authUser.user.email_confirmed_at
-    ? await mailClient.auth.resetPasswordForEmail(invitation.email, { redirectTo })
-    : await mailClient.auth.resend({ type: "signup", email: invitation.email, options: { emailRedirectTo: redirectTo } });
-  if (delivered.error) return NextResponse.json({ error: "The secure invitation email could not be resent." }, { status: 502 });
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+  if (authUser.user.email_confirmed_at) {
+    const { error: queueError } = await queueExistingUserStaffInvitation(auth.admin, {
+      invitationId: invitation.id,
+      email: invitation.email,
+      role: invitation.intended_role as "admin" | "rider",
+      expiresAt,
+      deduplicationKey: `email:staff-invitation:${invitation.id}:resend:${Date.now()}`
+    });
+    if (queueError) return NextResponse.json({ error: "The purpose-specific staff invitation email could not be queued." }, { status: 502 });
+  } else {
+    const mailClient = createClient(publicEnv.NEXT_PUBLIC_SUPABASE_URL!, publicEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY!, { auth: { persistSession: false, autoRefreshToken: false } });
+    const delivered = await mailClient.auth.resend({ type: "signup", email: invitation.email, options: { emailRedirectTo: redirectTo } });
+    if (delivered.error) return NextResponse.json({ error: "The secure invitation email could not be resent." }, { status: 502 });
+  }
   await auth.admin.from("staff_invitations").update({ status: "sent", sent_at: new Date().toISOString(), expires_at: expiresAt, updated_at: new Date().toISOString() }).eq("id", invitation.id);
   await auth.admin.from("staff_audit_events").insert({ actor_id: auth.user.id, action: "staff.invitation.resent", target_user_id: invitation.auth_user_id, invitation_id: invitation.id, metadata: { expiresAt } });
-  return NextResponse.json({ status: "sent", expiresAt });
+  return NextResponse.json({ status: authUser.user.email_confirmed_at ? "queued" : "sent", expiresAt });
 }
 
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {

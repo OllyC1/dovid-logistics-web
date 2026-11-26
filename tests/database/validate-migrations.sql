@@ -115,6 +115,16 @@ begin
   if not has_function_privilege('service_role','public.activate_service_zone(uuid,uuid,text)','execute') then
     raise exception 'service role cannot activate reviewed service zones';
   end if;
+  if has_function_privilege('authenticated','public.create_service_zone_draft(uuid,uuid,text,text,text,boolean,integer,timestamptz,timestamptz,text,text,text)','execute')
+     or has_function_privilege('authenticated','public.save_service_zone_draft(uuid,uuid,text,text,jsonb,text,boolean,integer,timestamptz,timestamptz,text,text,text)','execute')
+     or has_function_privilege('authenticated','public.manage_service_zone_action(uuid,uuid,text,text)','execute') then
+    raise exception 'authenticated role can mutate the audited service-zone lifecycle';
+  end if;
+  if not has_function_privilege('service_role','public.create_service_zone_draft(uuid,uuid,text,text,text,boolean,integer,timestamptz,timestamptz,text,text,text)','execute')
+     or not has_function_privilege('service_role','public.save_service_zone_draft(uuid,uuid,text,text,jsonb,text,boolean,integer,timestamptz,timestamptz,text,text,text)','execute')
+     or not has_function_privilege('service_role','public.manage_service_zone_action(uuid,uuid,text,text)','execute') then
+    raise exception 'service role cannot manage the audited service-zone lifecycle';
+  end if;
   if (select count(*) from public.service_zones where service_area_id='10000000-0000-4000-8000-000000000001') <> 7 then
     raise exception 'six priority zones and one Ibadan fallback were not created';
   end if;
@@ -136,6 +146,69 @@ begin
   if (select standard_max_distance_meters from public.service_area_operational_settings where service_area_id='10000000-0000-4000-8000-000000000001') <> 12000 then
     raise exception 'standard distance threshold is incorrect';
   end if;
+end $$;
+
+-- Prove that zone creation is inactive and geometry-free, every lifecycle step
+-- is attributed, and a material edit to an active zone forces re-approval.
+do $$
+declare created_zone_id uuid;
+declare save_result jsonb;
+declare reviewed_boundary jsonb := '{"type":"Feature","properties":{},"geometry":{"type":"Polygon","coordinates":[[[5.0000,9.0000],[5.0100,9.0000],[5.0100,9.0100],[5.0000,9.0100],[5.0000,9.0000]]]}}'::jsonb;
+begin
+  created_zone_id := public.create_service_zone_draft(
+    '10000000-0000-4000-8000-000000000001',
+    '44444444-4444-4444-4444-444444444444',
+    'Lifecycle validation zone','E2E-ZONE','unavailable',true,900,
+    now()-interval '1 hour',null,'Controlled validation geometry',
+    'Disposable transaction-scoped service zone.','Validate audited zone creation'
+  );
+
+  if not exists(
+    select 1 from public.service_zones
+    where id=created_zone_id and operational_status='draft' and not active
+      and boundary_geojson is null and not is_citywide
+  ) then raise exception 'new service zone was not created as an inactive geometry-free draft'; end if;
+  if not exists(
+    select 1 from public.service_zone_change_history
+    where zone_id=created_zone_id and action='created'
+      and changed_by='44444444-4444-4444-4444-444444444444'
+      and change_reason='Validate audited zone creation'
+  ) then raise exception 'zone creation history did not retain its actor and reason'; end if;
+
+  save_result := public.save_service_zone_draft(
+    created_zone_id,'44444444-4444-4444-4444-444444444444',
+    'Lifecycle validation zone','E2E-ZONE',reviewed_boundary,'manual_approval',true,900,
+    now()-interval '1 hour',null,'Controlled validation geometry',
+    'Disposable transaction-scoped service zone.','Attach reviewed validation boundary'
+  );
+  if save_result->>'operationalStatus'<>'draft' or (save_result->>'active')::boolean then
+    raise exception 'saved service-zone draft unexpectedly became active';
+  end if;
+
+  perform public.manage_service_zone_action(created_zone_id,'44444444-4444-4444-4444-444444444444','review','Review controlled boundary evidence');
+  perform public.manage_service_zone_action(created_zone_id,'44444444-4444-4444-4444-444444444444','approve','Approve controlled boundary evidence');
+  perform public.manage_service_zone_action(created_zone_id,'44444444-4444-4444-4444-444444444444','activate','Activate only for transaction validation');
+  if not exists(select 1 from public.service_zones where id=created_zone_id and operational_status='active' and active) then
+    raise exception 'reviewed service zone did not activate through the audited lifecycle';
+  end if;
+
+  save_result := public.save_service_zone_draft(
+    created_zone_id,'44444444-4444-4444-4444-444444444444',
+    'Lifecycle validation zone','E2E-ZONE',reviewed_boundary,'manual_approval',true,901,
+    now()-interval '1 hour',null,'Controlled validation geometry',
+    'Disposable transaction-scoped service zone.','Change priority and require reapproval'
+  );
+  if save_result->>'operationalStatus'<>'draft' or (save_result->>'active')::boolean then
+    raise exception 'material active-zone edit bypassed draft re-approval';
+  end if;
+  if (select count(*) from public.service_zone_change_history where zone_id=created_zone_id and change_reason is not null)<5 then
+    raise exception 'zone lifecycle history is missing attributed reasons';
+  end if;
+  if (
+    select count(distinct action) from public.audit_logs
+    where resource_type='service_zone' and resource_id=created_zone_id
+      and action in ('service_zone.created','service_zone.draft_saved','service_zone.activate')
+  )<>3 then raise exception 'service-zone lifecycle audit records are missing'; end if;
 end $$;
 
 -- Validate the custody-safe failed-attempt, return-to-sender and run-completion path.

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { Button } from "@/components/ui/button";
 
@@ -21,6 +21,7 @@ export function ReasonDialog({
   onCancel: () => void;
   onConfirm: (reason: string) => void | Promise<void>;
 }) {
+  const reasonId = useId();
   const [reason, setReason] = useState("");
 
   function close() {
@@ -40,13 +41,14 @@ export function ReasonDialog({
   return <Dialog.Root open={open} onOpenChange={(nextOpen) => { if (!nextOpen) close(); }}>
     <Dialog.Portal>
       <Dialog.Overlay className="fixed inset-0 z-50 bg-navy/70 backdrop-blur-sm" />
-      <Dialog.Content className="fixed inset-x-4 top-1/2 z-50 max-h-[calc(100dvh-2rem)] -translate-y-1/2 overflow-y-auto rounded-3xl bg-white p-5 shadow-2xl sm:left-1/2 sm:right-auto sm:w-full sm:max-w-lg sm:-translate-x-1/2 sm:p-7">
+      <Dialog.Content data-testid="reason-dialog" className="fixed inset-x-4 top-1/2 z-50 max-h-[calc(100dvh-2rem)] -translate-y-1/2 overflow-y-auto rounded-3xl bg-white p-5 shadow-2xl sm:left-1/2 sm:right-auto sm:w-full sm:max-w-lg sm:-translate-x-1/2 sm:p-7">
         <Dialog.Title className="text-xl font-extrabold text-navy sm:text-2xl">{title}</Dialog.Title>
         <Dialog.Description className="mt-2 text-sm leading-6 text-slate">{description}</Dialog.Description>
         <form className="mt-5 grid gap-4" onSubmit={submit}>
-          <label className="grid gap-2 text-sm font-bold text-navy">
+          <label htmlFor={reasonId} className="grid gap-2 text-sm font-bold text-navy">
             Operational reason
             <textarea
+              id={reasonId}
               autoFocus
               required
               minLength={8}

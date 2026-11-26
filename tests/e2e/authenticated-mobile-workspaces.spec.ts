@@ -696,6 +696,117 @@ test("administrator reaches the admin workspace without MFA and every authorized
   }
 });
 
+test("administrator creates and completes the audited service-zone lifecycle on mobile", async ({ page }) => {
+  test.setTimeout(240_000);
+  test.skip(!canUseAdminClient, "The full zone lifecycle runs only against the isolated local Supabase stack");
+  const account = accounts.find((item) => item.role === "admin")!;
+  const viewportCode = test.info().project.name === "mobile-375" ? "375" : "390";
+  const zoneCode = `E2E${viewportCode}${fixtureRunCode}`;
+  const zoneName = `Mobile ${viewportCode} validation zone`;
+  const boundary = {
+    type: "Feature",
+    properties: {},
+    geometry: {
+      type: "Polygon",
+      coordinates: [[[5, 9], [5.01, 9], [5.01, 9.01], [5, 9.01], [5, 9]]],
+    },
+  };
+
+  async function confirmZoneAction(buttonName: string, reason: string, confirmLabel: string) {
+    await page.getByRole("button", { name: buttonName, exact: true }).click();
+    const dialog = page.getByTestId("reason-dialog");
+    await expect(dialog).toBeVisible();
+    const reasonField = dialog.locator("textarea");
+    await expect(reasonField).toHaveCount(1);
+    await reasonField.fill(reason);
+    const dialogBox = await dialog.boundingBox();
+    const viewport = page.viewportSize();
+    expect(dialogBox, `${buttonName} dialog should be measurable`).not.toBeNull();
+    expect(dialogBox!.x, `${buttonName} dialog left edge`).toBeGreaterThanOrEqual(0);
+    expect(dialogBox!.x + dialogBox!.width, `${buttonName} dialog right edge`).toBeLessThanOrEqual(viewport!.width);
+    for (const [controlName, control] of [["reason", reasonField], ["cancel", dialog.getByRole("button", { name: "Cancel" })], ["confirm", dialog.getByRole("button", { name: confirmLabel, exact: true })]] as const) {
+      expect((await control.boundingBox())?.height ?? 0, `${buttonName} dialog ${controlName} touch target`).toBeGreaterThanOrEqual(40);
+    }
+    await dialog.getByRole("button", { name: confirmLabel, exact: true }).click();
+    await expect(dialog).toBeHidden();
+  }
+
+  try {
+    await login(page, account, /\/admin(?:\?|$)/);
+    // Map rendering is covered by the preceding workspace test. Keep this
+    // lifecycle test deterministic while exercising GeoJSON import and every
+    // audited server transition.
+    await page.route("https://maps.googleapis.com/**", (route) => route.abort());
+    await page.goto("/admin/coverage");
+    const mapPanel = page.getByLabel("Ibadan service zone map");
+    await expect(mapPanel.locator(".gm-style").or(mapPanel.getByRole("alert"))).toBeVisible({ timeout: 30_000 });
+    const addZone = page.locator("details").filter({ hasText: "Add a service zone" }).first();
+    await addZone.locator("summary").click();
+    await expectCurrentMobilePage(page, "expanded service-zone creation");
+    await addZone.getByLabel("Zone name").fill(zoneName);
+    await addZone.getByLabel("Stable code").fill(zoneCode);
+    await addZone.getByLabel("Initial eligibility").selectOption("manual_approval");
+    await addZone.getByLabel("Priority").fill("900");
+    await addZone.getByLabel("Boundary source or evidence (optional)").fill("Controlled mobile acceptance geometry");
+    await addZone.getByLabel("Planning notes (optional)").fill("Transaction-scoped validation zone; not real operating geography.");
+    await addZone.getByLabel("Why is this zone needed?").fill("Validate the complete mobile zone-management workflow");
+    const createResponsePromise = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/admin/coverage/zones" && response.request().method() === "POST");
+    await addZone.getByRole("button", { name: "Create inactive draft" }).click();
+    const createResponse = await createResponsePromise;
+    expect(createResponse.status(), `zone creation response: ${await createResponse.text()}`).toBe(201);
+    await expect(page.getByRole("status")).toContainText(`${zoneName} was created as an inactive draft`);
+    await expect(page.getByText(`${zoneCode} · ${zoneName}`, { exact: true })).toBeVisible();
+    await expect(page.getByText("Not live for zone-specific bookings", { exact: true })).toBeVisible();
+    await addZone.locator("summary").click();
+
+    await page.getByLabel("Import GeoJSON").setInputFiles({
+      name: `${zoneCode.toLowerCase()}.geojson`,
+      mimeType: "application/geo+json",
+      buffer: Buffer.from(JSON.stringify(boundary)),
+    });
+    await expect(page.getByRole("status")).toContainText("GeoJSON imported into the draft");
+    await confirmZoneAction("Save draft", "Attach the controlled reviewed boundary", "Save draft");
+    await expect(page.getByRole("status")).toContainText("Draft saved as draft");
+    await confirmZoneAction("Request review", "Review controlled boundary and operating evidence", "Request review");
+    await expect(page.getByRole("status")).toContainText("Zone review completed and recorded");
+    await confirmZoneAction("Approve", "Approve controlled boundary after mobile review", "Approve zone");
+    await expect(page.getByRole("status")).toContainText("Zone approve completed and recorded");
+    await confirmZoneAction("Activate", "Activate only for isolated acceptance testing", "Activate zone");
+    await expect(page.getByText("Live for eligible customers", { exact: true })).toBeVisible();
+    await confirmZoneAction("Suspend", "Suspend after controlled activation validation", "Suspend zone");
+    await expect(page.getByRole("status")).toContainText("Zone suspend completed and recorded");
+
+    await confirmZoneAction("Request review", "Review suspended zone before controlled reactivation", "Request review");
+    await confirmZoneAction("Approve", "Approve suspended zone for controlled reactivation", "Approve zone");
+    await confirmZoneAction("Activate", "Reactivate only to validate material change safety", "Activate zone");
+    await page.getByLabel("Priority").last().fill("901");
+    await confirmZoneAction("Save draft", "Change priority and require a fresh approval", "Save draft");
+    await expect(page.getByText("Not live for zone-specific bookings", { exact: true })).toBeVisible();
+    await expect(page.getByText("Current status").locator("..")).toContainText("draft");
+    await expectCurrentMobilePage(page, "material zone edit returned to draft");
+
+    const { data: zone, error: zoneError } = await admin.from("service_zones").select("id,active,operational_status,boundary_geojson").eq("code", zoneCode).single();
+    if (zoneError) throw zoneError;
+    expect(zone.active).toBe(false);
+    expect(zone.operational_status).toBe("draft");
+    expect(zone.boundary_geojson).toEqual(boundary);
+    const [{ count: historyCount, error: historyError }, { data: auditRows, error: auditError }] = await Promise.all([
+      admin.from("service_zone_change_history").select("id", { count: "exact", head: true }).eq("zone_id", zone.id).not("change_reason", "is", null),
+      admin.from("audit_logs").select("action").eq("resource_type", "service_zone").eq("resource_id", zone.id),
+    ]);
+    if (historyError) throw historyError;
+    if (auditError) throw auditError;
+    expect(historyCount ?? 0).toBeGreaterThanOrEqual(9);
+    expect((auditRows ?? []).map((row) => row.action)).toEqual(expect.arrayContaining(["service_zone.created", "service_zone.draft_saved", "service_zone.review", "service_zone.approve", "service_zone.activate", "service_zone.suspend"]));
+  } finally {
+    const { data: disposable } = await admin.from("service_zones").select("id").eq("code", zoneCode).maybeSingle();
+    if (disposable?.id) {
+      const cleanup = await admin.from("service_zones").delete().eq("id", disposable.id);
+      if (cleanup.error) throw cleanup.error;
+    }
+  }
+});
+
 test("administrator registers a bike, assigns its rider and prepares a compliant run on mobile", async ({ page }) => {
   test.setTimeout(240_000);
   const account = accounts.find((item) => item.role === "admin")!;
@@ -795,7 +906,7 @@ test("staff invitation, identity approval and trusted role routing complete on m
   const invitationResponse = page.waitForResponse((response) => response.url().endsWith("/api/admin/team/invitations") && response.request().method() === "POST");
   await invitePanel.getByRole("button", { name: new RegExp(`Send ${intendedRole} invitation`, "i") }).click();
   expect((await invitationResponse).status()).toBe(201);
-  await expect(page.getByRole("status")).toContainText(`${intendedRole === "admin" ? "Admin" : "Rider"} invitation sent`);
+  await expect(page.getByRole("status")).toContainText(`${intendedRole === "admin" ? "Admin" : "Rider"} invitation prepared`);
   await expect(page.getByRole("status")).toContainText("Access stays inactive until the invitation is accepted and a Super Admin completes the approval");
   await expectCurrentMobilePage(page, "staff invitation confirmation");
 

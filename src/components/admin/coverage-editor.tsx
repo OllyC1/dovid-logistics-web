@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CheckCircle2, Download, MapPin, Save, ShieldCheck, Upload, XCircle } from "lucide-react";
+import { CheckCircle2, Download, MapPin, Plus, Save, ShieldCheck, Upload, XCircle } from "lucide-react";
 import { isPointInZoneGeoJson, validateZoneGeoJson, zoneBoundariesOverlap, type ZoneGeoJson } from "@/features/service-areas/geometry";
 import { Button } from "@/components/ui/button";
 import { AddressAutocomplete, type AddressValue } from "@/components/maps/address-autocomplete";
@@ -48,6 +48,34 @@ const serviceDays: Array<{ key: ServiceDay; label: string }> = [
   { key: "monday", label: "Monday" }, { key: "tuesday", label: "Tuesday" }, { key: "wednesday", label: "Wednesday" },
   { key: "thursday", label: "Thursday" }, { key: "friday", label: "Friday" }, { key: "saturday", label: "Saturday" }, { key: "sunday", label: "Sunday" },
 ];
+
+type NewZoneDraft = {
+  name: string;
+  code: string;
+  bookingEligibility: CoverageZone["booking_eligibility"];
+  dispatchApprovalRequired: boolean;
+  priority: number;
+  effectiveFrom: string;
+  effectiveUntil: string;
+  boundarySource: string;
+  reviewNotes: string;
+  reason: string;
+};
+
+function emptyNewZone(): NewZoneDraft {
+  return {
+    name: "",
+    code: "",
+    bookingEligibility: "unavailable",
+    dispatchApprovalRequired: true,
+    priority: 100,
+    effectiveFrom: new Date().toISOString().slice(0, 16),
+    effectiveUntil: "",
+    boundarySource: "",
+    reviewNotes: "",
+    reason: ""
+  };
+}
 
 function nullableNumber(value: string) {
   return value === "" ? null : Number(value);
@@ -100,9 +128,10 @@ export function CoverageEditor({ initialZones, settings: initialSettings, mapsKe
   const [draft, setDraft] = useState(selected);
   const [boundary, setBoundary] = useState<ZoneGeoJson | null>(selected?.boundary_geojson ?? null);
   const [settings, setSettings] = useState(initialSettings);
+  const [newZone, setNewZone] = useState<NewZoneDraft>(emptyNewZone);
   const [message, setMessage] = useState("");
   const [pending, setPending] = useState(false);
-  const [zoneAction, setZoneAction] = useState<"review" | "approve" | "activate" | "publish" | "suspend" | null>(null);
+  const [zoneAction, setZoneAction] = useState<"save" | "review" | "approve" | "activate" | "publish" | "suspend" | null>(null);
   const [drawing, setDrawing] = useState(false);
   const drawingPoints = useRef<MapLatLng[]>([]);
   const [previewMode, setPreviewMode] = useState<"pickup" | "delivery" | null>(null);
@@ -216,7 +245,7 @@ export function CoverageEditor({ initialZones, settings: initialSettings, mapsKe
           : draft?.operational_status === "approved"
             ? "Next step: activate. Customers do not use this zone until activation succeeds."
             : draft?.operational_status === "active"
-              ? "This zone is live. Saving a changed boundary will return it to Draft and deactivate it."
+              ? "This zone is live. Saving any material coverage or eligibility change will return it to Draft and deactivate it."
               : "This zone is suspended. Request review to restart its audit and publication workflow.";
   const previewMessage = useMemo(() => {
     if (!preview.pickup || !preview.delivery || !boundary) return "Click the map to set both preview points.";
@@ -226,9 +255,37 @@ export function CoverageEditor({ initialZones, settings: initialSettings, mapsKe
 
   if (!draft) return <p>No coverage zones are configured.</p>;
 
-  async function persistDraft() {
+  async function createZone() {
     setPending(true); setMessage("");
-    const response = await fetch(`/api/admin/coverage/zones/${draft.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: draft.name, code: draft.code, boundaryGeoJson: boundary, bookingEligibility: draft.booking_eligibility, dispatchApprovalRequired: draft.dispatch_approval_required, priority: Number(draft.priority), effectiveFrom: new Date(draft.effective_from).toISOString(), effectiveUntil: draft.effective_until ? new Date(draft.effective_until).toISOString() : null, boundarySource: draft.boundary_source, reviewNotes: draft.review_notes }) });
+    const response = await fetch("/api/admin/coverage/zones", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        serviceAreaId: settings.service_area_id,
+        name: newZone.name,
+        code: newZone.code,
+        bookingEligibility: newZone.bookingEligibility,
+        dispatchApprovalRequired: newZone.dispatchApprovalRequired,
+        priority: Number(newZone.priority),
+        effectiveFrom: new Date(newZone.effectiveFrom).toISOString(),
+        effectiveUntil: newZone.effectiveUntil ? new Date(newZone.effectiveUntil).toISOString() : null,
+        boundarySource: newZone.boundarySource || null,
+        reviewNotes: newZone.reviewNotes || null,
+        reason: newZone.reason
+      })
+    });
+    const body = await response.json(); setPending(false);
+    if (!response.ok) { setMessage(body.error ?? "The zone could not be created."); return; }
+    const zone = body.zone as CoverageZone;
+    setZones((current) => [...current, zone].sort((left, right) => left.priority - right.priority));
+    selectZone(zone);
+    setNewZone(emptyNewZone());
+    setMessage(`${zone.name} was created as an inactive draft. Draw or import a reviewed boundary before requesting approval.`);
+  }
+
+  async function persistDraft(reason: string) {
+    setPending(true); setMessage("");
+    const response = await fetch(`/api/admin/coverage/zones/${draft.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: draft.name, code: draft.code, boundaryGeoJson: boundary, bookingEligibility: draft.booking_eligibility, dispatchApprovalRequired: draft.dispatch_approval_required, priority: Number(draft.priority), effectiveFrom: new Date(draft.effective_from).toISOString(), effectiveUntil: draft.effective_until ? new Date(draft.effective_until).toISOString() : null, boundarySource: draft.boundary_source, reviewNotes: draft.review_notes, reason }) });
     const body = await response.json(); setPending(false);
     if (!response.ok) { setMessage(body.error ?? "The draft could not be saved."); return null; }
     const nextStatus = body.operationalStatus as CoverageZone["operational_status"];
@@ -237,14 +294,15 @@ export function CoverageEditor({ initialZones, settings: initialSettings, mapsKe
     return body;
   }
 
-  async function saveDraft() {
-    const body = await persistDraft();
-    if (!body) return;
-    setMessage(body.overlaps?.length ? `Draft saved as ${body.operationalStatus}. Review overlaps with ${body.overlaps.map((item: { name: string }) => item.name).join(", ")}.` : `Draft saved as ${body.operationalStatus.replaceAll("_", " ")}. It will become active only after approval.`);
-  }
-
-  async function performAction(action: "review" | "approve" | "activate" | "publish" | "suspend", reason: string) {
-    if (action === "publish" && !(await persistDraft())) return;
+  async function performAction(action: "save" | "review" | "approve" | "activate" | "publish" | "suspend", reason: string) {
+    if (action === "save") {
+      const body = await persistDraft(reason);
+      if (!body) return;
+      setZoneAction(null);
+      setMessage(body.overlaps?.length ? `Draft saved as ${body.operationalStatus}. Review overlaps with ${body.overlaps.map((item: { name: string }) => item.name).join(", ")}.` : `Draft saved as ${body.operationalStatus.replaceAll("_", " ")}. It will become active only after approval.`);
+      return;
+    }
+    if (action === "publish" && !(await persistDraft(reason))) return;
     setPending(true); setMessage("");
     const response = await fetch(`/api/admin/coverage/zones/${draft.id}/action`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, reason }) });
     const body = await response.json(); setPending(false);
@@ -294,7 +352,27 @@ export function CoverageEditor({ initialZones, settings: initialSettings, mapsKe
 
   return <div className="grid gap-8">
     <div className="grid gap-6 xl:grid-cols-[280px_1fr]">
-      <aside className="rounded-3xl bg-white p-4 shadow-sm"><p className="px-3 text-xs font-bold uppercase tracking-widest text-orange">Service zones</p><div className="mt-3 grid gap-2">{zones.map((zone) => <button key={zone.id} type="button" onClick={() => selectZone(zone)} className={`rounded-2xl p-3 text-left ${zone.id === selectedId ? "bg-navy text-white" : "bg-cloud text-navy"}`}><span className="font-extrabold">{zone.code} · {zone.name}</span><span className="mt-1 block text-xs capitalize opacity-70">{zone.operational_status.replaceAll("_", " ")} · {zone.affectedOrders} affected orders</span></button>)}</div></aside>
+      <aside className="rounded-3xl bg-white p-4 shadow-sm">
+        <p className="px-3 text-xs font-bold uppercase tracking-widest text-orange">Service zones</p>
+        <details className="group mt-3 rounded-2xl border border-navy/10 p-3">
+          <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 font-extrabold text-navy"><span className="flex items-center gap-2"><Plus className="size-4"/>Add a service zone</span><span aria-hidden="true" className="text-orange transition group-open:rotate-45">+</span></summary>
+          <div className="mt-3 grid gap-3">
+            <p className="text-xs leading-5 text-slate">This creates an inactive draft with no boundary. It cannot affect customer bookings until reviewed, approved and activated.</p>
+            <label className="grid gap-1 text-xs font-bold text-navy">Zone name<input className="min-h-11 rounded-xl border p-3 font-normal" value={newZone.name} onChange={(event) => setNewZone({ ...newZone, name: event.target.value })}/></label>
+            <label className="grid gap-1 text-xs font-bold text-navy">Stable code<input className="min-h-11 rounded-xl border p-3 font-normal uppercase" maxLength={12} value={newZone.code} onChange={(event) => setNewZone({ ...newZone, code: event.target.value.toUpperCase() })}/></label>
+            <label className="grid gap-1 text-xs font-bold text-navy">Initial eligibility<select className="min-h-11 rounded-xl border p-3 font-normal" value={newZone.bookingEligibility} onChange={(event) => setNewZone({ ...newZone, bookingEligibility: event.target.value as CoverageZone["booking_eligibility"] })}><option value="unavailable">Unavailable</option><option value="manual_approval">Manual approval</option><option value="standard">Standard eligible</option></select></label>
+            <label className="grid gap-1 text-xs font-bold text-navy">Priority<input type="number" min={0} max={10000} className="min-h-11 rounded-xl border p-3 font-normal" value={newZone.priority} onChange={(event) => setNewZone({ ...newZone, priority: Number(event.target.value) })}/></label>
+            <label className="grid gap-1 text-xs font-bold text-navy">Effective from<input required type="datetime-local" className="min-h-11 rounded-xl border p-3 font-normal" value={newZone.effectiveFrom} onChange={(event) => setNewZone({ ...newZone, effectiveFrom: event.target.value })}/></label>
+            <label className="grid gap-1 text-xs font-bold text-navy">Effective until (optional)<input type="datetime-local" className="min-h-11 rounded-xl border p-3 font-normal" value={newZone.effectiveUntil} onChange={(event) => setNewZone({ ...newZone, effectiveUntil: event.target.value })}/></label>
+            <label className="flex min-h-11 items-center gap-3 rounded-xl border p-3 text-xs font-bold text-navy"><input type="checkbox" checked={newZone.dispatchApprovalRequired} onChange={(event) => setNewZone({ ...newZone, dispatchApprovalRequired: event.target.checked })}/>Require dispatch approval</label>
+            <label className="grid gap-1 text-xs font-bold text-navy">Boundary source or evidence (optional)<input className="min-h-11 rounded-xl border p-3 font-normal" value={newZone.boundarySource} onChange={(event) => setNewZone({ ...newZone, boundarySource: event.target.value })}/></label>
+            <label className="grid gap-1 text-xs font-bold text-navy">Planning notes (optional)<textarea className="min-h-20 rounded-xl border p-3 font-normal" value={newZone.reviewNotes} onChange={(event) => setNewZone({ ...newZone, reviewNotes: event.target.value })}/></label>
+            <label className="grid gap-1 text-xs font-bold text-navy">Why is this zone needed?<textarea className="min-h-20 rounded-xl border p-3 font-normal" minLength={8} value={newZone.reason} onChange={(event) => setNewZone({ ...newZone, reason: event.target.value })}/></label>
+            <Button type="button" className="w-full" disabled={pending || newZone.name.trim().length<3 || !newZone.code.trim() || !newZone.effectiveFrom || newZone.reason.trim().length<8} onClick={createZone}><Plus className="mr-2 size-4"/>Create inactive draft</Button>
+          </div>
+        </details>
+        <div className="mt-3 grid gap-2">{zones.map((zone) => <button key={zone.id} type="button" onClick={() => selectZone(zone)} className={`min-h-11 rounded-2xl p-3 text-left ${zone.id === selectedId ? "bg-navy text-white" : "bg-cloud text-navy"}`}><span className="font-extrabold">{zone.code} · {zone.name}</span><span className="mt-1 block text-xs capitalize opacity-70">{zone.operational_status.replaceAll("_", " ")} · {zone.affectedOrders} affected orders</span></button>)}</div>
+      </aside>
       <section className="grid gap-5 rounded-3xl bg-white p-5 shadow-sm">
         <div className="grid gap-4 sm:grid-cols-2"><label className="grid gap-2 text-sm font-bold text-navy">Name<input className="rounded-xl border p-3 font-normal" value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })}/></label><label className="grid gap-2 text-sm font-bold text-navy">Code<input className="rounded-xl border p-3 font-normal" value={draft.code} onChange={(event) => setDraft({ ...draft, code: event.target.value.toUpperCase() })}/></label></div>
         <div className="rounded-2xl border border-navy/10 bg-cloud p-4" aria-label="Zone workflow">
@@ -315,7 +393,7 @@ export function CoverageEditor({ initialZones, settings: initialSettings, mapsKe
         <label className="grid gap-2 text-sm font-bold text-navy">Boundary source and review evidence<input className="rounded-xl border p-3 font-normal" value={draft.boundary_source ?? ""} onChange={(event) => setDraft({ ...draft, boundary_source: event.target.value || null })} placeholder="Reviewed file, survey or authority source"/></label>
         <label className="grid gap-2 text-sm font-bold text-navy">Review notes<textarea className="min-h-24 rounded-xl border p-3 font-normal" value={draft.review_notes ?? ""} onChange={(event) => setDraft({ ...draft, review_notes: event.target.value || null })}/></label>
         <p role="note" className="rounded-2xl bg-amber-50 p-4 text-sm leading-6 text-amber-900"><strong>Workflow:</strong> {actionGuidance}</p>
-        <div className="grid gap-2 sm:flex sm:flex-wrap"><Button disabled={pending} onClick={saveDraft}><Save className="mr-2 size-4"/>Save draft</Button>{canPublish ? <Button disabled={pending || !validation.valid || Boolean(overlaps.length) || draft.booking_eligibility === "unavailable"} onClick={() => setZoneAction("publish")}><ShieldCheck className="mr-2 size-4"/>Save and publish zone</Button> : null}<Button variant="outline" disabled={pending || !validation.valid || Boolean(overlaps.length) || draft.operational_status === "in_review"} onClick={() => setZoneAction("review")}>Request review</Button><Button variant="outline" disabled={pending || draft.operational_status !== "in_review" || Boolean(overlaps.length)} onClick={() => setZoneAction("approve")}><ShieldCheck className="mr-2 size-4"/>Approve</Button><Button disabled={pending || draft.operational_status !== "approved" || Boolean(overlaps.length)} onClick={() => setZoneAction("activate")}>Activate</Button><Button variant="ghost" disabled={pending || draft.operational_status !== "active"} onClick={() => setZoneAction("suspend")}>Suspend</Button></div>
+        <div className="grid gap-2 sm:flex sm:flex-wrap"><Button disabled={pending} onClick={() => setZoneAction("save")}><Save className="mr-2 size-4"/>Save draft</Button>{canPublish ? <Button disabled={pending || !validation.valid || Boolean(overlaps.length) || draft.booking_eligibility === "unavailable"} onClick={() => setZoneAction("publish")}><ShieldCheck className="mr-2 size-4"/>Save and publish zone</Button> : null}<Button variant="outline" disabled={pending || !validation.valid || Boolean(overlaps.length) || draft.operational_status === "in_review"} onClick={() => setZoneAction("review")}>Request review</Button><Button variant="outline" disabled={pending || draft.operational_status !== "in_review" || Boolean(overlaps.length)} onClick={() => setZoneAction("approve")}><ShieldCheck className="mr-2 size-4"/>Approve</Button><Button disabled={pending || draft.operational_status !== "approved" || Boolean(overlaps.length)} onClick={() => setZoneAction("activate")}>Activate</Button><Button variant="ghost" disabled={pending || draft.operational_status !== "active"} onClick={() => setZoneAction("suspend")}>Suspend</Button></div>
         <div className="rounded-2xl bg-cloud p-4"><p className="font-bold text-navy">Eligibility preview</p><p className="mt-1 text-sm text-slate">Choose pickup or destination, then click the map. This preview checks the selected polygon only; live booking also checks roads, hours, capacity and pricing.</p><div className="mt-3 flex gap-2"><Button variant="outline" onClick={() => setPreviewMode("pickup")}>Set pickup</Button><Button variant="outline" onClick={() => setPreviewMode("delivery")}>Set destination</Button></div><p className="mt-3 text-sm font-bold text-navy">{previewMessage}</p></div>
       </section>
     </div>
@@ -332,8 +410,8 @@ export function CoverageEditor({ initialZones, settings: initialSettings, mapsKe
     <ReasonDialog
       open={Boolean(zoneAction)}
       title={`${zoneAction ? zoneAction[0].toUpperCase() + zoneAction.slice(1) : "Update"} ${draft.name}?`}
-      description={zoneAction === "publish" ? "This saves the current edits, immediately deactivates any previous version, then completes review, approval and activation atomically with a complete audit trail." : "Zone state changes affect future eligibility decisions and must remain auditable. Activation is allowed only after geometry review and approval."}
-      confirmLabel={zoneAction === "review" ? "Request review" : zoneAction === "approve" ? "Approve zone" : zoneAction === "activate" ? "Activate zone" : zoneAction === "publish" ? "Save and publish" : "Suspend zone"}
+      description={zoneAction === "save" ? "Explain what changed. Any material change to a live zone immediately returns it to Draft and removes it from zone-specific booking decisions until it is reviewed again." : zoneAction === "publish" ? "This saves the current edits, immediately deactivates any previous version, then completes review, approval and activation atomically with a complete audit trail." : "Zone state changes affect future eligibility decisions and must remain auditable. Activation is allowed only after geometry review and approval."}
+      confirmLabel={zoneAction === "save" ? "Save draft" : zoneAction === "review" ? "Request review" : zoneAction === "approve" ? "Approve zone" : zoneAction === "activate" ? "Activate zone" : zoneAction === "publish" ? "Save and publish" : "Suspend zone"}
       pending={pending}
       onCancel={() => setZoneAction(null)}
       onConfirm={(reason) => zoneAction ? performAction(zoneAction, reason) : undefined}

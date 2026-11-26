@@ -51,7 +51,7 @@ export function TeamManagement({ currentUserId, currentRole, currentPermissions,
     const form = new FormData(formElement);
     const email = String(form.get("email") ?? "").trim();
     const permissions = selectedRole === "admin" ? form.getAll("permissions").map(String) : [];
-    const sent = await request("/api/admin/team/invitations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, role: selectedRole, permissions }) }, { title: `${title(selectedRole)} invitation sent`, message: `A secure setup link was sent to ${email}. It expires in 24 hours. Access stays inactive until the invitation is accepted and a Super Admin completes the approval.` });
+    const sent = await request("/api/admin/team/invitations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, role: selectedRole, permissions }) }, { title: `${title(selectedRole)} invitation prepared`, message: `The correct secure setup email for ${email} has been sent or queued. It expires in 24 hours. Access stays inactive until the invitation is accepted and a Super Admin completes the approval.` });
     if (sent) formElement.reset();
   }
 

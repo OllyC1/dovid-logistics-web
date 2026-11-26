@@ -5,7 +5,6 @@ import { getZonesManagerAuthorization as getAuthenticatedRole } from "@/lib/auth
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 const schema = z.object({ action: z.enum(["review", "approve", "activate", "publish", "suspend"]), reason: z.string().trim().min(8).max(1_000) });
-const functions = { review: "review_service_zone", approve: "approve_service_zone", activate: "activate_service_zone", suspend: "suspend_service_zone" } as const;
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await getAuthenticatedRole();
@@ -26,9 +25,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const overlaps = zone.is_citywide ? [] : (others ?? []).filter((candidate) => !candidate.is_citywide && candidate.boundary_geojson && zoneBoundariesOverlap(zone.boundary_geojson as ZoneGeoJson, candidate.boundary_geojson as ZoneGeoJson));
     if (overlaps.length) return NextResponse.json({ error: `Resolve the overlap with ${overlaps.map((candidate) => candidate.name).join(", ")} before continuing.` }, { status: 409 });
   }
-  const { error } = parsed.data.action === "publish"
-    ? await admin.rpc("publish_service_zone", { target_zone_id: id, actor_id: auth.user.id, reason: parsed.data.reason })
-    : await admin.rpc(functions[parsed.data.action], { target_zone_id: id, actor_id: auth.user.id, reason: parsed.data.reason });
+  const { error } = await admin.rpc("manage_service_zone_action", {
+    target_zone_id: id,
+    actor_id: auth.user.id,
+    requested_action: parsed.data.action,
+    reason: parsed.data.reason
+  });
   if (error) return NextResponse.json({ error: error.message }, { status: 409 });
   return NextResponse.json({ action: parsed.data.action, completed: true });
 }

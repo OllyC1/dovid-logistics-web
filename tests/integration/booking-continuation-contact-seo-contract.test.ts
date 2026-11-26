@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const migration = readFileSync("supabase/migrations/20261125221900_booking_continuation_capacity_waiting_enquiries.sql", "utf8");
+const purposeMigration = readFileSync("supabase/migrations/20261126013929_purpose_locked_email_presentations.sql", "utf8");
 const quoteRoute = readFileSync("src/app/api/delivery/quotes/route.ts", "utf8");
 const approvalRoute = readFileSync("src/app/api/admin/dispatch/requests/[id]/route.ts", "utf8");
 const booking = readFileSync("src/components/booking/booking-wizard.tsx", "utf8");
@@ -38,6 +39,8 @@ describe("booking continuation, contact and discoverability contracts", () => {
     expect(migration).toContain("email:website-enquiry:internal:");
     expect(migration).toContain("email:website-enquiry:ack:");
     expect(migration).toContain("on conflict(deduplication_key) do nothing");
+    expect(purposeMigration).toContain("'enquirySubject', new.subject");
+    expect(purposeMigration).not.toContain("'actionPath', '/contact'");
   });
 
   it("publishes the official phone, WhatsApp and customer-support structured data", () => {

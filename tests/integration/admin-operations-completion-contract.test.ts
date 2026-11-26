@@ -5,6 +5,7 @@ const migration = readFileSync("supabase/migrations/20261117180000_admin_operati
 const assistedSchema = readFileSync("src/features/assisted-bookings/schema.ts", "utf8");
 const teamApi = readFileSync("src/app/api/admin/team/members/[id]/route.ts", "utf8");
 const invitationApi = readFileSync("src/app/api/admin/team/invitations/route.ts", "utf8");
+const invitationEmail = readFileSync("src/lib/notifications/staff-invitation-email.ts", "utf8");
 const promotionApi = readFileSync("src/app/api/admin/promotions/route.ts", "utf8");
 
 describe("admin operations completion contract", () => {
@@ -29,5 +30,12 @@ describe("admin operations completion contract", () => {
     expect(invitationApi).toContain("removeUnregisteredInvitationIdentity");
     expect(invitationApi).toContain("This identity already has a staff membership");
     expect(invitationApi).toContain("An active invitation already exists for this email");
+  });
+
+  it("does not disguise an existing-user staff invitation as password recovery", () => {
+    expect(invitationApi).not.toContain("resetPasswordForEmail");
+    expect(invitationApi).toContain("queueExistingUserStaffInvitation");
+    expect(invitationEmail).toContain('event_type: "staff_invitation_existing_user"');
+    expect(invitationEmail).toContain('actionPath: "/login"');
   });
 });
