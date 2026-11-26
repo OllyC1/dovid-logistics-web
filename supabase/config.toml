@@ -51,9 +51,9 @@ port = 54329
 # Configure one of the supported pooler modes: `transaction`, `session`.
 pool_mode = "transaction"
 # How many server connections to allow per user/database pair.
-default_pool_size = 20
+default_pool_size = 15
 # Maximum number of client connections allowed.
-max_client_conn = 100
+max_client_conn = 200
 
 # [db.vault]
 # secret_key = "env(SECRET_VALUE)"
@@ -269,11 +269,44 @@ content_path = "./supabase/templates/magic-link.html"
 subject = "Confirm your new Dovid Logistics email"
 content_path = "./supabase/templates/email-change.html"
 
-# Uncomment to customize notification email template
-# [auth.email.notification.password_changed]
-# enabled = true
-# subject = "Your password has been changed"
-# content_path = "./supabase/templates/password_changed_notification.html"
+[auth.email.template.reauthentication]
+subject = "{{ .Token }} is your Dovid Logistics verification code"
+content_path = "./supabase/templates/reauthentication.html"
+
+[auth.email.notification.password_changed]
+enabled = true
+subject = "Your Dovid Logistics password was changed"
+content_path = "./templates/password-changed.html"
+
+[auth.email.notification.email_changed]
+enabled = true
+subject = "Your Dovid Logistics email address was changed"
+content_path = "./templates/email-changed.html"
+
+[auth.email.notification.phone_changed]
+enabled = true
+subject = "Your Dovid Logistics phone number was changed"
+content_path = "./templates/phone-changed.html"
+
+[auth.email.notification.mfa_factor_enrolled]
+enabled = true
+subject = "A verification method was added to your Dovid Logistics account"
+content_path = "./templates/mfa-factor-enrolled.html"
+
+[auth.email.notification.mfa_factor_unenrolled]
+enabled = true
+subject = "A verification method was removed from your Dovid Logistics account"
+content_path = "./templates/mfa-factor-unenrolled.html"
+
+[auth.email.notification.identity_linked]
+enabled = true
+subject = "A sign-in method was linked to your Dovid Logistics account"
+content_path = "./templates/identity-linked.html"
+
+[auth.email.notification.identity_unlinked]
+enabled = true
+subject = "A sign-in method was removed from your Dovid Logistics account"
+content_path = "./templates/identity-unlinked.html"
 
 [auth.sms]
 # Allow/disallow the phone provider. When false, users can't sign up or sign in with SMS.
