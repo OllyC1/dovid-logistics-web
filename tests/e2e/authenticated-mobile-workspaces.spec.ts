@@ -771,6 +771,116 @@ test("administrator reaches the admin workspace without MFA and every authorized
   expect(await page.evaluate(() => document.documentElement.scrollWidth), "operating rules dialog overflow").toBeLessThanOrEqual(page.viewportSize()!.width);
   await settingsDialog.getByRole("button", { name: "Cancel" }).click();
   await expect(settingsDialog).toBeHidden();
+
+  if (canUseAdminClient) {
+    const { data: originalSettings, error: originalSettingsError } = await admin
+      .from("service_area_operational_settings")
+      .select("*")
+      .limit(1)
+      .single();
+    if (originalSettingsError) throw originalSettingsError;
+    const controlledValues = {
+      handover_buffer_minutes: originalSettings.handover_buffer_minutes === 12 ? 13 : 12,
+      safe_completion_buffer_minutes: originalSettings.safe_completion_buffer_minutes === 20 ? 21 : 20,
+      maximum_continuous_riding_minutes: originalSettings.maximum_continuous_riding_minutes === 180 ? 181 : 180,
+      minimum_break_minutes: originalSettings.minimum_break_minutes === 15 ? 16 : 15,
+    };
+    const controls = [
+      ["Pickup handover allowance (minutes)", "handover_buffer_minutes"],
+      ["End-of-day safety allowance (minutes)", "safe_completion_buffer_minutes"],
+      ["Maximum riding before a break (minutes)", "maximum_continuous_riding_minutes"],
+      ["Minimum rider break (minutes)", "minimum_break_minutes"],
+    ] as const;
+
+    async function saveControlledRules(values: {
+      handover_buffer_minutes: number | null;
+      safe_completion_buffer_minutes: number | null;
+      maximum_continuous_riding_minutes: number | null;
+      minimum_break_minutes: number | null;
+    }, reason: string) {
+      for (const [label, key] of controls) {
+        const value = values[key];
+        const nextValue = value === null ? "" : String(value);
+        const control = page.getByLabel(label);
+        await expect(control).toBeEditable();
+        await control.click();
+        await page.keyboard.press("Control+A");
+        if (nextValue) await page.keyboard.insertText(nextValue);
+        else await page.keyboard.press("Backspace");
+        await expect(page.getByLabel(label)).toHaveValue(nextValue);
+      }
+      const saveButton = page.getByRole("button", { name: "Save operating rules", exact: true });
+      await expect(saveButton).toBeVisible();
+      await saveButton.click();
+      const dialog = page.getByTestId("reason-dialog");
+      await expect(dialog).toBeVisible();
+      await dialog.locator("textarea").fill(reason);
+      const responsePromise = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/admin/coverage/settings" && response.request().method() === "PATCH");
+      await dialog.getByRole("button", { name: "Save operating rules", exact: true }).click();
+      const response = await responsePromise;
+      expect(response.status(), `operating-rule response: ${await response.text()}`).toBe(200);
+      if (await page.getByRole("heading", { name: "That page did not finish loading" }).count()) {
+        throw new Error(`Coverage page crashed after saving operating rules: ${pageErrors.join(" | ") || "no browser error was captured"}`);
+      }
+      await expect(page.getByText("Operational thresholds saved.", { exact: true })).toBeVisible();
+    }
+
+    try {
+      await saveControlledRules(controlledValues, "Controlled mobile operating-rule acceptance update");
+      await expect(page.getByText("Safety times are configured", { exact: true })).toBeVisible();
+      const { data: savedSettings, error: savedSettingsError } = await admin
+        .from("service_area_operational_settings")
+        .select("handover_buffer_minutes,safe_completion_buffer_minutes,maximum_continuous_riding_minutes,minimum_break_minutes")
+        .eq("service_area_id", originalSettings.service_area_id)
+        .single();
+      if (savedSettingsError) throw savedSettingsError;
+      expect(savedSettings).toMatchObject(controlledValues);
+      const { count: auditCount, error: auditError } = await admin
+        .from("audit_logs")
+        .select("id", { count: "exact", head: true })
+        .eq("actor_id", account.id)
+        .eq("action", "service_area_operational_settings.updated")
+        .eq("resource_id", originalSettings.service_area_id);
+      if (auditError) throw auditError;
+      expect(auditCount ?? 0).toBeGreaterThan(0);
+    } finally {
+      const { error: restoreError } = await admin.rpc("update_service_area_operational_settings", {
+        target_service_area_id: originalSettings.service_area_id,
+        actor_id: account.id,
+        settings_payload: {
+          standard_max_distance_meters: originalSettings.standard_max_distance_meters,
+          manual_max_distance_meters: originalSettings.manual_max_distance_meters,
+          max_active_assignments_per_rider: originalSettings.max_active_assignments_per_rider,
+          standard_package_sizes: originalSettings.standard_package_sizes,
+          oversized_requires_manual_approval: originalSettings.oversized_requires_manual_approval,
+          service_hours: originalSettings.service_hours,
+          same_day_booking_cutoff: originalSettings.same_day_booking_cutoff,
+          handover_buffer_minutes: originalSettings.handover_buffer_minutes,
+          safe_completion_buffer_minutes: originalSettings.safe_completion_buffer_minutes,
+          waiting_free_minutes: originalSettings.waiting_free_minutes,
+          waiting_fee_per_minute_kobo: originalSettings.waiting_fee_per_minute_kobo,
+          maximum_continuous_riding_minutes: originalSettings.maximum_continuous_riding_minutes,
+          minimum_break_minutes: originalSettings.minimum_break_minutes,
+          motorcycle_restrictions_confirmed: Boolean(originalSettings.motorcycle_restrictions_confirmed_at),
+          motorcycle_restrictions_notes: originalSettings.motorcycle_restrictions_notes,
+        },
+        change_reason: "Restore original rules after controlled mobile acceptance",
+      });
+      if (restoreError) throw restoreError;
+    }
+    const { data: restoredSettings, error: restoredSettingsError } = await admin
+      .from("service_area_operational_settings")
+      .select("handover_buffer_minutes,safe_completion_buffer_minutes,maximum_continuous_riding_minutes,minimum_break_minutes")
+      .eq("service_area_id", originalSettings.service_area_id)
+      .single();
+    if (restoredSettingsError) throw restoredSettingsError;
+    expect(restoredSettings).toMatchObject({
+      handover_buffer_minutes: originalSettings.handover_buffer_minutes,
+      safe_completion_buffer_minutes: originalSettings.safe_completion_buffer_minutes,
+      maximum_continuous_riding_minutes: originalSettings.maximum_continuous_riding_minutes,
+      minimum_break_minutes: originalSettings.minimum_break_minutes,
+    });
+  }
 });
 
 test("administrator creates and completes the audited service-zone lifecycle on mobile", async ({ page }) => {
