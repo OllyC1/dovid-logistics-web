@@ -34,6 +34,8 @@ describe("booking continuation, contact and discoverability contracts", () => {
     expect(quoteRoute).toContain("evaluateOperatingSchedule");
     expect(quoteRoute).toContain("handover_buffer_minutes");
     expect(quoteRoute).toContain("safe_completion_buffer_minutes");
+    expect(quoteRoute).toContain("maximum_continuous_riding_minutes");
+    expect(quoteRoute).toContain("minimum_break_minutes");
     expect(quoteRoute).toContain('schedule.decision !== "same_day_eligible"');
     expect(quoteRoute).toContain("scheduleReason: schedule.reason");
   });

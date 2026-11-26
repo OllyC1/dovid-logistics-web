@@ -276,6 +276,13 @@ begin
   ) values (
     return_order_id,'parcel','small','Return workflow validation parcel',1000,200,150,100
   );
+  update public.delivery_orders
+  set pickup_zone_id='10000000-0000-4000-8000-00000000000a',
+      delivery_zone_id='10000000-0000-4000-8000-00000000000c'
+  where id=return_order_id;
+  update public.service_area_operational_settings
+  set maximum_continuous_riding_minutes=180,minimum_break_minutes=20
+  where service_area_id='10000000-0000-4000-8000-000000000001';
   insert into public.delivery_runs(
     id,run_reference,rider_id,vehicle_id,status,started_at,compliance_confirmed_at,
     compliance_confirmed_by,compliance_notes,idempotency_key,created_by
@@ -288,7 +295,7 @@ begin
 
   perform public.assign_order_to_delivery_run(
     return_order_id,return_run_id,'44444444-4444-4444-4444-444444444444',
-    '{"source":"database_validation"}'::jsonb,null,'70707070-7070-4070-8070-707070707070'
+    '{"source":"database_validation","durationSeconds":1200}'::jsonb,null,'70707070-7070-4070-8070-707070707070'
   );
   perform public.transition_delivery_order(return_order_id,'rider_en_route_to_pickup','{"source":"database_validation"}'::jsonb);
   perform public.transition_delivery_order(return_order_id,'picked_up','{"source":"database_validation"}'::jsonb);

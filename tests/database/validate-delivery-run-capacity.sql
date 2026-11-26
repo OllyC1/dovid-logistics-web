@@ -12,7 +12,9 @@ set identity_verified_at=now(),
 where user_id='33333333-3333-3333-3333-333333333333';
 
 update public.service_area_operational_settings
-set max_active_assignments_per_rider=1
+set max_active_assignments_per_rider=1,
+    maximum_continuous_riding_minutes=180,
+    minimum_break_minutes=20
 where service_area_id='10000000-0000-4000-8000-000000000001';
 
 update public.fleet_vehicles
@@ -52,6 +54,17 @@ insert into public.delivery_packages(
   ('91000000-0000-4000-8000-000000000011','parcel','small','First controlled parcel',1000,200,150,100),
   ('91000000-0000-4000-8000-000000000012','parcel','small','Second controlled parcel',1000,200,150,100);
 
+-- The legacy order-context trigger derives zone ids from quote payloads. Keep
+-- this controlled fixture explicit so the rider-rest rules resolve exactly as
+-- they do for current application quotes.
+update public.delivery_orders
+set pickup_zone_id='10000000-0000-4000-8000-00000000000a',
+    delivery_zone_id='10000000-0000-4000-8000-00000000000c'
+where id in (
+  '91000000-0000-4000-8000-000000000011',
+  '91000000-0000-4000-8000-000000000012'
+);
+
 do $$
 declare
   run_id uuid;
@@ -68,7 +81,7 @@ begin
   perform public.assign_order_to_delivery_run(
     '91000000-0000-4000-8000-000000000011',run_id,
     '44444444-4444-4444-4444-444444444444',
-    '{"deadlineConflict":false}'::jsonb,null,
+    '{"deadlineConflict":false,"durationSeconds":1800}'::jsonb,null,
     '91000000-0000-4000-8000-000000000032'
   );
 
@@ -76,7 +89,7 @@ begin
     perform public.assign_order_to_delivery_run(
       '91000000-0000-4000-8000-000000000012',run_id,
       '44444444-4444-4444-4444-444444444444',
-      '{"deadlineConflict":false}'::jsonb,null,
+      '{"deadlineConflict":false,"durationSeconds":1800}'::jsonb,null,
       '91000000-0000-4000-8000-000000000033'
     );
     raise exception 'delivery run exceeded the configured rider parcel limit';
@@ -97,6 +110,35 @@ begin
     where order_id='91000000-0000-4000-8000-000000000012'
   ) then
     raise exception 'failed rider-capacity assignment left partial run records';
+  end if;
+
+  update public.service_area_operational_settings
+  set max_active_assignments_per_rider=2,
+      maximum_continuous_riding_minutes=15
+  where service_area_id='10000000-0000-4000-8000-000000000001';
+
+  begin
+    perform public.assign_order_to_delivery_run(
+      '91000000-0000-4000-8000-000000000012',run_id,
+      '44444444-4444-4444-4444-444444444444',
+      '{"deadlineConflict":false,"durationSeconds":1800}'::jsonb,null,
+      '91000000-0000-4000-8000-000000000035'
+    );
+    raise exception 'delivery run exceeded the continuous riding limit';
+  exception when others then
+    if sqlerrm <> 'delivery run exceeds maximum continuous riding time (1800 seconds over 15 minutes)' then
+      raise;
+    end if;
+  end;
+
+  if exists(
+    select 1 from public.delivery_assignments
+    where order_id='91000000-0000-4000-8000-000000000012'
+  ) or exists(
+    select 1 from public.run_assignments
+    where order_id='91000000-0000-4000-8000-000000000012'
+  ) then
+    raise exception 'failed riding-limit assignment left partial records';
   end if;
 
   begin

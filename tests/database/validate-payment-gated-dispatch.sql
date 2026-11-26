@@ -29,7 +29,9 @@ begin
   end if;
 
   update public.service_area_operational_settings
-  set max_active_assignments_per_rider = 10
+  set max_active_assignments_per_rider = 10,
+      maximum_continuous_riding_minutes = 180,
+      minimum_break_minutes = 20
   where service_area_id = area_id;
 
   insert into public.fleet_vehicles(
@@ -147,7 +149,7 @@ begin
       vehicle_id,
       '33333333-3333-3333-3333-333333333333',
       '44444444-4444-4444-4444-444444444444',
-      '{"source":"payment_gate_validation"}'::jsonb,
+      '{"source":"payment_gate_validation","durationSeconds":1200}'::jsonb,
       null
     );
     raise exception 'manual assignment bypassed sender payment clearance';
@@ -179,7 +181,7 @@ begin
       sender_order_id,
       run_id,
       '44444444-4444-4444-4444-444444444444',
-      '{"source":"payment_gate_validation"}'::jsonb,
+      '{"source":"payment_gate_validation","durationSeconds":1200}'::jsonb,
       null,
       '93000000-0000-4000-8000-000000000042'
     );

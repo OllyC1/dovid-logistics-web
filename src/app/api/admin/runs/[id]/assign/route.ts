@@ -21,11 +21,20 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const admin = createSupabaseAdminClient();
   const [{ data: run }, { data: order }, { data: existingStops }, { data: deliveryPackage }] = await Promise.all([
     admin.from("delivery_runs").select("id,vehicle_id,scheduled_start_at,estimated_profit_kobo,fleet_vehicles(current_latitude,current_longitude)").eq("id", id).maybeSingle(),
-    admin.from("delivery_orders").select("id,quote_id,pickup_latitude,pickup_longitude,delivery_latitude,delivery_longitude").eq("id", parsed.data.orderId).maybeSingle(),
+    admin.from("delivery_orders").select("id,quote_id,pickup_zone_id,pickup_latitude,pickup_longitude,delivery_latitude,delivery_longitude").eq("id", parsed.data.orderId).maybeSingle(),
     admin.from("delivery_run_stops").select("id,order_id,stop_type,latitude,longitude,deadline_at").eq("run_id", id).in("status", ["pending", "next"]).order("sequence"),
     admin.from("delivery_packages").select("delivery_deadline").eq("order_id", parsed.data.orderId).maybeSingle(),
   ]);
   if (!run || !order) return NextResponse.json({ error: "Run or order not found" }, { status: 404 });
+  const { data: pickupZone } = order.pickup_zone_id
+    ? await admin.from("service_zones").select("service_area_id").eq("id", order.pickup_zone_id).maybeSingle()
+    : { data: null };
+  const { data: restRules } = pickupZone
+    ? await admin.from("service_area_operational_settings").select("maximum_continuous_riding_minutes,minimum_break_minutes").eq("service_area_id", pickupZone.service_area_id).maybeSingle()
+    : { data: null };
+  if (!restRules?.maximum_continuous_riding_minutes || !restRules.minimum_break_minutes) {
+    return NextResponse.json({ error: "Configure the maximum continuous riding time and minimum break before adding parcels to a run." }, { status: 409 });
+  }
   const vehicle = Array.isArray(run.fleet_vehicles) ? run.fleet_vehicles[0] : run.fleet_vehicles;
   if (vehicle?.current_latitude === null || vehicle?.current_longitude === null || vehicle?.current_latitude === undefined || vehicle?.current_longitude === undefined) return NextResponse.json({ error: "Record the bike location before route optimization." }, { status: 409 });
   const stops: RunRouteStop[] = [
@@ -36,6 +45,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   try {
     const route = await optimizeRunRoute({ latitude: Number(vehicle.current_latitude), longitude: Number(vehicle.current_longitude) }, stops);
     const routeDurationSeconds = durationSeconds(route.duration);
+    if (routeDurationSeconds > restRules.maximum_continuous_riding_minutes * 60) {
+      return NextResponse.json({ error: `This route exceeds the ${restRules.maximum_continuous_riding_minutes}-minute continuous riding limit. Split the run before assigning this parcel.` }, { status: 409 });
+    }
     const startsAt = Math.max(Date.now(), run.scheduled_start_at ? new Date(run.scheduled_start_at).getTime() : 0);
     let elapsedSeconds = 0;
     const suggestedStops = route.stops.map((stop, index) => {
@@ -44,7 +56,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return { ...stop, sequence: index + 1, estimatedArrivalAt, deadlineConflict: Boolean(stop.deadlineAt && new Date(estimatedArrivalAt) > new Date(stop.deadlineAt)) };
     });
     const { data: profit } = await admin.from("quote_cost_estimates").select("estimated_profit_kobo").eq("quote_id", order.quote_id).maybeSingle();
-    const routeSnapshot = { provider: route.provider, distanceMeters: route.distanceMeters, duration: route.duration, durationSeconds: routeDurationSeconds, expectedCompletionAt: new Date(startsAt + routeDurationSeconds * 1_000).toISOString(), suggestedStops, deadlineConflict: suggestedStops.some((stop) => stop.deadlineConflict), estimatedProfitKobo: (run.estimated_profit_kobo ?? 0) + (profit?.estimated_profit_kobo ?? 0) };
+    const routeSnapshot = { provider: route.provider, distanceMeters: route.distanceMeters, duration: route.duration, durationSeconds: routeDurationSeconds, maximumContinuousRidingMinutes: restRules.maximum_continuous_riding_minutes, minimumBreakMinutes: restRules.minimum_break_minutes, expectedCompletionAt: new Date(startsAt + routeDurationSeconds * 1_000).toISOString(), suggestedStops, deadlineConflict: suggestedStops.some((stop) => stop.deadlineConflict), estimatedProfitKobo: (run.estimated_profit_kobo ?? 0) + (profit?.estimated_profit_kobo ?? 0) };
     const { data, error } = await admin.rpc("assign_order_to_delivery_run", { target_order_id: order.id, target_run_id: id, actor_id: auth.user.id, route_snapshot: routeSnapshot, override_reason: parsed.data.overrideReason ?? null, request_idempotency_key: parsed.data.idempotencyKey });
     if (error) return NextResponse.json({ error: error.message }, { status: 409 });
     return NextResponse.json({ runAssignmentId: data, route: routeSnapshot }, { status: 201 });

@@ -32,14 +32,22 @@ set registration_number='IBD 900 WF', assigned_rider_id='33333333-3333-3333-3333
     operational_status='available'
 where id='20000000-0000-4000-8000-000000000001';
 
+update public.service_area_operational_settings
+set maximum_continuous_riding_minutes=180,minimum_break_minutes=20
+where service_area_id='10000000-0000-4000-8000-000000000001';
+
+update public.delivery_orders
+set pickup_zone_id='10000000-0000-4000-8000-00000000000a'
+where id='cccccccc-cccc-cccc-cccc-cccccccccccc';
+
 insert into public.delivery_runs(id,run_reference,rider_id,vehicle_id,status,idempotency_key,created_by,compliance_confirmed_at,compliance_confirmed_by,compliance_notes)
 values('81000000-0000-4000-8000-000000000010','RUN-WORKFLOW-VALIDATION','33333333-3333-3333-3333-333333333333','20000000-0000-4000-8000-000000000001','planned','81000000-0000-4000-8000-000000000011','44444444-4444-4444-4444-444444444444',now(),'44444444-4444-4444-4444-444444444444','Workflow completion validation');
 
 insert into public.delivery_run_stops(id,run_id,order_id,stop_type,sequence,status,address)
 values('81000000-0000-4000-8000-000000000012','81000000-0000-4000-8000-000000000010','cccccccc-cccc-cccc-cccc-cccccccccccc','dropoff',1,'pending','Validation destination');
 
-insert into public.run_assignments(id,run_id,order_id,status,idempotency_key)
-values('81000000-0000-4000-8000-000000000013','81000000-0000-4000-8000-000000000010','cccccccc-cccc-cccc-cccc-cccccccccccc','assigned','81000000-0000-4000-8000-000000000014');
+insert into public.run_assignments(id,run_id,order_id,status,idempotency_key,route_snapshot)
+values('81000000-0000-4000-8000-000000000013','81000000-0000-4000-8000-000000000010','cccccccc-cccc-cccc-cccc-cccccccccccc','assigned','81000000-0000-4000-8000-000000000014','{"durationSeconds":1200}'::jsonb);
 
 do $$
 begin

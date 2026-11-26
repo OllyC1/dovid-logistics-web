@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
     }
 
     const [{ data: settings }, route] = await Promise.all([
-      admin.from("service_area_operational_settings").select("standard_max_distance_meters,manual_max_distance_meters,service_hours,standard_package_sizes,oversized_requires_manual_approval,max_active_assignments_per_rider,same_day_booking_cutoff,handover_buffer_minutes,safe_completion_buffer_minutes").eq("service_area_id", pickupZone.service_area_id).single(),
+      admin.from("service_area_operational_settings").select("standard_max_distance_meters,manual_max_distance_meters,service_hours,standard_package_sizes,oversized_requires_manual_approval,max_active_assignments_per_rider,same_day_booking_cutoff,handover_buffer_minutes,safe_completion_buffer_minutes,maximum_continuous_riding_minutes,minimum_break_minutes").eq("service_area_id", pickupZone.service_area_id).single(),
       getRouteDistance(parsed.data.pickupCoordinates, parsed.data.deliveryCoordinates, parsed.data.additionalStops.map((stop) => stop.coordinates))
     ]);
     if (!settings) throw new Error("Operational eligibility settings are unavailable");
@@ -182,6 +182,8 @@ export async function POST(request: NextRequest) {
       routeDurationSeconds: durationSeconds(route.duration),
       handoverBufferMinutes: settings.handover_buffer_minutes,
       safeCompletionBufferMinutes: settings.safe_completion_buffer_minutes,
+      maximumContinuousRidingMinutes: settings.maximum_continuous_riding_minutes,
+      minimumBreakMinutes: settings.minimum_break_minutes,
       riderAvailable: availableFleetSlots > 0,
     });
     const decision = evaluateBookingEligibility({

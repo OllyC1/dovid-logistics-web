@@ -46,6 +46,8 @@ export function evaluateOperatingSchedule(input: {
   routeDurationSeconds: number;
   handoverBufferMinutes: number | null;
   safeCompletionBufferMinutes: number | null;
+  maximumContinuousRidingMinutes: number | null;
+  minimumBreakMinutes: number | null;
   riderAvailable: boolean;
 }) {
   const now = localOperatingParts(input.now, input.schedule.timezone);
@@ -58,6 +60,12 @@ export function evaluateOperatingSchedule(input: {
   }
   if (input.handoverBufferMinutes === null || input.safeCompletionBufferMinutes === null) {
     return { decision: "manual_review" as const, reason: "completion_buffers_unconfigured" };
+  }
+  if (input.maximumContinuousRidingMinutes === null || input.minimumBreakMinutes === null) {
+    return { decision: "manual_review" as const, reason: "rider_rest_rules_unconfigured" };
+  }
+  if (Math.ceil(input.routeDurationSeconds / 60) > input.maximumContinuousRidingMinutes) {
+    return { decision: "manual_review" as const, reason: "continuous_riding_limit_exceeded" };
   }
   const sameDay = now.dateKey === requested.dateKey;
   if (sameDay && now.minutes >= minutes(input.sameDayCutoff)) {

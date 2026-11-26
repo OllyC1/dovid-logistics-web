@@ -69,6 +69,59 @@ for each row execute function private.enforce_delivery_assignment_capacity();
 revoke all on function private.enforce_delivery_assignment_capacity()
 from public,anon,authenticated,service_role;
 
+create or replace function private.enforce_delivery_run_safety()
+returns trigger
+language plpgsql
+security definer
+set search_path=''
+as $$
+declare
+  maximum_riding_minutes integer;
+  minimum_break_minutes integer;
+  route_duration_seconds integer;
+begin
+  select
+    settings.maximum_continuous_riding_minutes,
+    settings.minimum_break_minutes
+  into maximum_riding_minutes,minimum_break_minutes
+  from public.delivery_orders delivery_order
+  left join public.service_zones pickup_zone on pickup_zone.id=delivery_order.pickup_zone_id
+  left join public.service_area_operational_settings settings on settings.service_area_id=pickup_zone.service_area_id
+  where delivery_order.id=new.order_id;
+
+  if maximum_riding_minutes is null or minimum_break_minutes is null then
+    raise exception 'rider rest rules must be configured before run assignment';
+  end if;
+
+  begin
+    route_duration_seconds:=nullif(new.route_snapshot->>'durationSeconds','')::integer;
+  exception when invalid_text_representation then
+    raise exception 'verified run route duration is required';
+  end;
+  if route_duration_seconds is null or route_duration_seconds<=0 then
+    raise exception 'verified run route duration is required';
+  end if;
+  if route_duration_seconds>maximum_riding_minutes*60 then
+    raise exception 'delivery run exceeds maximum continuous riding time (% seconds over % minutes)',
+      route_duration_seconds,maximum_riding_minutes;
+  end if;
+
+  new.route_snapshot:=new.route_snapshot||jsonb_build_object(
+    'maximumContinuousRidingMinutes',maximum_riding_minutes,
+    'minimumBreakMinutes',minimum_break_minutes
+  );
+  return new;
+end;
+$$;
+
+drop trigger if exists delivery_run_assignment_safety_guard on public.run_assignments;
+create trigger delivery_run_assignment_safety_guard
+before insert or update of route_snapshot on public.run_assignments
+for each row execute function private.enforce_delivery_run_safety();
+
+revoke all on function private.enforce_delivery_run_safety()
+from public,anon,authenticated,service_role;
+
 create or replace function public.create_delivery_run(
   target_vehicle_id uuid,
   target_rider_id uuid,
@@ -173,3 +226,6 @@ to service_role;
 
 comment on function private.enforce_delivery_assignment_capacity() is
   'Serializes assignment against its motorcycle and enforces both motorcycle and configured rider parcel limits across every active assignment path.';
+
+comment on function private.enforce_delivery_run_safety() is
+  'Requires reviewed rider rest rules and rejects a multi-parcel route whose verified duration exceeds the maximum continuous riding limit.';

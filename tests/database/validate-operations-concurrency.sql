@@ -12,6 +12,14 @@ set registration_number='IBD 901 WF', assigned_rider_id='33333333-3333-3333-3333
     operational_status='available'
 where id='20000000-0000-4000-8000-000000000001';
 
+update public.service_area_operational_settings
+set maximum_continuous_riding_minutes=180,minimum_break_minutes=20
+where service_area_id='10000000-0000-4000-8000-000000000001';
+
+update public.delivery_orders
+set pickup_zone_id='10000000-0000-4000-8000-00000000000a'
+where id='cccccccc-cccc-cccc-cccc-cccccccccccc';
+
 insert into public.delivery_runs(
   id, run_reference, rider_id, vehicle_id, status, idempotency_key,
   created_by, compliance_confirmed_at, compliance_confirmed_by, compliance_notes
@@ -77,10 +85,10 @@ select public.reorder_delivery_run_stops(
   '70000000-0000-4000-8000-000000000006'
 );
 
-insert into public.run_assignments(run_id, order_id, status, idempotency_key)
-values ('70000000-0000-4000-8000-000000000001', 'cccccccc-cccc-cccc-cccc-cccccccccccc', 'delivered', '70000000-0000-4000-8000-000000000007');
-insert into public.run_assignments(run_id, order_id, status, idempotency_key)
-values ('70000000-0000-4000-8000-000000000001', 'cccccccc-cccc-cccc-cccc-cccccccccccc', 'assigned', '70000000-0000-4000-8000-000000000008');
+insert into public.run_assignments(run_id, order_id, status, idempotency_key,route_snapshot)
+values ('70000000-0000-4000-8000-000000000001', 'cccccccc-cccc-cccc-cccc-cccccccccccc', 'delivered', '70000000-0000-4000-8000-000000000007','{"durationSeconds":1200}'::jsonb);
+insert into public.run_assignments(run_id, order_id, status, idempotency_key,route_snapshot)
+values ('70000000-0000-4000-8000-000000000001', 'cccccccc-cccc-cccc-cccc-cccccccccccc', 'assigned', '70000000-0000-4000-8000-000000000008','{"durationSeconds":1200}'::jsonb);
 
 do $$
 begin

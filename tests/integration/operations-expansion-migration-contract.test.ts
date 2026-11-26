@@ -4,6 +4,8 @@ import { describe, expect, it } from "vitest";
 const sql = readFileSync("supabase/migrations/202611140006_operations_expansion.sql", "utf8");
 const concurrencySql = readFileSync("supabase/migrations/202611140007_operations_concurrency_fixes.sql", "utf8");
 const routeMetricsSql = readFileSync("supabase/migrations/202611140008_delivery_run_route_metrics.sql", "utf8");
+const capacityHardeningSql = readFileSync("supabase/migrations/20261126163300_harden_delivery_run_capacity.sql", "utf8");
+const runAssignmentRoute = readFileSync("src/app/api/admin/runs/[id]/assign/route.ts", "utf8");
 
 describe("operations expansion migration", () => {
   it("sets the explicit Lagos schedule without activating operations", () => {
@@ -50,6 +52,22 @@ describe("delivery run route metrics migration", () => {
   it("makes manual route retries idempotent", () => {
     expect(routeMetricsSql).toContain("manualOrderIdempotencyKey");
     expect(routeMetricsSql).toContain("completed_sequence+ordered.position::integer");
+  });
+});
+
+describe("delivery run capacity and rider-rest hardening", () => {
+  it("enforces both rider capacity and maximum continuous riding at the database boundary", () => {
+    expect(capacityHardeningSql).toContain("enforce_delivery_assignment_capacity");
+    expect(capacityHardeningSql).toContain("rider parcel-count capacity exceeded");
+    expect(capacityHardeningSql).toContain("enforce_delivery_run_safety");
+    expect(capacityHardeningSql).toContain("delivery run exceeds maximum continuous riding time");
+  });
+
+  it("rejects unsafe provider routes before the application creates an assignment", () => {
+    expect(runAssignmentRoute).toContain("maximum_continuous_riding_minutes");
+    expect(runAssignmentRoute).toContain("minimum_break_minutes");
+    expect(runAssignmentRoute).toContain("Split the run before assigning this parcel");
+    expect(runAssignmentRoute.indexOf("exceeds the ${restRules.maximum_continuous_riding_minutes}-minute")).toBeLessThan(runAssignmentRoute.indexOf('admin.rpc("assign_order_to_delivery_run"'));
   });
 });
 
