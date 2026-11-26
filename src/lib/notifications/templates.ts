@@ -9,6 +9,13 @@ type EmailPurpose = {
   safetyNote: string;
 };
 
+export class UnsupportedTransactionalEmailEventError extends Error {
+  constructor(public readonly eventType: string) {
+    super(`No approved transactional email template exists for event: ${eventType}`);
+    this.name = "UnsupportedTransactionalEmailEventError";
+  }
+}
+
 const customerSafetyNote = "For your safety, use only links that open the Dovid Logistics website. We will never ask you to send money to a rider's personal account.";
 const staffSafetyNote = "This is a staff-only operational message. Sign in with your verified Dovid Logistics staff account before taking action.";
 
@@ -47,12 +54,9 @@ export const transactionalEmailPurposes = {
   }
 } satisfies Record<string, EmailPurpose>;
 
-function fallbackPurpose(): EmailPurpose {
-  return { badge: "Dovid Logistics update", safetyNote: "If you did not expect this message, contact Dovid Logistics using the details below." };
-}
-
 export function getTransactionalEmailPurpose(eventType: string, metadata?: Record<string, unknown> | null): EmailPurpose {
-  const purpose = transactionalEmailPurposes[eventType as keyof typeof transactionalEmailPurposes] ?? fallbackPurpose();
+  const purpose = transactionalEmailPurposes[eventType as keyof typeof transactionalEmailPurposes];
+  if (!purpose) throw new UnsupportedTransactionalEmailEventError(eventType);
   const enquiryKind = metadata?.enquiryKind === "business" ? "business" : metadata?.enquiryKind === "support" ? "support" : null;
   if (eventType === "website_enquiry_received" && enquiryKind) return { ...purpose, badge: `New ${enquiryKind} enquiry` };
   if (eventType === "website_enquiry_acknowledged" && enquiryKind) return { ...purpose, badge: `${humanize(enquiryKind)} enquiry received` };

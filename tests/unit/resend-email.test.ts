@@ -1,7 +1,7 @@
 import { createHmac } from "node:crypto";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ResendNotificationProvider, NotificationProviderError } from "@/lib/notifications/provider";
-import { getTransactionalEmailPurpose, renderTransactionalEmail, transactionalEmailPurposes } from "@/lib/notifications/templates";
+import { getTransactionalEmailPurpose, renderTransactionalEmail, transactionalEmailPurposes, UnsupportedTransactionalEmailEventError } from "@/lib/notifications/templates";
 import { verifyResendWebhook } from "@/lib/resend/webhook";
 
 afterEach(() => vi.unstubAllGlobals());
@@ -90,13 +90,12 @@ describe("Resend transactional email", () => {
     expect(rendered.html).not.toContain("Track delivery");
   });
 
-  it("does not create a button for an unsafe or unknown action", () => {
+  it("does not create a button for an unsafe action and refuses an unreviewed email event", () => {
     const unsafe = renderTransactionalEmail({ eventType: "booking_confirmed", heading: "Confirmed", body: "Done", metadata: { actionPath: "//malicious.example" } });
-    const unknown = renderTransactionalEmail({ eventType: "unreviewed_event", heading: "Update", body: "Details", metadata: { actionPath: "/account" } });
 
     expect(unsafe.html).not.toContain("href=");
-    expect(unknown.html).toContain("Dovid Logistics update");
-    expect(unknown.html).not.toContain("href=");
+    expect(() => renderTransactionalEmail({ eventType: "unreviewed_event", heading: "Update", body: "Details", metadata: { actionPath: "/account" } }))
+      .toThrow(UnsupportedTransactionalEmailEventError);
   });
 
   it("has an explicit presentation for every application email event", () => {
