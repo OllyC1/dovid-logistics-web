@@ -30,6 +30,14 @@ describe("booking continuation, contact and discoverability contracts", () => {
     expect(dispatchReadiness).toContain("capacity_verified_at");
   });
 
+  it("applies route-duration and safety-buffer scheduling to public booking", () => {
+    expect(quoteRoute).toContain("evaluateOperatingSchedule");
+    expect(quoteRoute).toContain("handover_buffer_minutes");
+    expect(quoteRoute).toContain("safe_completion_buffer_minutes");
+    expect(quoteRoute).toContain('schedule.decision !== "same_day_eligible"');
+    expect(quoteRoute).toContain("scheduleReason: schedule.reason");
+  });
+
   it("starts waiting on arrival and keeps the resulting fee review-only", () => {
     expect(migration).toContain("new.delivery_status='arrived_at_destination'");
     expect(migration).toContain("selected_waiting.free_waiting_minutes_snapshot*60");

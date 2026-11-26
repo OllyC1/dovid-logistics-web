@@ -52,5 +52,5 @@ export function isWithinServiceHours(now: Date, hours: ServiceHours) {
   const window = hours[weekday];
   if (!Array.isArray(window) || window.length !== 2) return false;
   const current = `${hour}:${minute}`;
-  return current >= window[0] && current <= window[1];
+  return current >= window[0] && current < window[1];
 }

@@ -25,6 +25,7 @@ describe("booking eligibility", () => {
   it("uses Africa/Lagos service hours", () => {
     const hours = { timezone: "Africa/Lagos", monday: ["07:00", "20:00"] as [string, string], tuesday: null, wednesday: null, thursday: null, friday: null, saturday: null, sunday: null };
     expect(isWithinServiceHours(new Date("2026-11-16T10:00:00Z"), hours)).toBe(true);
+    expect(isWithinServiceHours(new Date("2026-11-16T19:00:00Z"), hours)).toBe(false);
     expect(isWithinServiceHours(new Date("2026-11-16T22:00:00Z"), hours)).toBe(false);
   });
 });

@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
 import { hashAssistedSecret } from "@/features/assisted-bookings/security";
 import { calculateDispatchCapacity } from "@/features/dispatch/readiness";
+import { evaluateOperatingSchedule, type OperatingSchedule } from "@/features/operations/scheduling";
 import { deliveryQuoteRequestSchema } from "@/features/pricing/quote-request";
 import { createQuoteFromContext, loadActivePricingContext, loadComparableCompetitorQuotes, loadPromotion } from "@/features/pricing/service";
 import { evaluateBookingEligibility, isWithinServiceHours } from "@/features/service-areas/eligibility";
@@ -87,7 +88,7 @@ export async function POST(request: NextRequest) {
     }
 
     const [{ data: settings }, route] = await Promise.all([
-      admin.from("service_area_operational_settings").select("standard_max_distance_meters,manual_max_distance_meters,service_hours,standard_package_sizes,oversized_requires_manual_approval,max_active_assignments_per_rider").eq("service_area_id", pickupZone.service_area_id).single(),
+      admin.from("service_area_operational_settings").select("standard_max_distance_meters,manual_max_distance_meters,service_hours,standard_package_sizes,oversized_requires_manual_approval,max_active_assignments_per_rider,same_day_booking_cutoff,handover_buffer_minutes,safe_completion_buffer_minutes").eq("service_area_id", pickupZone.service_area_id).single(),
       getRouteDistance(parsed.data.pickupCoordinates, parsed.data.deliveryCoordinates, parsed.data.additionalStops.map((stop) => stop.coordinates))
     ]);
     if (!settings) throw new Error("Operational eligibility settings are unavailable");
@@ -172,16 +173,27 @@ export async function POST(request: NextRequest) {
       activeAssignments: assignmentResult.data ?? [],
       riderParcelLimit: settings.max_active_assignments_per_rider,
     }).availableParcelSlots;
+    const requestedAt = parsed.data.scheduledAt ? new Date(parsed.data.scheduledAt) : now;
+    const schedule = evaluateOperatingSchedule({
+      now,
+      requestedAt,
+      schedule: settings.service_hours as OperatingSchedule,
+      sameDayCutoff: settings.same_day_booking_cutoff,
+      routeDurationSeconds: durationSeconds(route.duration),
+      handoverBufferMinutes: settings.handover_buffer_minutes,
+      safeCompletionBufferMinutes: settings.safe_completion_buffer_minutes,
+      riderAvailable: availableFleetSlots > 0,
+    });
     const decision = evaluateBookingEligibility({
       pickupCovered: true,
       deliveryCovered: true,
       allStopsCovered: true,
       zonesAllowBooking: pickupZone.booking_eligibility !== "unavailable" && deliveryZone.booking_eligibility !== "unavailable",
-      zoneRequiresApproval: !approvedRequest && (pickupZone.dispatch_approval_required || deliveryZone.dispatch_approval_required || pickupZone.booking_eligibility === "manual_approval" || deliveryZone.booking_eligibility === "manual_approval"),
+      zoneRequiresApproval: !approvedRequest && (pickupZone.dispatch_approval_required || deliveryZone.dispatch_approval_required || pickupZone.booking_eligibility === "manual_approval" || deliveryZone.booking_eligibility === "manual_approval" || schedule.decision !== "same_day_eligible"),
       roadDistanceMeters: route.distanceMeters,
       standardMaxDistanceMeters: approvedRequest ? Math.max(settings.standard_max_distance_meters, route.distanceMeters) : settings.standard_max_distance_meters,
       manualMaxDistanceMeters: approvedRequest ? Math.max(settings.manual_max_distance_meters, route.distanceMeters) : settings.manual_max_distance_meters,
-      withinServiceHours: approvedRequest ? true : isWithinServiceHours(now, settings.service_hours),
+      withinServiceHours: approvedRequest ? true : isWithinServiceHours(requestedAt, settings.service_hours),
       availableFleetSlots,
       packageSize: parsed.data.packageSize,
       standardPackageSizes: approvedRequest ? [...settings.standard_package_sizes as string[], parsed.data.packageSize] : settings.standard_package_sizes as string[],
@@ -199,6 +211,8 @@ export async function POST(request: NextRequest) {
       eligibilityDecision: decision.decision,
       eligibilityReasonCode: decision.reasonCode,
       routeDurationSeconds: durationSeconds(route.duration),
+      scheduleDecision: schedule.decision,
+      scheduleReason: schedule.reason,
       approvalReference: approvedRequest?.reference_code
     };
 
