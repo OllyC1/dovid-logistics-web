@@ -44,6 +44,20 @@ This evidence does not make the service production-ready. The physical fleet, fi
 | Domain/providers | Custom domain connected; Supabase, Paystack, Google and Resend URLs/restrictions updated and retested |
 | Quality certification | Lighthouse, accessibility, keyboard and constrained Android emulator evidence captured on the final domain; one physical low-end Android field pass and slow-network operational observation remain |
 
+## Current recorded operating state — 26 November 2026
+
+The following is a read-only snapshot of the hosted Supabase records. It is evidence of what the software currently records, not a substitute for founder field verification or physical inspection.
+
+- Coverage: Zones A–F and the Ibadan fallback zone are recorded as active and approved. Zone F remains manual-approval only. Boundary-source records exist, but road-by-road and address-edge field confirmation remains outstanding.
+- Commercial pricing: one active, non-provisional rate card is recorded. Every quote still passes the profitability controls; final founder approval of the operating assumptions remains outstanding.
+- Fleet: `IB-BIKE-01` and `IB-BIKE-02` still use `PENDING-BIKE-*` placeholder registrations. Both are offline, unassigned and intentionally contribute zero automatic booking capacity even though capacity and safety records exist.
+- People and capacity: one rider membership is active. The configured rider limit is ten active parcels, but that limit cannot create capacity without a genuine, available, safety-cleared motorcycle assigned to an active named rider.
+- Scheduling: the handover buffer, safe-completion buffer, maximum continuous riding time and minimum break duration are not configured. Do not infer or silently insert operational values.
+- Payment protection: no active sender-paid assignment exists without a recorded paid transaction. Live Paystack remains disabled.
+- Controlled access: public booking remains visible for founder testing; assisted-booking confirmation remains disabled.
+
+Migration `20261126144013_audit_operational_settings_updates.sql` is locally validated but not deployed. It makes operating-rule changes atomic, reason-required and auditable with explicit before/after evidence. The hosted migration ledger still ends at `20261126123000_preserve_refund_state_order`; the dependent application commit must not be deployed before the migration receives explicit production authorization and is applied successfully.
+
 ## Database backup and restore
 
 No public booking or live payment may begin without a successful owner-held logical export and restore drill. Paid PITR is not required for this founder-approved Free-plan launch.
