@@ -132,6 +132,7 @@ export function CoverageEditor({ initialZones, settings: initialSettings, mapsKe
   const [message, setMessage] = useState("");
   const [pending, setPending] = useState(false);
   const [zoneAction, setZoneAction] = useState<"save" | "review" | "approve" | "activate" | "publish" | "suspend" | null>(null);
+  const [settingsReasonOpen, setSettingsReasonOpen] = useState(false);
   const [drawing, setDrawing] = useState(false);
   const drawingPoints = useRef<MapLatLng[]>([]);
   const [previewMode, setPreviewMode] = useState<"pickup" | "delivery" | null>(null);
@@ -314,10 +315,11 @@ export function CoverageEditor({ initialZones, settings: initialSettings, mapsKe
     setMessage(action === "publish" ? "Zone saved, reviewed, approved, activated and recorded." : `Zone ${action} completed and recorded.`);
   }
 
-  async function saveSettings() {
+  async function saveSettings(reason: string) {
     setPending(true); setMessage("");
-    const response = await fetch("/api/admin/coverage/settings", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ serviceAreaId: settings.service_area_id, standardMaxDistanceMeters: Number(settings.standard_max_distance_meters), manualMaxDistanceMeters: Number(settings.manual_max_distance_meters), maxActiveAssignmentsPerRider: Number(settings.max_active_assignments_per_rider), standardPackageSizes: settings.standard_package_sizes, oversizedRequiresManualApproval: settings.oversized_requires_manual_approval, serviceHours: settings.service_hours, sameDayBookingCutoff: settings.same_day_booking_cutoff.slice(0, 5), handoverBufferMinutes: settings.handover_buffer_minutes, safeCompletionBufferMinutes: settings.safe_completion_buffer_minutes, waitingFreeMinutes: settings.waiting_free_minutes, waitingFeePerMinuteKobo: settings.waiting_fee_per_minute_kobo, maximumContinuousRidingMinutes: settings.maximum_continuous_riding_minutes, minimumBreakMinutes: settings.minimum_break_minutes, motorcycleRestrictionsConfirmed: Boolean(settings.motorcycle_restrictions_confirmed_at), motorcycleRestrictionsNotes: settings.motorcycle_restrictions_notes }) });
+    const response = await fetch("/api/admin/coverage/settings", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ serviceAreaId: settings.service_area_id, standardMaxDistanceMeters: Number(settings.standard_max_distance_meters), manualMaxDistanceMeters: Number(settings.manual_max_distance_meters), maxActiveAssignmentsPerRider: Number(settings.max_active_assignments_per_rider), standardPackageSizes: settings.standard_package_sizes, oversizedRequiresManualApproval: settings.oversized_requires_manual_approval, serviceHours: settings.service_hours, sameDayBookingCutoff: settings.same_day_booking_cutoff.slice(0, 5), handoverBufferMinutes: settings.handover_buffer_minutes, safeCompletionBufferMinutes: settings.safe_completion_buffer_minutes, waitingFreeMinutes: settings.waiting_free_minutes, waitingFeePerMinuteKobo: settings.waiting_fee_per_minute_kobo, maximumContinuousRidingMinutes: settings.maximum_continuous_riding_minutes, minimumBreakMinutes: settings.minimum_break_minutes, motorcycleRestrictionsConfirmed: Boolean(settings.motorcycle_restrictions_confirmed_at), motorcycleRestrictionsNotes: settings.motorcycle_restrictions_notes, reason }) });
     const body = await response.json(); setPending(false); setMessage(response.ok ? "Operational thresholds saved." : body.error ?? "Settings could not be saved.");
+    if (response.ok) setSettingsReasonOpen(false);
   }
 
   function importGeoJson(file: File | undefined) {
@@ -404,7 +406,7 @@ export function CoverageEditor({ initialZones, settings: initialSettings, mapsKe
       <div className="mt-6 grid gap-4 sm:grid-cols-3"><label className="grid gap-2 text-sm font-bold text-navy">Same-day cutoff<input type="time" value={settings.same_day_booking_cutoff.slice(0, 5)} onChange={(event) => setSettings({ ...settings, same_day_booking_cutoff: event.target.value })} className="rounded-xl border p-3 font-normal"/></label><label className="grid gap-2 text-sm font-bold text-navy">Handover buffer (minutes)<input type="number" min={0} max={240} value={settings.handover_buffer_minutes ?? ""} onChange={(event) => setSettings({ ...settings, handover_buffer_minutes: nullableNumber(event.target.value) })} className="rounded-xl border p-3 font-normal"/></label><label className="grid gap-2 text-sm font-bold text-navy">Completion buffer (minutes)<input type="number" min={0} max={240} value={settings.safe_completion_buffer_minutes ?? ""} onChange={(event) => setSettings({ ...settings, safe_completion_buffer_minutes: nullableNumber(event.target.value) })} className="rounded-xl border p-3 font-normal"/></label></div>
       <div className="mt-4 grid gap-4 sm:grid-cols-4"><label className="grid gap-2 text-sm font-bold text-navy">Free waiting (minutes)<input type="number" min={0} max={240} value={settings.waiting_free_minutes ?? ""} onChange={(event) => setSettings({ ...settings, waiting_free_minutes: nullableNumber(event.target.value) })} className="rounded-xl border p-3 font-normal"/></label><label className="grid gap-2 text-sm font-bold text-navy">Waiting fee (kobo/minute)<input type="number" min={0} value={settings.waiting_fee_per_minute_kobo ?? ""} onChange={(event) => setSettings({ ...settings, waiting_fee_per_minute_kobo: nullableNumber(event.target.value) })} className="rounded-xl border p-3 font-normal"/></label><label className="grid gap-2 text-sm font-bold text-navy">Continuous riding limit<input type="number" min={15} max={480} value={settings.maximum_continuous_riding_minutes ?? ""} onChange={(event) => setSettings({ ...settings, maximum_continuous_riding_minutes: nullableNumber(event.target.value) })} className="rounded-xl border p-3 font-normal"/></label><label className="grid gap-2 text-sm font-bold text-navy">Minimum break (minutes)<input type="number" min={5} max={180} value={settings.minimum_break_minutes ?? ""} onChange={(event) => setSettings({ ...settings, minimum_break_minutes: nullableNumber(event.target.value) })} className="rounded-xl border p-3 font-normal"/></label></div>
       <div className="mt-4 grid gap-3 rounded-2xl border p-4"><label className="flex items-center gap-3 text-sm font-bold text-navy"><input type="checkbox" checked={Boolean(settings.motorcycle_restrictions_confirmed_at)} onChange={(event) => setSettings({ ...settings, motorcycle_restrictions_confirmed_at: event.target.checked ? new Date().toISOString() : null })}/>Motorcycle access restrictions have been operationally reviewed</label><textarea value={settings.motorcycle_restrictions_notes ?? ""} onChange={(event) => setSettings({ ...settings, motorcycle_restrictions_notes: event.target.value || null })} placeholder="Record reviewed roads, time restrictions and evidence. Do not guess." className="min-h-24 rounded-xl border p-3 text-sm"/></div>
-      <Button className="mt-5" disabled={pending} onClick={saveSettings}>Save operating rules</Button>
+      <Button className="mt-5" disabled={pending} onClick={() => setSettingsReasonOpen(true)}>Save operating rules</Button>
     </section>
     {message ? <p role="status" className="rounded-2xl bg-amber-50 p-4 text-sm text-amber-900">{message}</p> : null}
     <ReasonDialog
@@ -415,6 +417,15 @@ export function CoverageEditor({ initialZones, settings: initialSettings, mapsKe
       pending={pending}
       onCancel={() => setZoneAction(null)}
       onConfirm={(reason) => zoneAction ? performAction(zoneAction, reason) : undefined}
+    />
+    <ReasonDialog
+      open={settingsReasonOpen}
+      title="Save these operating rules?"
+      description="These settings affect booking eligibility, rider workload and safe scheduling. Record why they changed; the previous and new values will be saved together in the audit history."
+      confirmLabel="Save operating rules"
+      pending={pending}
+      onCancel={() => setSettingsReasonOpen(false)}
+      onConfirm={saveSettings}
     />
   </div>;
 }

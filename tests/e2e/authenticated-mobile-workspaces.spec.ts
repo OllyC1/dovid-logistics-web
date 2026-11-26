@@ -694,6 +694,17 @@ test("administrator reaches the admin workspace without MFA and every authorized
     expect(places.status()).toBe(200);
     expect(((await places.json()) as { suggestions?: unknown[] }).suggestions?.length ?? 0).toBeGreaterThan(0);
   }
+  await page.getByRole("button", { name: "Save operating rules" }).click();
+  const settingsDialog = page.getByRole("dialog");
+  await expect(settingsDialog).toContainText("previous and new values will be saved together in the audit history");
+  await expect(settingsDialog.getByRole("button", { name: "Save operating rules" })).toBeDisabled();
+  const dialogBounds = await settingsDialog.boundingBox();
+  expect(dialogBounds, "operating rules dialog bounds").not.toBeNull();
+  expect(dialogBounds!.x, "operating rules dialog left edge").toBeGreaterThanOrEqual(0);
+  expect(dialogBounds!.x + dialogBounds!.width, "operating rules dialog right edge").toBeLessThanOrEqual(page.viewportSize()!.width);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth), "operating rules dialog overflow").toBeLessThanOrEqual(page.viewportSize()!.width);
+  await settingsDialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(settingsDialog).toBeHidden();
 });
 
 test("administrator creates and completes the audited service-zone lifecycle on mobile", async ({ page }) => {
