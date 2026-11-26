@@ -76,8 +76,8 @@ describe("email queue template safety", () => {
         recipient_email: "recipient@example.com",
         subject: "Delivery update",
         event_type: "website_enquiry_acknowledged",
-        body: "Thank you for contacting Dovid Logistics.",
-        metadata: { enquiryKind: "support", actionPath: "/account" },
+        body: "Delivery update. View secure update.",
+        metadata: { enquiryKind: "support", enquirySubject: "Account help", actionPath: "/account" },
         deduplication_key: "email:enquiry:2",
         attempt_count: 1
       }],
@@ -88,8 +88,9 @@ describe("email queue template safety", () => {
     await expect(processEmailQueue(1)).resolves.toEqual({ claimed: 1, accepted: 1, retried: 0, failed: 0 });
 
     expect(mocks.providerSend).toHaveBeenCalledWith(expect.objectContaining({
-      subject: "We received your Dovid Logistics enquiry",
-      html: expect.not.stringContaining("Delivery update")
+      subject: "We received your Dovid Logistics support enquiry",
+      html: expect.not.stringContaining("Delivery update"),
+      text: expect.not.stringContaining("View secure update")
     }));
   });
 });

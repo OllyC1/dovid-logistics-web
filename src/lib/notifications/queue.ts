@@ -29,7 +29,14 @@ export async function processEmailQueue(batchLimit = 10) {
     results.claimed += 1;
     try {
       const rendered = renderTransactionalEmail({ eventType: notification.event_type, body: notification.body, metadata: notification.metadata });
-      const sent = await provider.send({ to: notification.recipient_email, subject: rendered.subject, html: rendered.html, text: rendered.text, deduplicationKey: notification.deduplication_key, replyTo: process.env.RESEND_REPLY_TO_EMAIL || undefined });
+      const sent = await provider.send({
+        to: notification.recipient_email,
+        subject: rendered.subject,
+        html: rendered.html,
+        text: rendered.text,
+        deduplicationKey: notification.deduplication_key,
+        replyTo: rendered.replyTo ?? (process.env.RESEND_REPLY_TO_EMAIL || undefined)
+      });
       const now = new Date().toISOString();
       const { error: updateError } = await admin.from("notifications").update({ status: "sent", delivery_status: "accepted", provider: provider.name, provider_message_id: sent.providerId, accepted_at: now, next_attempt_at: null, claim_token: null, claimed_at: null, lease_expires_at: null, last_error_code: null, last_error_message: null }).eq("id", notification.id).eq("claim_token", workerToken).eq("status", "sending");
       if (updateError) throw updateError;

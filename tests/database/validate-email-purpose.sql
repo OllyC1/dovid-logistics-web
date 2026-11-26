@@ -25,8 +25,13 @@ begin
   if position('''enquirySubject'', new.subject' in enquiry_definition) = 0 then
     raise exception 'website enquiry emails do not preserve purpose-specific topic metadata';
   end if;
-  if position('''actionPath'', ''/contact''' in enquiry_definition) > 0 then
-    raise exception 'customer enquiry acknowledgement still contains an unrelated action';
+  if position('''enquiryName'', new.name' in enquiry_definition) = 0
+     or position('''enquiryEmail'', lower(new.email)' in enquiry_definition) = 0
+     or position('''enquiryMessage'', new.message' in enquiry_definition) = 0 then
+    raise exception 'internal website enquiry email lacks structured contact metadata';
+  end if;
+  if position('''actionPath''' in enquiry_definition) > 0 then
+    raise exception 'website enquiry emails still contain an unrelated application action';
   end if;
   if position('pickupAddress' in dispatch_definition) = 0
      or position('deliveryAddress' in dispatch_definition) = 0 then

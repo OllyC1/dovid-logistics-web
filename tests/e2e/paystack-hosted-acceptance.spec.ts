@@ -3,9 +3,10 @@ import { expect, test } from "@playwright/test";
 const runHostedAcceptance = process.env.RUN_PAYSTACK_HOSTED_E2E === "true";
 const guestToken = process.env.PAYSTACK_GUEST_TOKEN;
 const receiptEmail = process.env.PAYSTACK_TEST_EMAIL;
+const orderReference = process.env.PAYSTACK_TEST_ORDER_REFERENCE;
 
 test.describe("Paystack hosted TEST acceptance", () => {
-  test.skip(!runHostedAcceptance || !guestToken || !receiptEmail, "Requires an explicitly authorized controlled TEST order");
+  test.skip(!runHostedAcceptance || !guestToken || !receiptEmail || !orderReference, "Requires an explicitly authorized controlled TEST order");
 
   test("opens the controlled sender order in Paystack hosted checkout", async ({ page }) => {
     test.setTimeout(120_000);
@@ -16,7 +17,7 @@ test.describe("Paystack hosted TEST acceptance", () => {
       throw new Error(message);
     }
     await expect(page.getByRole("heading", { name: "Your delivery" })).toBeVisible();
-    await expect(page.getByText("DOV-E2E-PAY-", { exact: false })).toBeVisible();
+    await expect(page.getByText(orderReference!, { exact: true })).toBeVisible();
     const mainPayment = page.getByRole("article").filter({ has: page.getByRole("heading", { name: "Payment", exact: true }) });
     await mainPayment.getByLabel("Email address for the payment receipt").fill(receiptEmail!);
     await mainPayment.getByRole("button", { name: "Pay securely" }).click();

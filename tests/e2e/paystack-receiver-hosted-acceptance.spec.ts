@@ -1,20 +1,27 @@
 import { expect, test } from "@playwright/test";
 
 const runHostedAcceptance = process.env.RUN_PAYSTACK_HOSTED_E2E === "true";
-const receiverToken = process.env.PAYSTACK_RECEIVER_TOKEN;
+const receiverGuestToken = process.env.PAYSTACK_RECEIVER_GUEST_TOKEN;
 const receiptEmail = process.env.PAYSTACK_TEST_EMAIL;
 
 test.describe("Paystack receiver TEST acceptance", () => {
-  test.skip(!runHostedAcceptance || !receiverToken || !receiptEmail, "Requires an explicitly authorized controlled receiver TEST order");
+  test.skip(!runHostedAcceptance || !receiverGuestToken || !receiptEmail, "Requires an explicitly authorized controlled receiver TEST order");
 
   test("pays through a secure receiver link without an account", async ({ page }) => {
     test.setTimeout(150_000);
     try {
-      await page.goto(`/pay/receiver/${receiverToken}`);
+      await page.goto(`/guest/orders/${receiverGuestToken}`);
     } catch (error) {
-      const message = error instanceof Error ? error.message.replaceAll(receiverToken!, "[secure-receiver-token]") : "The receiver payment page could not be opened";
+      const message = error instanceof Error ? error.message.replaceAll(receiverGuestToken!, "[secure-guest-token]") : "The receiver delivery page could not be opened";
       throw new Error(message);
     }
+    await expect(page.getByRole("heading", { name: "Your delivery" })).toBeVisible();
+    await page.getByRole("button", { name: "Create receiver payment link" }).click();
+    await expect(page.getByRole("status")).toContainText("Receiver payment link is ready.");
+    const receiverLink = page.locator("p").filter({ hasText: /\/pay\/receiver\// }).first();
+    const receiverUrl = (await receiverLink.textContent())?.trim();
+    expect(receiverUrl).toMatch(/^https:\/\/dovidlogistics\.com\/pay\/receiver\/[0-9a-f]{64}$/);
+    await page.goto(receiverUrl!);
     await expect(page.getByRole("heading", { name: "Pay for this delivery" })).toBeVisible();
     await page.getByLabel("Where should we send the receipt?").fill(receiptEmail!);
     await page.getByRole("button", { name: "Continue to payment" }).click();

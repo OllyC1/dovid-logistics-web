@@ -39,9 +39,10 @@ describe("Resend transactional email", () => {
   });
 
   it("escapes user-controlled content and includes a text alternative", () => {
-    const rendered = renderTransactionalEmail({ eventType: "delivery_failed", heading: "Untrusted heading", body: "Review <update> & continue", metadata: { orderReference: "DOV-1", actionPath: "/account/orders/1" } });
+    const rendered = renderTransactionalEmail({ eventType: "delivery_failed", heading: "Untrusted heading", body: "Wrong queued body", metadata: { orderReference: "DOV-1", reason: "Review <update> & continue", actionPath: "/account/orders/1" } });
     expect(rendered.html).toContain("Review &lt;update&gt; &amp; continue");
     expect(rendered.html).not.toContain("Review <update>");
+    expect(rendered.html).not.toContain("Wrong queued body");
     expect(rendered.html).not.toContain("Untrusted heading");
     expect(rendered.text).toContain("DOV-1");
   });
@@ -50,13 +51,14 @@ describe("Resend transactional email", () => {
     const rendered = renderTransactionalEmail({
       eventType: "website_enquiry_acknowledged",
       heading: "We received your message",
-      body: "Thank you for contacting Dovid Logistics.",
-      metadata: { actionPath: "/contact", enquiryKind: "support" }
+      body: "Delivery update. View secure update.",
+      metadata: { actionPath: "/contact", enquiryKind: "support", enquirySubject: "Please call me" }
     });
 
     expect(rendered.html).toContain("Support enquiry received");
-    expect(rendered.subject).toBe("We received your Dovid Logistics enquiry");
-    expect(rendered.html).toContain("Thank you — your message is with our team");
+    expect(rendered.subject).toBe("We received your Dovid Logistics support enquiry");
+    expect(rendered.html).toContain("Thank you — your support enquiry is with our team");
+    expect(rendered.html).toContain("Please call me");
     expect(rendered.html).not.toContain("Delivery update");
     expect(rendered.html).not.toContain("View secure update");
     expect(rendered.html).not.toContain("href=");
@@ -64,20 +66,42 @@ describe("Resend transactional email", () => {
     expect(rendered.text).toContain("You do not need to sign in or make a payment for an enquiry.");
   });
 
-  it("renders an internal enquiry with readable fields and its staff action", () => {
+  it("renders an internal enquiry with structured contact fields and no unrelated CTA", () => {
     const rendered = renderTransactionalEmail({
       eventType: "website_enquiry_received",
       heading: "New website support enquiry",
-      body: "Name: Test Customer\nEmail: customer@example.com\n\nMessage:\nPlease call me.",
-      metadata: { actionPath: "/admin", enquiryKind: "support", enquirySubject: "Please call me" }
+      body: "Delivery update. View secure update.",
+      metadata: {
+        actionPath: "/admin",
+        enquiryKind: "support",
+        enquiryName: "Test Customer",
+        enquiryEmail: "customer@example.com",
+        enquiryPhone: "07000000000",
+        enquirySubject: "Please call me",
+        enquiryMessage: "I need help with a website enquiry."
+      }
     });
 
     expect(rendered.html).toContain("New support enquiry");
     expect(rendered.subject).toBe("New Dovid Logistics support enquiry: Please call me");
-    expect(rendered.html).toContain("Name: Test Customer<br>Email: customer@example.com");
-    expect(rendered.html).toContain("Open enquiries");
+    expect(rendered.html).toContain("Test Customer");
+    expect(rendered.html).toContain("customer@example.com");
+    expect(rendered.html).toContain("I need help with a website enquiry.");
+    expect(rendered.html).not.toContain("View secure update");
+    expect(rendered.html).not.toContain("href=");
+    expect(rendered.replyTo).toBe("customer@example.com");
     expect(rendered.html).toContain("Customer contact details are confidential.");
     expect(rendered.html).not.toContain("send money to a rider");
+  });
+
+  it("rejects an unsafe enquiry reply-to address", () => {
+    const rendered = renderTransactionalEmail({
+      eventType: "website_enquiry_received",
+      body: "Ignored queued body",
+      metadata: { enquiryKind: "support", enquiryEmail: "customer@example.com\r\nBcc: attacker@example.com" }
+    });
+
+    expect(rendered.replyTo).toBeNull();
   });
 
   it("uses payment-specific structure and the payment amount", () => {

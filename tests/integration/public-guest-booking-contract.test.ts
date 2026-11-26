@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 const migration = readFileSync("supabase/migrations/202611180001_public_guest_booking.sql", "utf8");
 const hardeningMigration = readFileSync("supabase/migrations/20261121100000_guest_booking_dispatch_hardening.sql", "utf8");
+const quoteBindingMigration = readFileSync("supabase/migrations/20261126042631_harden_guest_quote_booking_binding.sql", "utf8");
 const notificationEmailMigration = readFileSync("supabase/migrations/20261121103000_explicit_delivery_notification_email.sql", "utf8");
 const quoteRoute = readFileSync("src/app/api/delivery/quotes/route.ts", "utf8");
 const orderRoute = readFileSync("src/app/api/orders/route.ts", "utf8");
@@ -51,11 +52,20 @@ describe("direct public guest booking", () => {
     expect(guestPage).toContain("guest_booking");
   });
 
-  it("keeps payer selection out of quote repricing and stores guest receipt ownership", () => {
+  it("keeps payer selection out of repricing but binds the quoted payer at order creation", () => {
     expect(booking).toContain('onChange={set("payer", false)}');
     expect(hardeningMigration).not.toContain("request_payload->>'payer' is distinct");
+    expect(quoteBindingMigration).toContain("coalesce(selected_quote.request_payload->>'payer','sender') is distinct from booking_payload->>'payer'");
     expect(guestPayment).toContain("receipt_email");
     expect(hardeningMigration).toContain("selected_order.receipt_email");
+  });
+
+  it("prevents token expiry and idempotency weakening in later function replacements", () => {
+    expect(quoteBindingMigration).toContain("guest order access expiry is invalid");
+    expect(quoteBindingMigration).toContain("selected_token.confirmation_idempotency_key is distinct from booking_idempotency");
+    expect(quoteBindingMigration).toContain("quote has already been used");
+    expect(quoteBindingMigration).toContain("revoke all on function public.create_guest_delivery_order(jsonb,text,text,timestamptz) from public,anon,authenticated");
+    expect(quoteBindingMigration).toContain("grant execute on function public.create_guest_delivery_order(jsonb,text,text,timestamptz) to service_role");
   });
 
   it("collects an explicit delivery-update email and explains direct rider contact", () => {

@@ -43,9 +43,52 @@ begin
     if sqlerrm <> 'booking does not match confirmed quote' then raise; end if;
   end;
 
+  begin
+    perform public.create_guest_delivery_order(
+      jsonb_set(payload,'{payer}','"receiver"'::jsonb),
+      repeat('a',64),repeat('b',64),now()+interval '30 days'
+    );
+    raise exception 'tampered guest payer was accepted';
+  exception when others then
+    if sqlerrm <> 'booking does not match confirmed quote' then raise; end if;
+  end;
+
+  begin
+    perform public.create_guest_delivery_order(
+      payload,repeat('a',64),repeat('b',64),now()+interval '10 minutes'
+    );
+    raise exception 'short-lived guest order access token was accepted';
+  exception when others then
+    if sqlerrm <> 'guest order access expiry is invalid' then raise; end if;
+  end;
+
+  begin
+    perform public.create_guest_delivery_order(
+      payload,repeat('a',64),repeat('b',64),now()+interval '91 days'
+    );
+    raise exception 'overlong guest order access token was accepted';
+  exception when others then
+    if sqlerrm <> 'guest order access expiry is invalid' then raise; end if;
+  end;
+
   created := public.create_guest_delivery_order(
     payload,repeat('a',64),repeat('b',64),now()+interval '30 days'
   );
+
+  begin
+    perform public.create_guest_delivery_order(
+      jsonb_set(payload,'{idempotencyKey}','"20202020-2020-4020-8020-202020202020"'::jsonb),
+      repeat('a',64),repeat('d',64),now()+interval '30 days'
+    );
+    raise exception 'consumed guest quote accepted a different idempotency key';
+  exception when others then
+    if sqlerrm <> 'quote has already been used' then raise; end if;
+  end;
+
+  if (select token_hash from public.guest_order_access_tokens where order_id=(created->>'order_id')::uuid) <> repeat('b',64) then
+    raise exception 'failed replay rotated the guest access token';
+  end if;
+
   replayed := public.create_guest_delivery_order(
     payload,repeat('a',64),repeat('c',64),now()+interval '30 days'
   );

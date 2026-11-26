@@ -12,10 +12,10 @@ Application emails are not allowed to share a misleading generic call to action.
 | Dispatch staff | `dispatch.approval_requested`, `dispatch.approval_queue` | Open Dispatch Control with a verified staff account |
 | Delivery | `package_collected`, `package_delivered`, `delivery_failed`, `redelivery_scheduled` | Track, view receipt or review the relevant next step |
 | Payment | `payment_confirmed`, `additional_fee_request` | View payment details or review the approved charge |
-| Enquiries | `website_enquiry_received`, `website_enquiry_acknowledged` | Staff may open the enquiry workspace; the customer acknowledgement has no sign-in or payment button |
+| Enquiries | `website_enquiry_received`, `website_enquiry_acknowledged` | Staff receive a structured contact card and can reply to the validated customer address; the customer acknowledgement has no sign-in, tracking or payment button |
 | Controlled validation | `production_readiness_test` | No customer action |
 
-Unknown events fail closed as permanent template errors and are never submitted to Resend. Every new application email event must be added to this catalogue with its audience, badge, action wording and safety note before release. The queue does not invent a subject or default `/account` link.
+Unknown events fail closed as permanent template errors and are never submitted to Resend. Every new application email event must be added to this catalogue with its audience, subject, preview text, heading, body, details, action wording and safety note before release. Approved templates own all visible copy: arbitrary queued subjects, headings and bodies cannot leak into another purpose. The queue does not invent a subject or default `/account` link. Enquiry emails never contain a tracking/account CTA; the internal copy uses the validated customer email as Reply-To and rejects unsafe header values.
 
 Supabase Auth emails are intentionally separate from the application queue. Confirmation, recovery, staff invitation, magic-link, email-change and reauthentication templates each have their own purpose-specific heading, explanation, single-use action and security copy in `supabase/templates/`. Password, email and phone changes, identity linking/unlinking, and MFA enrollment/unenrollment use seven additional branded security-notification templates.
 

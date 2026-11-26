@@ -60,6 +60,24 @@ begin
   ) then
     raise exception 'website enquiry email was queued without a recipient';
   end if;
+  if exists(
+    select 1
+    from public.notifications notification
+    join validation_enquiry_ids enquiry on enquiry.id=(notification.metadata->>'enquiryId')::uuid
+    where notification.event_type like 'website_enquiry_%'
+      and notification.metadata ? 'actionPath'
+  ) then
+    raise exception 'website enquiry email was queued with an unrelated application action';
+  end if;
+  if (
+    select count(*)
+    from public.notifications notification
+    join validation_enquiry_ids enquiry on enquiry.id=(notification.metadata->>'enquiryId')::uuid
+    where notification.event_type='website_enquiry_received'
+      and notification.metadata ?& array['enquiryName','enquiryEmail','enquirySubject','enquiryMessage']
+  ) <> 2 then
+    raise exception 'internal website enquiries do not contain structured purpose metadata';
+  end if;
 end;
 $$;
 
