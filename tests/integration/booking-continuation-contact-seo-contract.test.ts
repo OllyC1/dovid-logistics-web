@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 const migration = readFileSync("supabase/migrations/20261125221900_booking_continuation_capacity_waiting_enquiries.sql", "utf8");
 const purposeMigration = readFileSync("supabase/migrations/20261126013929_purpose_locked_email_presentations.sql", "utf8");
 const quoteRoute = readFileSync("src/app/api/delivery/quotes/route.ts", "utf8");
+const dispatchReadiness = readFileSync("src/features/dispatch/readiness.ts", "utf8");
 const approvalRoute = readFileSync("src/app/api/admin/dispatch/requests/[id]/route.ts", "utf8");
 const booking = readFileSync("src/components/booking/booking-wizard.tsx", "utf8");
 const contact = readFileSync("src/app/contact/page.tsx", "utf8");
@@ -24,7 +25,9 @@ describe("booking continuation, contact and discoverability contracts", () => {
     expect(migration).toContain("vehicle_workload>=effective_capacity");
     expect(migration).toContain("rider_workload>=coalesce(rider_capacity,1)");
     expect(migration).toContain("greatest(coalesce(load.workload,0),coalesce(rider_load.workload,0))");
-    expect(quoteRoute).toContain("remainingDispatchSlots");
+    expect(quoteRoute).toContain("calculateDispatchCapacity");
+    expect(dispatchReadiness).toContain("remainingDispatchSlots");
+    expect(dispatchReadiness).toContain("capacity_verified_at");
   });
 
   it("starts waiting on arrival and keeps the resulting fee review-only", () => {

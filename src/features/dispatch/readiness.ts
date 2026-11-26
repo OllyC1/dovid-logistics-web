@@ -26,14 +26,12 @@ export type DispatchReadiness = {
   automaticCapacityAvailable: boolean;
 };
 
-export function assessDispatchReadiness(input: {
+export function calculateDispatchCapacity(input: {
   vehicles: ReadinessVehicle[];
   activeNamedRiderIds: string[];
   activeAssignments: ActiveAssignment[];
   riderParcelLimit: number;
-  handoverBufferMinutes: number | null;
-  safeCompletionBufferMinutes: number | null;
-}): DispatchReadiness {
+}) {
   const activeRiderIds = new Set(input.activeNamedRiderIds);
   const vehicleWorkload = new Map<string, number>();
   const riderWorkload = new Map<string, number>();
@@ -58,13 +56,26 @@ export function assessDispatchReadiness(input: {
     riderWorkload: vehicle.assigned_rider_id ? riderWorkload.get(vehicle.assigned_rider_id) ?? 0 : 0,
   }), 0);
 
+  return { readyMotorcycles: readyVehicles.length, availableParcelSlots };
+}
+
+export function assessDispatchReadiness(input: {
+  vehicles: ReadinessVehicle[];
+  activeNamedRiderIds: string[];
+  activeAssignments: ActiveAssignment[];
+  riderParcelLimit: number;
+  handoverBufferMinutes: number | null;
+  safeCompletionBufferMinutes: number | null;
+}): DispatchReadiness {
+  const capacity = calculateDispatchCapacity(input);
+
   return {
-    activeNamedRiders: activeRiderIds.size,
-    readyMotorcycles: readyVehicles.length,
+    activeNamedRiders: new Set(input.activeNamedRiderIds).size,
+    readyMotorcycles: capacity.readyMotorcycles,
     totalMotorcycles: input.vehicles.length,
-    availableParcelSlots,
+    availableParcelSlots: capacity.availableParcelSlots,
     riderParcelLimit: input.riderParcelLimit,
     scheduleBuffersConfigured: input.handoverBufferMinutes !== null && input.safeCompletionBufferMinutes !== null,
-    automaticCapacityAvailable: availableParcelSlots > 0,
+    automaticCapacityAvailable: capacity.availableParcelSlots > 0,
   };
 }

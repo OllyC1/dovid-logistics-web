@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assessDispatchReadiness } from "@/features/dispatch/readiness";
+import { assessDispatchReadiness, calculateDispatchCapacity } from "@/features/dispatch/readiness";
 
 const verifiedVehicle = {
   id: "vehicle-1",
@@ -12,6 +12,15 @@ const verifiedVehicle = {
 };
 
 describe("assessDispatchReadiness", () => {
+  it("never counts an unverified motorcycle for public or assisted booking capacity", () => {
+    expect(calculateDispatchCapacity({
+      vehicles: [{ ...verifiedVehicle, capacity_verified_at: null }],
+      activeNamedRiderIds: ["rider-1"],
+      activeAssignments: [],
+      riderParcelLimit: 10,
+    })).toEqual({ readyMotorcycles: 0, availableParcelSlots: 0 });
+  });
+
   it("does not treat placeholder fleet records as booking capacity", () => {
     const readiness = assessDispatchReadiness({
       vehicles: [{ ...verifiedVehicle, registration_number: "PENDING-BIKE-01", operational_status: "offline" }],

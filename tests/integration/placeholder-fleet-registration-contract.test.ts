@@ -6,6 +6,7 @@ const assignmentRoute = readFileSync("src/app/api/admin/dispatch/assign/route.ts
 const runRoute = readFileSync("src/app/api/admin/runs/route.ts", "utf8");
 const publicQuoteRoute = readFileSync("src/app/api/delivery/quotes/route.ts", "utf8");
 const assistedQuote = readFileSync("src/features/assisted-bookings/create-quote.ts", "utf8");
+const dispatchReadiness = readFileSync("src/features/dispatch/readiness.ts", "utf8");
 
 describe("placeholder fleet registration quarantine", () => {
   it("takes uncommitted placeholder motorcycles offline and records the change", () => {
@@ -22,7 +23,8 @@ describe("placeholder fleet registration quarantine", () => {
   });
 
   it("does not count a placeholder motorcycle as customer booking capacity", () => {
-    expect(publicQuoteRoute).toContain("isRealVehicleRegistration(vehicle.registration_number)");
-    expect(assistedQuote).toContain("isRealVehicleRegistration(vehicle.registration_number)");
+    expect(publicQuoteRoute).toContain("calculateDispatchCapacity");
+    expect(assistedQuote).toContain("calculateDispatchCapacity");
+    expect(dispatchReadiness).toContain("isRealVehicleRegistration(vehicle.registration_number)");
   });
 });

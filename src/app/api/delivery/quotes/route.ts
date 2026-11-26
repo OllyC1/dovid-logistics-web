@@ -1,8 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
 import { hashAssistedSecret } from "@/features/assisted-bookings/security";
-import { remainingDispatchSlots } from "@/features/dispatch/capacity";
-import { isRealVehicleRegistration } from "@/features/fleet/registration";
+import { calculateDispatchCapacity } from "@/features/dispatch/readiness";
 import { deliveryQuoteRequestSchema } from "@/features/pricing/quote-request";
 import { createQuoteFromContext, loadActivePricingContext, loadComparableCompetitorQuotes, loadPromotion } from "@/features/pricing/service";
 import { evaluateBookingEligibility, isWithinServiceHours } from "@/features/service-areas/eligibility";
@@ -157,24 +156,22 @@ export async function POST(request: NextRequest) {
     const [competitorQuotes, promotions, fleetResult, assignmentResult, riderMembershipResult, riderProfileResult] = await Promise.all([
       loadComparableCompetitorQuotes({ serviceAreaId: pickupZone.service_area_id, serviceLevel: parsed.data.serviceLevel, packageCategory: parsed.data.packageCategory, roadDistanceMeters: route.distanceMeters, config: context.config }),
       loadPromotion(parsed.data.promotionCode),
-      admin.from("fleet_vehicles").select("id,registration_number,assigned_rider_id,max_active_assignments,capacity_verified_at").in("operational_status", ["available", "assigned"]).eq("safety_status", "cleared"),
+      admin.from("fleet_vehicles").select("id,registration_number,operational_status,safety_status,assigned_rider_id,max_active_assignments,capacity_verified_at").in("operational_status", ["available", "assigned"]).eq("safety_status", "cleared"),
       admin.from("delivery_assignments").select("vehicle_id,rider_id").is("released_at", null),
       admin.from("staff_memberships").select("user_id").eq("staff_role", "rider").eq("status", "active"),
       admin.from("profiles").select("id").eq("role", "rider")
     ]);
     const result = createQuoteFromContext({ roadDistanceMeters: route.distanceMeters, serviceLevel: parsed.data.serviceLevel, paymentMethod: parsed.data.paymentMethod, additionalStops: parsed.data.additionalStops.length, oversized: parsed.data.oversized, promotions, competitorQuotes }, context);
-    const vehicleWorkload = new Map<string, number>();
-    const riderWorkload = new Map<string, number>();
-    const activeRiderIds = new Set((riderMembershipResult.data ?? []).map((membership) => membership.user_id));
     const riderProfileIds = new Set((riderProfileResult.data ?? []).map((profile) => profile.id));
-    for (const assignment of assignmentResult.data ?? []) {
-      vehicleWorkload.set(assignment.vehicle_id, (vehicleWorkload.get(assignment.vehicle_id) ?? 0) + 1);
-      riderWorkload.set(assignment.rider_id, (riderWorkload.get(assignment.rider_id) ?? 0) + 1);
-    }
-    const availableFleetSlots = (fleetResult.data ?? []).reduce((slots, vehicle) => {
-      if (!isRealVehicleRegistration(vehicle.registration_number) || !vehicle.assigned_rider_id || !vehicle.capacity_verified_at || !activeRiderIds.has(vehicle.assigned_rider_id) || !riderProfileIds.has(vehicle.assigned_rider_id)) return slots;
-      return slots + remainingDispatchSlots({ vehicleCapacity: vehicle.max_active_assignments, riderCapacity: settings.max_active_assignments_per_rider, vehicleWorkload: vehicleWorkload.get(vehicle.id) ?? 0, riderWorkload: riderWorkload.get(vehicle.assigned_rider_id) ?? 0 });
-    }, 0);
+    const activeNamedRiderIds = (riderMembershipResult.data ?? [])
+      .map((membership) => membership.user_id)
+      .filter((riderId) => riderProfileIds.has(riderId));
+    const availableFleetSlots = calculateDispatchCapacity({
+      vehicles: fleetResult.data ?? [],
+      activeNamedRiderIds,
+      activeAssignments: assignmentResult.data ?? [],
+      riderParcelLimit: settings.max_active_assignments_per_rider,
+    }).availableParcelSlots;
     const decision = evaluateBookingEligibility({
       pickupCovered: true,
       deliveryCovered: true,
