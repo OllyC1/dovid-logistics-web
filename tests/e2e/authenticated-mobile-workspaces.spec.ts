@@ -816,6 +816,9 @@ test("administrator registers a bike, assigns its rider and prepares a compliant
   const plateNumber = `TST ${viewportCode} ${fixtureRunCode}`;
   const bikeCode = `E2E-${viewportCode}-${fixtureRunCode}`;
   await page.goto("/admin/dispatch");
+  await expect(page.getByRole("heading", { name: "Automatic capacity is not ready" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Manage riders", exact: true })).toBeVisible();
+  await expectCurrentMobilePage(page, "dispatch readiness summary");
   const addBike = page.locator("details").filter({ hasText: "Add a motorcycle" });
   await addBike.locator("summary").click();
   await expectCurrentMobilePage(page, "expanded motorcycle registration");
@@ -846,6 +849,8 @@ test("administrator registers a bike, assigns its rider and prepares a compliant
   await bikeForm.getByLabel("Reason and verification evidence").fill("Controlled inspection and rider assignment completed");
   await bikeForm.getByRole("button", { name: "Save bike record" }).click();
   await expect(page.getByRole("status")).toContainText("Bike configuration updated and recorded");
+  await expect(page.getByRole("heading", { name: "Automatic capacity is available" })).toBeVisible();
+  await expectCurrentMobilePage(page, "dispatch capacity available");
 
   await page.goto("/admin/run-operations");
   const runCreator = page.locator("details").filter({ hasText: "Create a compliant delivery run" }).first();

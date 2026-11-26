@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ActionFeedback } from "@/components/ui/action-feedback";
 import { ReasonDialog } from "@/components/ui/reason-dialog";
+import type { DispatchReadiness } from "@/features/dispatch/readiness";
 import { isRealVehicleRegistration } from "@/features/fleet/registration";
 
 type Rider = { id: string; full_name: string | null };
@@ -17,7 +18,7 @@ const territoryOptions = [
   ["D", "South"], ["E", "West"], ["F", "Outskirts"],
 ] as const;
 
-export function DispatchConsole({ vehicles, riders, missingRiderNames, requests, orders }: { vehicles: Vehicle[]; riders: Rider[]; missingRiderNames: number; requests: Request[]; orders: Order[] }) {
+export function DispatchConsole({ vehicles, riders, missingRiderNames, requests, orders, readiness }: { vehicles: Vehicle[]; riders: Rider[]; missingRiderNames: number; requests: Request[]; orders: Order[]; readiness: DispatchReadiness }) {
   const router = useRouter();
   const addBikeForm = useRef<HTMLFormElement>(null);
   const [feedback, setFeedback] = useState<{ text: string; ok: boolean } | null>(null);
@@ -110,7 +111,28 @@ export function DispatchConsole({ vehicles, riders, missingRiderNames, requests,
   }
 
   return <div className="grid gap-8">
-    <section className="grid gap-4">
+    <section aria-labelledby="dispatch-readiness-heading" className={`rounded-3xl border p-4 shadow-sm sm:p-6 ${readiness.automaticCapacityAvailable ? "border-emerald-200 bg-emerald-50" : "border-amber-300 bg-amber-50"}`}>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="text-xs font-extrabold uppercase tracking-wide text-orange">Booking capacity</p>
+          <h2 id="dispatch-readiness-heading" className="mt-1 text-xl font-extrabold text-navy">{readiness.automaticCapacityAvailable ? "Automatic capacity is available" : "Automatic capacity is not ready"}</h2>
+        </div>
+        <span className={`w-fit rounded-full px-3 py-1 text-xs font-extrabold ${readiness.automaticCapacityAvailable ? "bg-emerald-700 text-white" : "bg-amber-900 text-white"}`}>{readiness.automaticCapacityAvailable ? "Ready" : "Action needed"}</span>
+      </div>
+      <p className="mt-3 max-w-3xl text-sm leading-6 text-slate">{readiness.automaticCapacityAvailable ? "Customers can pass the fleet-capacity check while a verified motorcycle still has room. Coverage, hours, parcel and profitability checks continue to apply." : "Customers cannot receive an automatic booking while no verified motorcycle and active rider have a free parcel slot. Requests may be held for review or shown as unavailable; no unsafe delivery obligation is created."}</p>
+      <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <article className="rounded-2xl bg-white p-3"><p className="text-xs font-bold text-slate">Ready motorcycles</p><p className="mt-1 text-2xl font-extrabold text-navy">{readiness.readyMotorcycles}<span className="text-sm text-slate"> / {readiness.totalMotorcycles}</span></p></article>
+        <article className="rounded-2xl bg-white p-3"><p className="text-xs font-bold text-slate">Named active riders</p><p className="mt-1 text-2xl font-extrabold text-navy">{readiness.activeNamedRiders}</p></article>
+        <article className="rounded-2xl bg-white p-3"><p className="text-xs font-bold text-slate">Free parcel slots</p><p className="mt-1 text-2xl font-extrabold text-navy">{readiness.availableParcelSlots}</p></article>
+        <article className="rounded-2xl bg-white p-3"><p className="text-xs font-bold text-slate">Rider parcel limit</p><p className="mt-1 text-2xl font-extrabold text-navy">{readiness.riderParcelLimit || "Not set"}</p></article>
+      </div>
+      <div className="mt-5 grid gap-2 text-sm leading-6 text-navy">
+        <p className="flex gap-2"><span aria-hidden="true">{readiness.readyMotorcycles > 0 ? "✓" : "○"}</span><span><strong>Motorcycle:</strong> real plate, measured capacity, safety clearance, active named rider and available/assigned status.</span></p>
+        <p className="flex gap-2"><span aria-hidden="true">{readiness.scheduleBuffersConfigured ? "✓" : "○"}</span><span><strong>Safe scheduling:</strong> {readiness.scheduleBuffersConfigured ? "handover and completion buffers are configured." : "set the handover and completion buffers in Coverage before assisted bookings can be confirmed automatically."}</span></p>
+      </div>
+      <div className="mt-5 grid gap-2 sm:flex sm:flex-wrap"><a href="#fleet-registry" className="inline-flex min-h-11 items-center justify-center rounded-xl bg-navy px-4 py-2 text-sm font-bold text-white">Review motorcycles</a><a href="/admin/team" className="inline-flex min-h-11 items-center justify-center rounded-xl border border-navy/20 bg-white px-4 py-2 text-sm font-bold text-navy">Manage riders</a><a href="/admin/coverage" className="inline-flex min-h-11 items-center justify-center rounded-xl border border-navy/20 bg-white px-4 py-2 text-sm font-bold text-navy">Set operating rules</a></div>
+    </section>
+    <section id="fleet-registry" className="grid scroll-mt-24 gap-4">
       <div>
         <h2 className="text-xl font-extrabold text-navy">Fleet registry</h2>
         <p className="mt-2 text-sm leading-6 text-slate">The plate number identifies the physical motorcycle. Every new bike starts offline and needs a separate safety and capacity review.</p>
