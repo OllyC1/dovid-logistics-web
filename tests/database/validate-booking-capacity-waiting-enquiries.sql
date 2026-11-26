@@ -16,20 +16,48 @@ begin
 end;
 $$;
 
-insert into public.support_requests(name,email,phone,subject,message,source)
-values('Support Tester','support@example.test','08000000000','Delivery help','Please help with a controlled delivery test.','website');
-insert into public.business_enquiries(name,email,subject,message,source)
-values('Business Tester','business@example.test','Merchant delivery','Please contact us about a controlled merchant test.','website');
+create temporary table validation_enquiry_ids (
+  id uuid primary key
+) on commit drop;
+
+with inserted as (
+  insert into public.support_requests(name,email,phone,subject,message,source)
+  values('Support Tester','support@example.test','08000000000','Delivery help','Please help with a controlled delivery test.','website')
+  returning id
+)
+insert into validation_enquiry_ids(id) select id from inserted;
+
+with inserted as (
+  insert into public.business_enquiries(name,email,subject,message,source)
+  values('Business Tester','business@example.test','Merchant delivery','Please contact us about a controlled merchant test.','website')
+  returning id
+)
+insert into validation_enquiry_ids(id) select id from inserted;
 
 do $$
 begin
-  if (select count(*) from public.notifications where customer_id is null and event_type='website_enquiry_received') <> 2 then
+  if (
+    select count(*)
+    from public.notifications notification
+    join validation_enquiry_ids enquiry on enquiry.id=(notification.metadata->>'enquiryId')::uuid
+    where notification.customer_id is null and notification.event_type='website_enquiry_received'
+  ) <> 2 then
     raise exception 'website enquiries did not queue exactly two internal emails';
   end if;
-  if (select count(*) from public.notifications where customer_id is null and event_type='website_enquiry_acknowledged') <> 2 then
+  if (
+    select count(*)
+    from public.notifications notification
+    join validation_enquiry_ids enquiry on enquiry.id=(notification.metadata->>'enquiryId')::uuid
+    where notification.customer_id is null and notification.event_type='website_enquiry_acknowledged'
+  ) <> 2 then
     raise exception 'website enquiries did not queue exactly two acknowledgements';
   end if;
-  if exists(select 1 from public.notifications where event_type like 'website_enquiry_%' and recipient_email is null) then
+  if exists(
+    select 1
+    from public.notifications notification
+    join validation_enquiry_ids enquiry on enquiry.id=(notification.metadata->>'enquiryId')::uuid
+    where notification.event_type like 'website_enquiry_%' and notification.recipient_email is null
+  ) then
     raise exception 'website enquiry email was queued without a recipient';
   end if;
 end;

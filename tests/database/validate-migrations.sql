@@ -87,7 +87,16 @@ begin
     and not relrowsecurity;
   if missing_rls is not null then raise exception 'RLS is disabled on application tables: %', missing_rls; end if;
 
-  if (select count(*) from public.profiles) <> 4 then
+  if (
+    select count(*)
+    from public.profiles
+    where id in (
+      '11111111-1111-1111-1111-111111111111',
+      '22222222-2222-2222-2222-222222222222',
+      '33333333-3333-3333-3333-333333333333',
+      '44444444-4444-4444-4444-444444444444'
+    )
+  ) <> 4 then
     raise exception 'signup trigger did not create every profile';
   end if;
   if (select role from public.profiles where id='22222222-2222-2222-2222-222222222222') <> 'customer' then

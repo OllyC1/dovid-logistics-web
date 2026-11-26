@@ -10,7 +10,7 @@ The founder has authorized public booking to be visible for controlled pre-launc
 - Guest booking without an account, optional booking email, manual route approval continuation, customer/staff role routing, Super Admin MFA, rider added-cost reporting, failed delivery/return, waiting-time handling, payment confirmation, public-page metadata and mobile overflow checks passed in the isolated acceptance environment at 375px and 390px.
 - A real queued application email to the founder-authorized test mailbox was accepted by Resend and confirmed delivered exactly once; signed status processing and event deduplication passed.
 
-This evidence does not make the service production-ready. The physical fleet, final coverage, recovery drill, hosted TEST payment matrix and final-device certification below remain launch gates.
+This evidence does not make the service production-ready. The physical fleet, final coverage, owner-held encrypted backup, hosted TEST payment matrix and final-device certification below remain launch gates.
 
 ## Verified release evidence â€” 26 November 2026
 
@@ -19,13 +19,14 @@ This evidence does not make the service production-ready. The physical fleet, fi
 - The isolated authenticated mobile matrix passed 18/18 Customer, Admin, Super Admin and Rider workflows. The public, guest-booking and payment UI group passed 56 applicable checks at the two priority widths.
 - Application email events remain purpose-locked and fail closed when no reviewed template exists. Six Auth flows and seven Auth security notifications now have separate branded templates.
 - Supabase accepted the reviewed Auth configuration while preserving the existing Resend SMTP settings. A real reauthentication email to an authorized disposable Gmail alias received a signed Resend `email.delivered` event, and the temporary test identity was removed.
+- A read-only Supabase logical export was restored into an isolated full Supabase stack. All 41 migrations, 12/12 clean database suites and 11/11 recovered-data workflow/security suites passed; 72 tables, 99 policies, six Auth users, three controlled orders, three TEST payment records and both audit histories matched the remote source exactly. The drill also proved that repository migrations must precede data restoration because managed `auth` schema objects are excluded from schema dumps. See `docs/database-recovery-drill-2026-11-26.md`.
 
 ## Non-negotiable release gates
 
 | Gate | Completion evidence |
 | --- | --- |
 | Supabase password security | Strong password policy and recent-authentication controls verified; leaked-password protection is deferred under the founder-approved Free-plan decision and is not a launch blocker |
-| Recoverability | Supabase recoverable backup or PITR enabled, recorded retention, named incident owner, and a successful restore drill into a separate project |
+| Recoverability | Technical logical-export and isolated full-stack restore drill passed; encrypted off-device owner-held storage, retention/RPO/RTO approval and the runbook-required non-production-project restore or explicit Free-plan exception remain |
 | Hosted role acceptance | Current release tested at 375px and 390px with disposable Customer, Admin, Rider and Super Admin accounts; no provisioner left enabled |
 | Paystack TEST | Current release tested for guest sender-pay, authenticated sender-pay, receiver-pay, waiting and redelivery charges, duplicate webhook replay, handover blocking and clearance, refunds and disputes |
 | Service coverage | Founder-approved road-accurate polygons with boundary source, road/address checks, overlap review, motorcycle restrictions and an explicit activation approval for one initial zone |
@@ -39,6 +40,8 @@ This evidence does not make the service production-ready. The physical fleet, fi
 No public booking or live payment may begin without a successful owner-held logical export and restore drill. Paid PITR is not required for this founder-approved Free-plan launch.
 
 The founder approved remaining on Supabase Free. Leaked-password protection and PITR are therefore intentionally deferred rather than launch blockers. Use owner-held database exports and tested restore procedures until a paid recovery plan is approved.
+
+The 26 November 2026 technical drill passed in an isolated full Supabase stack. It replayed all 41 migrations, restored Auth and application data, matched all recorded source invariants and passed the clean and recovered-data validation groups. The working export remains Git-ignored on the development machine; it is not yet the required encrypted off-device owner-held copy. Follow `docs/database-recovery-drill-2026-11-26.md` for the proved recovery order and outstanding owner actions.
 
 1. Record the approved Free-plan recovery model: a restricted logical backup export, encrypted owner-held storage, verified migration history and a restore drill into a separate project. Add PITR only if a paid plan is later approved.
 2. Record the exact backup/PITR retention period, responsible owner, escalation contact and approved recovery-point and recovery-time objectives in the launch approval record. Do not infer these values.
@@ -102,6 +105,6 @@ The remaining actions require provider-plan changes, real-world approval, contro
 - field validation and final founder confirmation of the attributed active service polygons;
 - real fleet registrations, measurements, safety checks and rider verification; the current remote placeholder motorcycles remain offline/unassigned and intentionally provide no dispatch capacity;
 - approved commercial operating configuration;
-- a tested owner-held Free-plan database export and completed restore drill (PITR is deferred by founder approval);
+- encrypted off-device owner-held storage for the verified logical export, recorded retention/RPO/RTO ownership, and either the runbook-required non-production-project restore or an explicit approval to use the completed isolated full-stack drill as the Free-plan recovery environment;
 - final-domain Paystack acceptance; real final-domain Resend application-email delivery, Google Maps JavaScript, Places and representative Routes passed on 25 November 2026;
 - final-domain accessibility, Core Web Vitals and low-end-device certification.
