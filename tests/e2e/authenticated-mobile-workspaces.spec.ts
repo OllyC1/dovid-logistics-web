@@ -985,6 +985,11 @@ test("Super Admin completes MFA and controls promotions and immutable rate-card 
   test.setTimeout(240_000);
   await authenticateSuperAdmin(page);
   await expect(page.getByRole("heading", { name: "Super Admin Dashboard" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Not ready for real deliveries" })).toBeVisible();
+  await expect(page.getByText("0 free slots")).toBeVisible();
+  await expect(page.getByText(/Physical checks and founder approval must still be completed outside the software/)).toBeVisible();
+  await expect(page.getByRole("link", { name: "Prepare motorcycles" })).toBeVisible();
+  await expectCurrentMobilePage(page, "Super Admin launch readiness");
 
   await expectMobilePage(page, "/admin/team");
   const invitePanel = page.locator("details").filter({ hasText: "Invite a team member" }).first();
